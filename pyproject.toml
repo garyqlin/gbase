@@ -13,14 +13,15 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 
-[project.dependencies]
-httpx = ">=0.28.1"
-pyyaml = ">=6.0.3"
-beautifulsoup4 = ">=4.14.3"
-aiohttp = ">=3.13.3"
-openai = ">=2.24.0"
-openpyxl = ">=3.1.5"
-python-pptx = ">=1.0.2"
+dependencies = [
+    "httpx>=0.28.1",
+    "pyyaml>=6.0.3",
+    "beautifulsoup4>=4.14.3",
+    "aiohttp>=3.13.3",
+    "openai>=2.24.0",
+    "openpyxl>=3.1.5",
+    "python-pptx>=1.0.2",
+]
 
 [project.optional-dependencies]
 server = ["uvicorn>=0.34.0"]

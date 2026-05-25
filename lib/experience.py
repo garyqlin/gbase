@@ -12,7 +12,7 @@ v2.1 — 增加去重逻辑：同一规则在 DEDUP_WINDOW 内不重复记录。
 import json
 import logging
 
-from . import storage as store_module
+from . import storage as store_module  # type: ignore[import]
 
 logger = logging.getLogger(__name__)
 

@@ -21,12 +21,10 @@ import os
 import subprocess
 from datetime import datetime
 
-from lib.backup import list_backups, restore_backup
-
 # ── 配置 ───────────────────────────────────────────
-
-import os
 from pathlib import Path
+
+from lib.backup import list_backups, restore_backup
 
 ENGINE_DIR = os.getenv("GBASE_EVOLUTION_DIR") or str(Path(__file__).resolve().parent.parent / ".evolution")
 EVAL_LOG_PATH = os.path.join(ENGINE_DIR, "evaluations.jsonl")

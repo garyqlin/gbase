@@ -21,10 +21,7 @@ if _env_roots:
     ALLOWED_ROOTS = [r.strip() for r in _env_roots.split(":") if r.strip()]
 else:
     ALLOWED_ROOTS = [
-        os.path.expanduser("~/opprime/opprime-core-v2"),
-        os.path.expanduser("~/opprime"),
-        # Removed hardcoded cloud path for release
-        "/var/spool/cron/crontabs",  # Allow writing system crontab (not available on macOS)
+        os.path.expanduser("~/"),
     ]
 
 

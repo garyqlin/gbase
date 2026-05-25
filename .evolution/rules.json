@@ -1,0 +1,48 @@
+{
+  "triggers": {
+    "paths": [
+      "/main.py",
+      "/lib/",
+      "/tools/",
+      "/skills/",
+      "/config/",
+      "/systemd/"
+    ],
+    "size_change_ratio": 0.1,
+    "min_line_change": 5
+  },
+  "evaluation": {
+    "stability": {
+      "enabled": true,
+      "check_services": [
+        "opprime.service"
+      ],
+      "max_restart_attempts": 3,
+      "startup_timeout_sec": 15
+    },
+    "performance": {
+      "enabled": true,
+      "max_response_time_ms": 5000,
+      "memory_increase_threshold_mb": 100
+    },
+    "security": {
+      "enabled": true,
+      "forbidden_patterns": [
+        "os.system(",
+        "subprocess.call(",
+        "eval(",
+        "__import__("
+      ],
+      "forbidden_imports": [
+        "socket",
+        "requests",
+        "urllib"
+      ]
+    }
+  },
+  "rollback": {
+    "auto_rollback": true,
+    "max_rollback_depth": 5,
+    "diagnose_after_rollback": true
+  }
+}

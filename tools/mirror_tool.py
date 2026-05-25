@@ -17,6 +17,12 @@ _MIRROR_PATH = os.environ.get(
 )
 
 
+def set_mirror_instance(m: Mirror) -> None:
+    """Set the global mirror instance (called from main.py at startup)."""
+    global _MIRROR_INSTANCE
+    _MIRROR_INSTANCE = m
+
+
 def _get_mirror() -> Mirror:
     global _MIRROR_INSTANCE
     if _MIRROR_INSTANCE is None:

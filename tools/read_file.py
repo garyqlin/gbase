@@ -9,6 +9,16 @@ import os
 
 from lib.toolkit import tool
 
+# Allowed root directories for reading
+# Prefer environment variable for cross-env deployment without code changes
+_env_roots = os.environ.get("GBASE_ALLOWED_ROOTS")
+if _env_roots:
+    ALLOWED_ROOTS = [r.strip() for r in _env_roots.split(":") if r.strip()]
+else:
+    ALLOWED_ROOTS = [
+        os.path.expanduser("~/"),
+    ]
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,6 +37,16 @@ async def read_file(filepath: str, offset: int = 0, max_chars: int = 0) -> dict:
     try:
         expanded = os.path.expanduser(filepath)
         abs_path = os.path.abspath(expanded)
+
+        # Path scope check (same as write_file)
+        allowed = False
+        for root in ALLOWED_ROOTS:
+            resolved_root = os.path.abspath(os.path.expanduser(root))
+            if abs_path.startswith(resolved_root + "/") or abs_path == resolved_root:
+                allowed = True
+                break
+        if not allowed:
+            return {"error": f"Read rejected: path {abs_path} is not in allowed scope"}
 
         if not os.path.exists(abs_path):
             return {"error": f"File not found: {filepath}", "path": abs_path}

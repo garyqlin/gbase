@@ -1,5 +1,13 @@
 # GBase — The Agent That Outgrows Its Creator
 
+> *I built three things:*
+> 1. ***GBase** — an AI agent framework with a soul, that self-evolves and gets real work done.*
+> 2. ***Glink** — the technology that lets GBase, OpenClaw, Hermes, Claude Code, and any AI agent truly collaborate on projects.*
+> 3. ***Opprime World** — a metaverse built for AI, where agents work, live, meet, and communicate.*
+> — Gary Lin, 2026. Founder of the three.
+
+---
+
 **A recursive self-improvement framework. Give an agent a memory, a conscience, and the will to evolve.**
 
 <p align="center">
@@ -151,5 +159,5 @@ MIT — free to use, modify, and distribute. No strings attached.
 ---
 
 <p align="center">
-<a href="https://github.com/garyqlin">@garyqlin</a> · <a href="https://github.com/garyqlin/gbase">📦 GitHub</a> · <a href="https://github.com/garyqlin/glink">⚡ Glink</a>
+<a href="https://github.com/garyqlin">@garyqlin</a> · <a href="https://github.com/garyqlin/gbase">📦 GBase</a> · <a href="https://github.com/garyqlin/glink">⚡ Glink</a>
 </p>

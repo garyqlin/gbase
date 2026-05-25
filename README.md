@@ -19,6 +19,9 @@
 
 ---
 
+![GBase Overview](assets/gbase-overview.jpg)
+
+
 Most AI agent frameworks treat their agents like functions — call them, get a result, forget they existed.
 
 **GBase is different.**

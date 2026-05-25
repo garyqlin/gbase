@@ -1,0 +1,42 @@
+[project]
+name = "gbase"
+version = "0.1.0"
+description = "Universal AI Agent framework with identity separation, tool auto-registration, and multi-agent orchestration"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = ["ai", "agent", "framework", "workflow", "orchestration"]
+authors = [{ name = "Gary Lin" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "ARG", "PIE"]
+ignore = [
+    "E501",
+    "E402",
+    "SIM115",
+    "PLR0913",
+    "PLR0911",
+    "PLR0912",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.isort]
+profile = "black"
+line_length = 120

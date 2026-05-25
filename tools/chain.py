@@ -31,10 +31,10 @@ async def store_proof(data: str, category: str = "opprime_decision", description
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(f"{ORANGE_URL}/proof/store", json=payload)
             result = resp.json()
-            logger.info("存证结果: %s", result)
+            logger.info("Proof stored: %s", result)
             return result
     except Exception as e:
-        logger.error("存证失败: %s", e)
+        logger.error("Proof storage failed: %s", e)
         return {"success": False, "error": str(e)[:200], "hash": data_hash}
 
 

@@ -17,20 +17,20 @@ from lib.toolkit import tool
 logger = logging.getLogger(__name__)
 SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-api-mock-server/scripts")
 
-# 跟踪已启动的 mock server 进程
+# Track active mock server processes
 _active_mock_servers: dict[int, dict] = {}
 
 
 @tool()
 async def start_mock_server(description: str, port: int = 4000) -> dict:
-    """启动本地 Mock API 服务器，后端开发前可独立工作。
+    """Start a local Mock API server for independent work before backend development.
 
     Args:
-        description: API 描述，如 "GET /api/users, POST /api/users, GET /api/users/1, DELETE /api/users/1"
-        port: 端口号（默认4000）
+        description: API description, e.g. "GET /api/users, POST /api/users, GET /api/users/1, DELETE /api/users/1"
+        port: Port number (default 4000)
 
     Returns:
-        服务器进程信息和状态
+        Server process information and status
     """
     cmd = [
         sys.executable or "python3",
@@ -49,15 +49,15 @@ async def start_mock_server(description: str, port: int = 4000) -> dict:
             stderr=asyncio.subprocess.PIPE,
         )
 
-        # 等待启动确认（2秒）
+        # Wait for startup confirmation (2 seconds)
         await asyncio.sleep(2)
 
-        # 检查是否正在运行
+        # Check if still running
         if proc.returncode is not None:
             stdout, stderr = await proc.communicate()
             return {
                 "success": False,
-                "error": "服务器启动失败",
+                "error": "Server failed to start",
                 "output": stdout.decode()[:1000],
                 "errors": stderr.decode()[:500],
             }
@@ -83,13 +83,13 @@ async def start_mock_server(description: str, port: int = 4000) -> dict:
 
 @tool()
 async def stop_mock_server(port: int = 4000) -> dict:
-    """停止正在运行的 Mock API 服务器。
+    """Stop the running Mock API server.
 
     Args:
-        port: 要停止的服务端口（默认4000）
+        port: Port of the service to stop (default 4000)
 
     Returns:
-        停止结果
+        Stop result
     """
     server = _active_mock_servers.pop(port, None)
     if server:

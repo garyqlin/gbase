@@ -20,10 +20,10 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-security-scanner/scripts")
 
 @tool()
 async def security_scan_directory(directory: str, output: str = "") -> dict:
-    """扫描指定目录的安全漏洞（密钥泄露、依赖CVE、代码模式）。
+    """Scan a directory for security vulnerabilities (secrets, dependency CVEs, code patterns).
 
     Args:
-        directory: 要扫描的Directory path
+        directory: Directory path to scan
         output: Report output path (optional, auto-generates)
 
     Returns:

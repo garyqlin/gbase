@@ -2,12 +2,12 @@
 """
 opprime-core-v2/lib/scheduler.py v2.0 — Cron-like task scheduler
 
-修改说明（2026-05-19）：
-1. action="custom" + action="send" + action="learn" 三种类型。
-   - "custom": 把 message 内容作为 LLM 任务发给 Kernel 处理（静默执行，不通知主人）
+Changelog (2026-05-19):
+1. Three action types: action="custom", action="send", and action="learn".
+   - "custom": send message content as LLM task to Kernel for processing (silent execution, no notification to owner)
    - "send": deliver notification to configured channel
-   - "learn": 调用 learn_all_topics()（原有逻辑）
-2. 心跳保护：每 5 秒写入 /tmp/opprime_heartbeat，供外部 stat 检测进程存活
+   - "learn": call learn_all_topics() (original logic)
+2. Heartbeat protection: writes to /tmp/opprime_heartbeat every 5s for external stat to detect process liveness
 """
 
 import asyncio
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = os.environ.get("OPPRIME_CRON_DB", "data/cron.db")
 HEARTBEAT_PATH = "/tmp/opprime_heartbeat"
 
-# ── Schedule 解析 ────────────────────────────────────────
+# ── Schedule Parsing ────────────────────────────────────────
 
 
 def _parse_schedule(schedule: str) -> dict:
@@ -43,7 +43,7 @@ def _parse_schedule(schedule: str) -> dict:
         return {"type": "cron", "expr": s[5:].strip()}
     elif s.startswith("at:"):
         return {"type": "at", "at": s[3:].strip()}
-    raise ValueError(f"不支持的 schedule 格式: {schedule}")
+    raise ValueError(f"Unsupported schedule format: {schedule}")
 
 
 def _next_run(schedule: dict) -> float | None:
@@ -53,7 +53,7 @@ def _next_run(schedule: dict) -> float | None:
             dt = datetime.fromisoformat(schedule["at"])
             ts = dt.timestamp()
         except Exception:
-            logger.error("解析 at 时间失败: %s", schedule["at"])
+            logger.error("Failed to parse at time: %s", schedule["at"])
             return None
         if ts <= now:
             return None
@@ -141,18 +141,18 @@ _MIGRATIONS = [
 
 
 class CronScheduler:
-    """定时任务调度器 — 支持三种 action 类型。
+    """Cron task scheduler — supports three action types.
 
     - "send": deliver notification to owner
-    - "learn": 调用 AutoLearner.learn_all_topics()
-    - "custom": 把 message 作为 LLM 任务提交给 Kernel 处理
+    - "learn": call AutoLearner.learn_all_topics()
+    - "custom": submit message as LLM task to Kernel for processing
     """
 
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
         self._sender = None  # async def send_text(open_id, text)
-        self._learner = None  # AutoLearner 实例
-        self._kernel = None  # OpprimeKernel 实例（供 custom action 使用）
+        self._learner = None  # AutoLearner instance
+        self._kernel = None  # OpprimeKernel instance (for custom action)
         self._learning = False
         self._running = False
         self._task: asyncio.Task | None = None
@@ -182,7 +182,7 @@ class CronScheduler:
                 except (ValueError, IndexError):
                     continue
                 if col_name not in cols:
-                    logger.info("数据库迁移: %s", migration_sql[:60])
+                    logger.info("Database migration: %s", migration_sql[:60])
                     try:
                         conn.execute(migration_sql)
                         conn.commit()
@@ -197,20 +197,20 @@ class CronScheduler:
 
     def set_learner(self, learner):
         self._learner = learner
-        logger.info("定时调度器已绑定自主学习引擎")
+        logger.info("Scheduler bound to AutoLearner engine")
 
     def set_kernel(self, kernel):
-        """设置 Kernel 实例，供 action='custom' 使用。
+        """Set Kernel instance for action='custom'.
 
-        custom action 会把 message 内容作为 LLM 消息提交给 kernel 处理，
+        Custom action will submit message content as LLM message to kernel for processing.
         Silent execution (no notification)."""
         self._kernel = kernel
-        logger.info("定时调度器已绑定 Kernel 引擎")
+        logger.info("Scheduler bound to Kernel engine")
 
     def add_job(self, schedule: dict, message: str, owner_id: str = "", action: str = "send") -> dict:
         next_ts = _next_run(schedule)
         if next_ts is None:
-            return {"error": "已过期或无法计算下次执行时间"}
+            return {"error": "Expired or unable to calculate next run time"}
         is_rec = 1 if schedule["type"] != "at" else 0
         conn = sqlite3.connect(self.db_path)
         try:
@@ -220,8 +220,8 @@ class CronScheduler:
             )
             conn.commit()
             job_id = cur.lastrowid
-            logger.info("定时任务已创建: id=%d action=%s", job_id, action)
-            return {"result": f"定时任务已创建 (id={job_id})", "id": job_id, "action": action, "next_run": next_ts}
+            logger.info("Cron job created: id=%d action=%s", job_id, action)
+            return {"result": f"Cron job created (id={job_id})", "id": job_id, "action": action, "next_run": next_ts}
         finally:
             conn.close()
 
@@ -256,8 +256,8 @@ class CronScheduler:
             cur = conn.execute("DELETE FROM cron_jobs WHERE id = ?", [job_id])
             conn.commit()
             if cur.rowcount > 0:
-                return {"result": f"定时任务 {job_id} 已删除"}
-            return {"error": f"未找到 id={job_id} 的定时任务"}
+                return {"result": f"Cron job {job_id} deleted"}
+            return {"error": f"Cron job id={job_id} not found"}
         finally:
             conn.close()
 
@@ -270,20 +270,20 @@ class CronScheduler:
             )
             conn.commit()
             if cur.rowcount > 0:
-                status = "已启用" if enabled else "已暂停"
-                return {"result": f"定时任务 {job_id} {status}"}
-            return {"error": f"未找到 id={job_id} 的定时任务"}
+                status = "enabled" if enabled else "paused"
+                return {"result": f"Cron job {job_id} {status}"}
+            return {"error": f"Cron job id={job_id} not found"}
         finally:
             conn.close()
 
-    # ── 轮询循环 ──
+    # ── Polling Loop ──
 
     async def run(self):
         if not self._sender:
-            raise RuntimeError("定时调度器未设置投递函数（需调用 set_sender）")
+            raise RuntimeError("Scheduler sender not set (call set_sender first)")
 
         self._running = True
-        logger.info("定时调度器已启动 (每 10 秒轮询)")
+        logger.info("Scheduler started (polling every 10s)")
 
         tick_count = 0
 
@@ -291,17 +291,17 @@ class CronScheduler:
             try:
                 await self._tick()
                 tick_count += 1
-                if tick_count % 1 == 0:  # 每轮都写心跳（约 10 秒一次，够用）
+                if tick_count % 1 == 0:  # Write heartbeat every tick (~10s, sufficient)
                     try:
                         with open(HEARTBEAT_PATH, "w") as f:
                             f.write(str(time.time()))
                     except Exception:
                         pass
             except Exception as e:
-                logger.error("调度器轮询异常: %s", e)
+                logger.error("Scheduler polling exception: %s", e)
             await asyncio.sleep(10)
 
-        logger.info("定时调度器已停止")
+        logger.info("Scheduler stopped")
 
     async def _tick(self):
         now = time.time()
@@ -335,9 +335,9 @@ class CronScheduler:
             if schedule.get("type") == "cron" and not _cron_match(schedule.get("expr", ""), now_dt):
                 continue
 
-            logger.info("定时任务触发: id=%d action=%s message=%s", job_id, action, message[:60])
+            logger.info("Cron job triggered: id=%d action=%s message=%s", job_id, action, message[:60])
 
-            # 先更新 next_run（防止重复触发）
+            # Update next_run first (prevent duplicate trigger)
             if is_rec:
                 sch = schedule.copy()
                 next_ts = _next_run(sch)
@@ -349,7 +349,7 @@ class CronScheduler:
                     finally:
                         conn2.close()
 
-            # 按 action 分发
+            # Dispatch by action type
             if action == "custom":
                 await self._dispatch_custom(job_id, message, owner_id)
             elif action == "learn":
@@ -370,38 +370,38 @@ class CronScheduler:
             try:
                 await self._sender(owner_id, message)
             except Exception as e:
-                logger.error("定时任务 %d 投递失败: %s", job_id, e)
+                logger.error("Cron job %d delivery failed: %s", job_id, e)
 
     async def _dispatch_learn(self, job_id: int):
         if self._learning:
-            logger.warning("上一次学习还在进行中，跳过本次触发 (job=%d)", job_id)
+            logger.warning("Previous learning still in progress, skipping this trigger (job=%d)", job_id)
             return
         if not self._learner:
-            logger.error("定时任务 %d action=learn 但未设置 AutoLearner", job_id)
+            logger.error("Cron job %d action=learn but AutoLearner not set", job_id)
             return
         self._learning = True
         try:
-            logger.info("🫀 自主学习启动 (job=%d)", job_id)
+            logger.info("🫀 Auto-learning started (job=%d)", job_id)
             results = await self._learner.learn_all_topics()
             total_saved = sum(r.get("saved", 0) for r in results)
-            logger.info("🫀 自主学习完成 (job=%d): %d方向, 沉淀%d", job_id, len(results), total_saved)
+            logger.info("🫀 Auto-learning complete (job=%d): %d topics, %d saved", job_id, len(results), total_saved)
         except Exception as e:
-            logger.error("自主学习异常 (job=%d): %s", job_id, e)
+            logger.error("Auto-learning exception (job=%d): %s", job_id, e)
         finally:
             self._learning = False
 
     async def _dispatch_custom(self, job_id: int, message: str, _owner_id: str):  # noqa: ARG002
-        """把 message 内容作为 LLM 任务提交给 kernel 处理。
+        """Submit message content as LLM task to kernel for processing.
 
-        自动合成一条 user 消息，静默执行，不通知主人。
-        如果 kernel 出错，写日志但不打断调度循环。
+        Auto-compose a user message, silent execution, no notification to owner.
+        If kernel errors out, log it but don't break the scheduling loop.
         """
         if not self._kernel:
-            logger.error("定时任务 %d action=custom 但未设置 Kernel", job_id)
+            logger.error("Cron job %d action=custom but Kernel not set", job_id)
             return
 
         try:
-            # 合成一条带时间戳的任务消息，让 kernel 处理时知道是定时触发
+            # Compose a task message with timestamp so kernel knows it's a scheduled trigger
 
             # Build minimal context: system prompt + task message
             # No notification, no session, fully isolated
@@ -413,7 +413,7 @@ class CronScheduler:
 
             logger.info("custom task complete (job=%d): output %d chars", job_id, len(str(result) if result else ""))
         except Exception as e:
-            logger.error("custom 任务异常 (job=%d): %s", job_id, e)
+            logger.error("Custom task exception (job=%d): %s", job_id, e)
 
     def stop(self):
         self._running = False

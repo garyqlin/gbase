@@ -4,10 +4,10 @@ opprime-core-v2/tools/knowledge.py
 
 Knowledge distillation tool — LLM decides what to remember.
 
-remember_fact: 存一条不变的事实到 knowledge
-search_knowledge: 全文搜索已有 knowledge
-search_knowledge_batch: 批量搜索
-export_knowledge_md: 导出全部知识为 Markdown（人类可读）
+remember_fact: Store a permanent fact into knowledge
+search_knowledge: Full-text search existing knowledge
+search_knowledge_batch: Batch search
+export_knowledge_md: Export all knowledge as Markdown (human-readable)
 """
 
 import json
@@ -21,54 +21,54 @@ logger = logging.getLogger(__name__)
 
 @tool()
 async def remember_fact(fact: str, category: str = "general", tags: str = "", update_id: int = None) -> dict:
-    """记得一条事实——你自己判断这是值得长期记住的、不会过时的信息。
+    """Remember a fact — you decide whether this is timeless information worth keeping.
 
-    什么时候该用：
-    - 用户告诉你他的个人/家庭信息（名字、关系、住址等）
-    - 你查到了系统的永久配置（域名、端口、路径映射、API 地址等）
-    - 用户用了一条你之前不知道的命令/工具/习惯用法
-    - 你发现了某个组件/服务的固定工作方式
-    - 需要更新一条已有事实时，传 update_id
+    When to use:
+    - User tells you their personal/family info (name, relationship, address, etc.)
+    - You discover permanent system config (domain, port, path mapping, API address, etc.)
+    - User uses a command/tool/idiom you didn't know before
+    - You discover a fixed working pattern of a component/service
+    - To update an existing record, pass update_id
 
-    什么时候不该用：
-    - 有时效性的信息（天气、股价、新闻、事件时间表）
-    - 一次性的对话内容
-    - 当前进程的资源状态（PID、内存占用等）
+    When NOT to use:
+    - Time-sensitive info (weather, stock prices, news, event schedules)
+    - One-off conversation content
+    - Current process resource state (PID, memory usage, etc.)
 
     Args:
-        fact: 要记住的事实描述，一句话，清晰完整。
-        category: 分类。可选值：user / system / workflow / tool / general
-        tags: 逗号分隔的标签，方便搜索。例如 "nginx,port,config"
-        update_id: 如果要更新已有记录，传该记录的 id。
-                   旧事实会自动存入 history 时间线，不可删除。
+        fact: The fact description to remember, one clear and complete sentence.
+        category: Classification. Options: user / system / workflow / tool / general
+        tags: Comma-separated tags for easy search. e.g. "nginx,port,config"
+        update_id: If updating an existing record, pass its id.
+                   Old fact is auto-appended to history timeline, never deleted.
     """
     storage = get_global("storage")
     if not storage:
-        return {"error": "存储引擎未初始化"}
+        return {"error": "Storage engine not initialized"}
 
     now = time.time()
 
-    # ── 更新模式：已有记录追加 history ──
+    # ── Update mode: append history to existing record ──
     if update_id is not None:
         with storage._lock:
             if storage._conn is None:
-                return {"error": "存储引擎未初始化（无连接）"}
+                return {"error": "Storage engine not initialized (no connection)"}
 
-            # 读取旧记录
+            # Read old record
             cursor = storage._conn.execute(
                 "SELECT id, content, summary FROM entries WHERE id=? AND type='knowledge'",
                 (update_id,),
             )
             row = cursor.fetchone()
             if not row:
-                return {"error": f"记录 #{update_id} 不存在或不是 knowledge 类型"}
+                return {"error": f"Record #{update_id} does not exist or is not a knowledge type"}
 
             old_content = json.loads(row[1]) if isinstance(row[1], str) else row[1]
             old_fact = old_content.get("fact", "")
             old_category = old_content.get("category", "")
             old_tags = old_content.get("tags", "")
 
-            # 构建 history 条目（只追加，不删除）
+            # Build history entry (append only, no deletion)
             history_entry = {
                 "fact": old_fact,
                 "category": old_category,
@@ -78,7 +78,7 @@ async def remember_fact(fact: str, category: str = "general", tags: str = "", up
             history = old_content.get("history", [])
             history.append(history_entry)
 
-            # 构建新 content
+            # Build new content
             new_content = {
                 "fact": fact,
                 "category": category,
@@ -89,7 +89,7 @@ async def remember_fact(fact: str, category: str = "general", tags: str = "", up
             new_content_json = json.dumps(new_content, ensure_ascii=False)
             new_summary = f"{category}: {fact[:80]}"
 
-            # 更新 SQLite
+            # Update SQLite
             storage._conn.execute(
                 "UPDATE entries SET content=?, summary=?, created_at=? WHERE id=?",
                 (new_content_json, new_summary, now, update_id),
@@ -97,17 +97,17 @@ async def remember_fact(fact: str, category: str = "general", tags: str = "", up
             storage._conn.commit()
 
             logger.info(
-                "事实已更新: #%d | %s → %s (history: %d 版本)", update_id, old_fact[:40], fact[:40], len(history)
+                "Fact updated: #%d | %s → %s (history: %d versions)", update_id, old_fact[:40], fact[:40], len(history)
             )
 
             return {
-                "result": f"已更新 #{update_id}（保留了 {len(history)} 条历史版本）",
+                "result": f"Updated #{update_id} (preserved {len(history)} historical versions)",
                 "id": update_id,
                 "history_count": len(history),
                 "updated": True,
             }
 
-    # ── 新建模式 ──
+    # ── New entry mode ──
     entry = {
         "fact": fact,
         "category": category,
@@ -122,11 +122,11 @@ async def remember_fact(fact: str, category: str = "general", tags: str = "", up
         confidence="high",
     )
     if not row_id:
-        return {"error": "写入失败"}
+        return {"error": "Write failed"}
 
-    logger.info("事实已记住: [%s] %s", category, fact[:80])
+    logger.info("Fact remembered: [%s] %s", category, fact[:80])
 
-    # --- 同步写入鉴面（失败不影响主流程）---
+    # --- Sync to mirror (failure does not affect main flow) ---
     try:
         from tools.mirror_tool import get_mirror_instance
 
@@ -134,28 +134,29 @@ async def remember_fact(fact: str, category: str = "general", tags: str = "", up
         if m:
             m.record(content=fact[:200], mtype="insight", tags=["knowledge", category], source="knowledge:remember")
     except Exception:
-        logger.warning("事实已存但鉴面同步失败: %s", fact[:50], exc_info=True)
+        logger.warning("Fact stored but mirror sync failed: %s", fact[:50], exc_info=True)
 
     return {
-        "result": f"记住了 (#{row_id})",
+        "result": f"Remembered (#{row_id})",
         "id": row_id,
         "updated": False,
     }
 
 
-# ── FTS5 搜索词自动拆分 ──
+# ── FTS5 search token auto-split ──
 
 import re as _re
 
 
 def _tokenize_for_fts(query: str) -> str:
-    """把查询拆成 FTS5 友好的搜索词。
+    """Split query into FTS5-friendly search tokens.
 
-    FTS5 unicode61 tokenizer 对单字符中文可能无结果，
-    所以策略：中文用 * 前缀搜索，英文也用 * 前缀。
+    FTS5 unicode61 tokenizer may return no results for single Chinese characters,
+    so strategy: use * prefix search for Chinese, also * prefix for English.
 
-    示例:
-        "人类窗口 human" → "人* OR 类* OR 窗* OR 口* OR 人类窗口* OR human*"
+    Example (Chinese demo — shows how CJK characters are tokenized):
+        Input:  "人类窗口 human"
+        Output: "人* OR 类* OR 窗* OR 口* OR 人类窗口* OR human*"
     """
     parts = _re.findall(r"[a-zA-Z0-9_\-]+|[\u4e00-\u9fff]+", query)
     tokens = []
@@ -175,24 +176,24 @@ def _tokenize_for_fts(query: str) -> str:
 
 @tool()
 async def search_knowledge(query: str, limit: int = 5) -> dict:
-    """搜索已有的知识记忆。
+    """Search existing knowledge memories.
 
-    当你需要回忆之前记住的事实、配置、用户信息时调用。
-    支持全文检索（FTS5），中文会自动拆分。
+    Call when you need to recall previously remembered facts, configs, or user info.
+    Supports full-text search (FTS5). Chinese is auto-tokenized.
 
     Args:
-        query: 搜索关键词，例如 "nginx"、"羽非"、"端口"
-        limit: 最多返回几条（默认 5，最大 20）
+        query: Search keyword, e.g. "nginx", "yufei", "port"
+        limit: Max results to return (default 5, max 20)
     """
     storage = get_global("storage")
     if not storage:
-        return {"error": "存储引擎未初始化"}
+        return {"error": "Storage engine not initialized"}
 
     limit = min(limit, 20)
     results = []
 
     fts_query = _tokenize_for_fts(query)
-    logger.info("知识搜索: query=%s → fts=%s", query, fts_query)
+    logger.info("Knowledge search: query=%s → fts=%s", query, fts_query)
 
     try:
         sql_fts = (
@@ -212,11 +213,11 @@ async def search_knowledge(query: str, limit: int = 5) -> dict:
             try:
                 rows = conn.execute(sql_fts, [fts_query, limit]).fetchall()
                 if not rows:
-                    logger.info("FTS 无结果，回退 LIKE 搜索")
+                    logger.info("FTS no results, falling back to LIKE search")
                     rows = conn.execute(sql_like, [f"%{query}%", f"%{query}%", limit]).fetchall()
                 return rows
             except Exception:
-                logger.warning("FTS 异常，回退 LIKE")
+                logger.warning("FTS exception, falling back to LIKE")
                 return conn.execute(sql_like, [f"%{query}%", f"%{query}%", limit]).fetchall()
 
         if storage._conn is not None:
@@ -250,42 +251,43 @@ async def search_knowledge(query: str, limit: int = 5) -> dict:
             if hasattr(storage, "record_hit"):
                 storage.record_hit(r[0])
     except Exception as e:
-        return {"error": f"搜索失败: {e}"}
+        return {"error": f"Search failed: {e}"}
 
     if not results:
-        return {"result": "没有找到相关记忆。", "total": 0}
+        return {"result": "No relevant memories found.", "total": 0}
 
     lines = []
     for r in results:
         hc = r.get("history_count", 0)
-        hc_str = f" [历史:{hc}版]" if hc > 0 else ""
+        hc_str = f" [history:{hc}v]" if hc > 0 else ""
         lines.append(f"#{r['id']} [{r['category']}]{hc_str} {r['fact'][:100]}")
         if r["tags"]:
-            lines.append(f"   标签: {r['tags']}")
+            lines.append(f"   Tags: {r['tags']}")
         dt_diff = int(time.time() - r["created_at"])
         if dt_diff < 60:
-            ago = f"{dt_diff}秒前"
+            ago = f"{dt_diff}s ago"
         elif dt_diff < 3600:
-            ago = f"{dt_diff // 60}分钟前"
+            ago = f"{dt_diff // 60}m ago"
         elif dt_diff < 86400:
-            ago = f"{dt_diff // 3600}小时前"
+            ago = f"{dt_diff // 3600}h ago"
         else:
-            ago = f"{dt_diff // 86400}天前"
-        lines.append(f"   引用 {r['hits']} 次 | {ago}")
-    return {"result": "找到的知识：\n" + "\n".join(lines), "total": len(results), "items": results}
+            ago = f"{dt_diff // 86400}d ago"
+        lines.append(f"   Cited {r['hits']} times | {ago}")
+    return {"result": "Knowledge found:\n" + "\n".join(lines), "total": len(results), "items": results}
 
 
 @tool()
 async def search_knowledge_batch(queries: str, limit: int = 3) -> dict:
-    """批量搜索知识记忆。当你需要查找多个方向的信息时，用这个代替多次调用 search_knowledge。
+    """Batch search knowledge memories. Use this instead of multiple search_knowledge calls
+    when you need to look up multiple topics at once.
 
     Args:
-        queries: 逗号分隔的搜索关键词，例如 "nginx,羽非,端口配置,家庭"
-        limit: 每个关键词最多返回几条（默认 3，最大 5）
+        queries: Comma-separated search keywords, e.g. "nginx,yufei,port config,family"
+        limit: Max results per keyword (default 3, max 5)
     """
     qlist = [q.strip() for q in queries.split(",") if q.strip()]
     if not qlist:
-        return {"result": "没有搜索关键词。", "total": 0}
+        return {"result": "No search keywords.", "total": 0}
 
     limit = min(limit, 5)
     combined = {}
@@ -301,31 +303,31 @@ async def search_knowledge_batch(queries: str, limit: int = 3) -> dict:
                     seen_ids.add(item_id)
                     combined[item_id] = item
         except Exception as e:
-            logger.warning("批量搜索关键词 '%s' 失败: %s", q, e)
+            logger.warning("Batch search keyword '%s' failed: %s", q, e)
 
     all_items = list(combined.values())
 
     if not all_items:
-        return {"result": "没有找到相关记忆。", "total": 0, "items": []}
+        return {"result": "No relevant memories found.", "total": 0, "items": []}
 
     lines = []
     for r in all_items:
         hc = r.get("history_count", 0)
-        hc_str = f" [历史:{hc}版]" if hc > 0 else ""
+        hc_str = f" [history:{hc}v]" if hc > 0 else ""
         lines.append(f"#{r['id']} [{r.get('category', '?')}]{hc_str} {r.get('fact', '')[:80]}")
         dt_diff = int(time.time() - r.get("created_at", 0))
         if dt_diff < 60:
-            ago = f"{dt_diff}秒前"
+            ago = f"{dt_diff}s ago"
         elif dt_diff < 3600:
-            ago = f"{dt_diff // 60}分钟前"
+            ago = f"{dt_diff // 60}m ago"
         elif dt_diff < 86400:
-            ago = f"{dt_diff // 3600}小时前"
+            ago = f"{dt_diff // 3600}h ago"
         else:
-            ago = f"{dt_diff // 86400}天前"
-        lines.append(f"   引用 {r.get('hits', 0)} 次 | {ago}")
+            ago = f"{dt_diff // 86400}d ago"
+        lines.append(f"   Cited {r.get('hits', 0)} times | {ago}")
 
     return {
-        "result": f"从 {len(qlist)} 个搜索词中找到 {len(all_items)} 条知识：\n" + "\n".join(lines),
+        "result": f"Found {len(all_items)} results from {len(qlist)} search terms:\n" + "\n".join(lines),
         "total": len(all_items),
         "items": all_items,
         "searched": len(qlist),
@@ -334,24 +336,24 @@ async def search_knowledge_batch(queries: str, limit: int = 3) -> dict:
 
 @tool()
 async def export_knowledge_md() -> dict:
-    """导出全部 knowledge 为 Markdown 文件。
+    """Export all knowledge as a Markdown file.
 
-    输出路径：data/knowledge.md
-    按 category 分组，包含 Timeline 历史版本。
+    Output path: data/knowledge.md
+    Grouped by category, includes Timeline historical versions.
 
-    用途：
-    - 人类可读的知识库备份
-    - 可以提交到 Git 做版本管理
-    - 可以作为其他 AI 工具的上下文输入
+    Use cases:
+    - Human-readable knowledge base backup
+    - Can be committed to Git for version control
+    - Can be used as context input for other AI tools
     """
     storage = get_global("storage")
     if not storage:
-        return {"error": "存储引擎未初始化"}
+        return {"error": "Storage engine not initialized"}
 
-    # 读取所有 knowledge 记录（不受 _MAX_RECORDS 限制 — 直接从 SQLite 读）
+    # Read all knowledge records (bypass _MAX_RECORDS — read directly from SQLite)
     with storage._lock:
         if storage._conn is None:
-            return {"error": "存储引擎未初始化（无连接）"}
+            return {"error": "Storage engine not initialized (no connection)"}
 
         cursor = storage._conn.execute(
             "SELECT id, content, summary, created_at, hits, confidence "
@@ -360,9 +362,9 @@ async def export_knowledge_md() -> dict:
         rows = cursor.fetchall()
 
     if not rows:
-        return {"result": "知识库为空，无需导出。"}
+        return {"result": "Knowledge base is empty, nothing to export."}
 
-    # 按 category 分组
+    # Group by category
     from collections import defaultdict
 
     groups = defaultdict(list)
@@ -382,48 +384,48 @@ async def export_knowledge_md() -> dict:
             }
         )
 
-    # 生成 Markdown
+    # Generate Markdown
     import datetime
 
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = [
-        "# Opprime 知识库",
+        "# Opprime Knowledge Base",
         "",
-        f"> 导出时间：{now_str}",
-        f"> 总条数：{len(rows)}",
-        f"> 分类数：{len(groups)}",
+        f"> Export time: {now_str}",
+        f"> Total entries: {len(rows)}",
+        f"> Categories: {len(groups)}",
         "",
         "---",
         "",
     ]
 
-    # 按 category 英文名排序，但 system/user 排前面
+    # Sort by category English name, but system/user first
     cat_order = ["system", "user", "workflow", "tool", "general"]
     sorted_cats = sorted(groups.keys(), key=lambda c: (cat_order.index(c) if c in cat_order else 99, c))
 
     for cat in sorted_cats:
         items = groups[cat]
-        lines.append(f"## {cat}（{len(items)} 条）")
+        lines.append(f"## {cat} ({len(items)} entries)")
         lines.append("")
         for item in items:
             dt = datetime.datetime.fromtimestamp(item["created_at"])
             dt_str = dt.strftime("%Y-%m-%d %H:%M")
             history_count = len(item["history"])
-            hc_str = f" 📜{history_count}版历史" if history_count > 0 else ""
+            hc_str = f" 📜{history_count} versions" if history_count > 0 else ""
 
             lines.append(f"### #{item['id']} — {item['fact'][:80]}{hc_str}")
-            lines.append(f"- **标签**: {item['tags'] or '（无）'}")
-            lines.append(f"- **确信度**: {item['confidence']}")
-            lines.append(f"- **引用**: {item['hits']} 次")
-            lines.append(f"- **创建**: {dt_str}")
+            lines.append(f"- **Tags**: {item['tags'] or '(none)'}")
+            lines.append(f"- **Confidence**: {item['confidence']}")
+            lines.append(f"- **Citations**: {item['hits']} times")
+            lines.append(f"- **Created**: {dt_str}")
 
             if item["history"]:
                 lines.append("")
                 lines.append("<details>")
-                lines.append(f"<summary>📜 历史版本（{history_count} 条）</summary>")
+                lines.append(f"<summary>📜 Historical versions ({history_count})</summary>")
                 lines.append("")
-                lines.append("| # | 旧事实 | 分类 | 更新时间 |")
-                lines.append("|---|--------|------|----------|")
+                lines.append("| # | Old fact | Category | Updated |")
+                lines.append("|---|----------|----------|---------|")
                 for hi, hv in enumerate(item["history"], 1):
                     hdt = datetime.datetime.fromtimestamp(hv["updated_at"]).strftime("%Y-%m-%d %H:%M")
                     old_fact_short = hv["fact"][:60]
@@ -435,7 +437,7 @@ async def export_knowledge_md() -> dict:
 
     md_content = "\n".join(lines)
 
-    # 写入文件（用 write_file 会在 core 里触发备份，这里直接写）
+    # Write file (use direct write instead of write_file to avoid backup overhead in core)
     import os
     from pathlib import Path
 
@@ -445,10 +447,10 @@ async def export_knowledge_md() -> dict:
         f.write(md_content)
 
     file_size = out_path.stat().st_size
-    logger.info("知识库已导出: %s (%d bytes, %d 条)", out_path, file_size, len(rows))
+    logger.info("Knowledge base exported: %s (%d bytes, %d entries)", out_path, file_size, len(rows))
 
     return {
-        "result": "知识库已导出 → data/knowledge.md",
+        "result": "Knowledge base exported → data/knowledge.md",
         "path": str(out_path),
         "size_bytes": file_size,
         "total": len(rows),

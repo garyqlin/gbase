@@ -12,21 +12,21 @@ logger = logging.getLogger(__name__)
 
 
 @tool()
-async def gen_xlsx(title: str = "表格", sheets: list = None, output_path: str = "") -> dict:
+async def gen_xlsx(title: str = "Spreadsheet", sheets: list = None, output_path: str = "") -> dict:
     """
-    生成 Excel (.xlsx) 文件。
+    Generate Excel (.xlsx) file.
 
     Args:
-        title: 文件名（不含路径）
-        sheets: 工作表列表，每项为 {"name": "Sheet1", "headers": ["列1","列2"], "rows": [["a","b"]]}
-                支持 formula: {"type": "formula", "value": "=SUM(A1:A10)"}
-        output_path: 输出路径，为空则自动生成
+        title: File name (without path)
+        sheets: List of worksheets, each as {"name": "Sheet1", "headers": ["Col1","Col2"], "rows": [["a","b"]]}
+                Supports formula: {"type": "formula", "value": "=SUM(A1:A10)"}
+        output_path: Output path, auto-generated if empty
 
     Returns:
         {"path": "...", "size": 12345}
     """
     if not sheets:
-        sheets = [{"name": "Sheet1", "headers": ["A"], "rows": [["示例"]]}]
+        sheets = [{"name": "Sheet1", "headers": ["A"], "rows": [["Example"]]}]
 
     if not output_path:
         output_path = os.path.expanduser(f"~/Downloads/{title}.xlsx")
@@ -73,7 +73,7 @@ for si, sdata in enumerate(sheets):
                 cell.value = val
             cell.border = thin_border
 
-    # 列宽自适应
+    # Auto-fit column widths
     for col in range(1, max(len(headers), 1) + 1):
         max_len = len(str(headers[col-1])) if headers else 10
         for row in ws.iter_rows(min_col=col, max_col=col, values_only=True):
@@ -94,4 +94,4 @@ print("OK:" + {json.dumps(output_path)})
     if os.path.isfile(output_path):
         size = os.path.getsize(output_path)
         return {"path": output_path, "size": size, "sheets": len(sheets)}
-    return {"error": "文件未生成"}
+    return {"error": "File not generated"}

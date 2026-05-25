@@ -2,34 +2,35 @@
 # SPDX-License-Identifier: MIT
 """
 ╔═══════════════════════════════════════════════════════════╗
-║  GraphBit — DAG deterministic orchestration engine                             ║
-║  arxiv: 2605.13848                                        ║
-║                                                           ║
-║  解决 Prompt 驱动编排的三个死穴:                             ║
-║    1. 幻影路由 → 工作流定义为有向无环图(DAG)，引擎驱动      ║
-║    2. 无限循环  → DAG 拓扑保证无环 + 最大深度限制           ║
-║    3. 不可复现 → 确定性状态机，同输入必同输出               ║
-║                                                           ║
-║  三层记忆隔离:                                              ║
-║    L1 临时暂存 (transient)    = 当前步骤的临时变量          ║
-║    L2 结构化状态 (structured) = DAG 上下文，步骤间传递      ║
-║    L3 外部连接器 (external)   = 数据库/API/文件系统         ║
-║                                                           ║
-║  架构:                                                      ║
-║    ┌────────────┐   ┌──────────┐   ┌───────────────┐     ║
-║    │ DAG 定义    │ → │ 状态机    │ → │ Agent 类型函数 │     ║
-║    │ (YAML/JSON) │   │ (路由+校验)│   │ (typed funcs) │     ║
-║    └────────────┘   └──────────┘   └───────────────┘     ║
-║                                                           ║
-║  用法:                                                      ║
-║    from lib.dag_engine import DAGEngine, DAGWorkflow      ║
-║    engine = DAGEngine()                                    ║
-║    wf = engine.load("patrol")                              ║
-║    result = engine.execute(wf, context={})                 ║
+║  GraphBit — DAG deterministic orchestration engine      ║
+║  arxiv: 2605.13848                                      ║
+║                                                         ║
+║  Solving three fatal flaws of prompt-driven orchestration: ║
+║    1. Phantom routing  → DAG-defined workflow, engine-driven ║
+║    2. Infinite loops   → DAG topology guarantees acyclic + max depth ║
+║    3. Non-reproducible → Deterministic state machine, same input = same output ║
+║                                                         ║
+║  Three-layer memory isolation:                          ║
+║    L1 Transient    = temporary variables within the current step ║
+║    L2 Structured   = DAG context, passed between steps  ║
+║    L3 External     = database / API / filesystem        ║
+║                                                         ║
+║  Architecture:                                          ║
+║    ┌────────────┐   ┌──────────┐   ┌───────────────┐   ║
+║    │ DAG Def     │ → │ State    │ → │ Agent Funcs   │   ║
+║    │ (YAML/JSON) │   │ (route+validate) │ (typed funcs) │ ║
+║    └────────────┘   └──────────┘   └───────────────┘   ║
+║                                                         ║
+║  Usage:                                                 ║
+║    from lib.dag_engine import DAGEngine, DAGWorkflow    ║
+║    engine = DAGEngine()                                 ║
+║    wf = engine.load("patrol")                           ║
+║    result = engine.execute(wf, context={})              ║
 ╚═══════════════════════════════════════════════════════════╝
 """
 
 import json
+import os
 import time
 from collections import deque
 from collections.abc import Callable
@@ -40,11 +41,11 @@ from typing import Any
 
 import yaml
 
-# === 配置 ===
-DAG_DIR = Path("/home/opprime-v2/data/dag-workflows")
-MAX_DEPTH = 50  # 最大 DAG 深度
-MAX_STEP_TIMEOUT = 300  # 单步超时（秒）
-MAX_RETRY = 2  # 单步最大重试
+# === Configuration ===
+DAG_DIR = Path(os.getenv("GBASE_DAG_DIR", "./data/dag-workflows"))
+MAX_DEPTH = 50  # Maximum DAG depth
+MAX_STEP_TIMEOUT = 300  # Single step timeout (seconds)
+MAX_RETRY = 2  # Maximum retries per step
 
 
 class StepStatus(Enum):
@@ -65,46 +66,46 @@ class WorkflowStatus(Enum):
 
 @dataclass
 class DAGStep:
-    """DAG 中的一个步骤节点。"""
+    """A single step node in the DAG."""
 
-    id: str  # 唯一标识
-    name: str  # 人类可读名称
-    agent: str  # 执行的 Agent 类型函数
-    inputs: dict[str, str] = field(default_factory=dict)  # 输入映射: {参数名: 来源路径}
-    outputs: list[str] = field(default_factory=list)  # 输出列表
-    depends_on: list[str] = field(default_factory=list)  # 前置步骤 ID
-    condition: str | None = None  # 条件表达式（可选）
-    retry: int = 0  # 重试次数
-    timeout: int = 60  # 超时（秒）
+    id: str  # Unique identifier
+    name: str  # Human-readable name
+    agent: str  # Agent function to execute
+    inputs: dict[str, str] = field(default_factory=dict)  # Input mapping: {param_name: source_path}
+    outputs: list[str] = field(default_factory=list)  # Output list
+    depends_on: list[str] = field(default_factory=list)  # Prerequisite step IDs
+    condition: str | None = None  # Conditional expression (optional)
+    retry: int = 0  # Retry count
+    timeout: int = 60  # Timeout (seconds)
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class DAGWorkflow:
-    """一个完整的 DAG 工作流定义。"""
+    """A complete DAG workflow definition."""
 
     name: str
     version: str = "1.0"
     description: str = ""
     steps: list[DAGStep] = field(default_factory=list)
-    start_step: str = ""  # 入口步骤 ID
-    safety_checks: list[str] = field(default_factory=list)  # 安全检查列表
+    start_step: str = ""  # Entry step ID
+    safety_checks: list[str] = field(default_factory=list)  # Safety check list
     max_depth: int = MAX_DEPTH
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class ThreeLayerMemory:
-    """三层记忆隔离。
+    """Three-layer memory isolation.
 
-    L1 — 临时暂存:   当前步骤内的临时变量，步骤结束后清空
-    L2 — 结构化状态:  DAG 上下文，步骤间传递，工作流结束后清空
-    L3 — 外部连接器:  持久化存储/API，跨工作流保持
+    L1 — Transient:   temporary variables within the current step, cleared after step ends
+    L2 — Structured:  DAG context, passed between steps, cleared after workflow ends
+    L3 — External:    persistent storage / API, maintained across workflows
     """
 
     def __init__(self, external_connectors: dict[str, Any] = None):
-        self.l1_transient: dict[str, Any] = {}  # 临时暂存
-        self.l2_structured: dict[str, Any] = {}  # 结构化状态
-        self.l3_external: dict[str, Any] = external_connectors or {}  # 外部连接器
+        self.l1_transient: dict[str, Any] = {}  # Transient scratchpad
+        self.l2_structured: dict[str, Any] = {}  # Structured state
+        self.l3_external: dict[str, Any] = external_connectors or {}  # External connectors
 
     def set_l1(self, key: str, value: Any):
         self.l1_transient[key] = value
@@ -131,7 +132,7 @@ class ThreeLayerMemory:
         self.l3_external[key] = value
 
     def resolve(self, source_path: str) -> Any:
-        """解析来源路径: l1.xxx / l2.xxx / l3.xxx / input.xxx"""
+        """Resolve source path: l1.xxx / l2.xxx / l3.xxx / input.xxx"""
         if source_path.startswith("l1."):
             return self.get_l1(source_path[3:])
         elif source_path.startswith("l2."):
@@ -140,45 +141,45 @@ class ThreeLayerMemory:
             return self.get_l3(source_path[3:])
         elif source_path.startswith("input."):
             return self.get_l2(source_path[6:])
-        return source_path  # 字面量
+        return source_path  # literal
 
 
 class DAGEngine:
-    """DAG 确定性编排引擎。
+    """DAG deterministic orchestration engine.
 
-    核心设计:
-      - 拓扑排序保证无环执行
-      - 状态机驱动路由（非 LLM）
-      - 三层记忆隔离防止上下文污染
-      - 安全检查钩子可复用宪法/元规则层
+    Core design:
+      - Topological sort guarantees acyclic execution
+      - State-machine-driven routing (not LLM)
+      - Three-layer memory isolation prevents context pollution
+      - Safety check hooks reusable with constitution / meta-rules layer
     """
 
     def __init__(self):
         DAG_DIR.mkdir(parents=True, exist_ok=True)
 
-        # Agent 类型函数注册表
+        # Agent function registry
         self._agent_registry: dict[str, Callable] = {}
 
-        # 安全检查钩子（由 Gbase 宪法层注入）
+        # Safety check hooks (injected by Gbase constitution layer)
         self._safety_hooks: dict[str, Callable] = {}
 
-        # 执行历史
+        # Execution history
         self._execution_history: list[dict] = []
 
-    # ─── Agent 注册 ──────────────────────────────────────
+    # --- Agent Registration ---
 
     def register_agent(self, name: str, func: Callable):
-        """注册 Agent 类型函数。"""
+        """Register an Agent function."""
         self._agent_registry[name] = func
 
     def register_safety_hook(self, name: str, func: Callable):
-        """注册安全检查钩子。"""
+        """Register a safety check hook."""
         self._safety_hooks[name] = func
 
-    # ─── 工作流加载 ──────────────────────────────────────
+    # --- Workflow Loading ---
 
     def load(self, name: str) -> DAGWorkflow | None:
-        """从 YAML 加载工作流定义。"""
+        """Load workflow definition from YAML."""
         wf_path = DAG_DIR / f"{name}.yaml"
         if not wf_path.exists():
             return None
@@ -189,18 +190,18 @@ class DAGEngine:
         return self._parse_workflow(data)
 
     def load_raw(self, data: dict) -> DAGWorkflow:
-        """从 Dict 直接加载工作流。"""
+        """Load workflow directly from a dict."""
         return self._parse_workflow(data)
 
     def save(self, workflow: DAGWorkflow):
-        """保存工作流到 YAML。"""
+        """Save workflow to YAML."""
         wf_path = DAG_DIR / f"{workflow.name}.yaml"
         data = self._serialize_workflow(workflow)
         with open(wf_path, "w") as f:
             yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
 
     def _parse_workflow(self, data: dict) -> DAGWorkflow:
-        """解析工作流定义。"""
+        """Parse workflow definition."""
         steps = []
         for step_data in data.get("steps", []):
             steps.append(
@@ -230,7 +231,7 @@ class DAGEngine:
         )
 
     def _serialize_workflow(self, wf: DAGWorkflow) -> dict:
-        """序列化工作流。"""
+        """Serialize workflow."""
         return {
             "name": wf.name,
             "version": wf.version,
@@ -256,48 +257,48 @@ class DAGEngine:
             ],
         }
 
-    # ─── 拓扑排序与验证 ─────────────────────────────────
+    # --- Topological Sort & Validation ---
 
     def validate(self, workflow: DAGWorkflow) -> tuple[bool, list[str]]:
-        """验证 DAG 的合法性。
+        """Validate DAG correctness.
 
-        检查:
-          1. 无环（拓扑排序成功）
-          2. 所有 depends_on 引用的步骤存在
-          3. 所有 agent 已注册
-          4. 深度不超限
+        Checks:
+          1. Acyclic (topological sort succeeds)
+          2. All depends_on references exist
+          3. All agents are registered
+          4. Depth within limits
         """
         errors = []
 
-        # 步骤索引
+        # Step index
         step_ids = {s.id for s in workflow.steps}
         if workflow.start_step and workflow.start_step not in step_ids:
-            errors.append(f"入口步骤 '{workflow.start_step}' 不存在")
+            errors.append(f"Entry step '{workflow.start_step}' not found")
         if not workflow.start_step and workflow.steps:
             workflow.start_step = workflow.steps[0].id
 
-        # 检查前置引用
+        # Check prerequisite references
         for step in workflow.steps:
             for dep in step.depends_on:
                 if dep not in step_ids:
-                    errors.append(f"步骤 '{step.id}' 引用了不存在的依赖 '{dep}'")
+                    errors.append(f"Step '{step.id}' references non-existent dependency '{dep}'")
 
             if step.agent not in self._agent_registry:
-                errors.append(f"步骤 '{step.id}' 的 agent '{step.agent}' 未注册")
+                errors.append(f"Agent '{step.agent}' for step '{step.id}' is not registered")
 
-        # 拓扑排序（检测环）
+        # Topological sort (cycle detection)
         sorted_ids, has_cycle = self._topological_sort(workflow)
         if has_cycle:
-            errors.append("DAG 中存在环，无法执行")
+            errors.append("Cycle detected in DAG, cannot execute")
 
-        # 深度检查
+        # Depth check
         if len(sorted_ids) > workflow.max_depth:
-            errors.append(f"步骤数 {len(sorted_ids)} 超过最大深度 {workflow.max_depth}")
+            errors.append(f"Step count {len(sorted_ids)} exceeds max depth {workflow.max_depth}")
 
         return len(errors) == 0, errors
 
     def _topological_sort(self, workflow: DAGWorkflow) -> tuple[list[str], bool]:
-        """拓扑排序，返回 (排序后的步骤ID列表, 是否有环)。"""
+        """Topological sort, returns (sorted step IDs, has_cycle)."""
         adj: dict[str, list[str]] = {s.id: [] for s in workflow.steps}
         in_degree: dict[str, int] = {s.id: 0 for s in workflow.steps}
 
@@ -322,70 +323,70 @@ class DAGEngine:
         has_cycle = len(sorted_ids) != len(workflow.steps)
         return sorted_ids, has_cycle
 
-    # ─── 执行引擎 ───────────────────────────────────────
+    # --- Execution Engine ---
 
     def execute(
         self, workflow: DAGWorkflow, initial_context: dict[str, Any] = None, external_connectors: dict[str, Any] = None
     ) -> dict[str, Any]:
-        """执行 DAG 工作流。
+        """Execute a DAG workflow.
 
         Args:
-            workflow: 工作流定义
-            initial_context: 初始上下文（注入 L2）
-            external_connectors: 外部连接器（注入 L3）
+            workflow: Workflow definition
+            initial_context: Initial context (injected into L2)
+            external_connectors: External connectors (injected into L3)
 
         Returns:
             {status, steps: {step_id: {status, output, error, duration}},
-             context: L2 最终状态, stats: {...}}
+             context: L2 final state, stats: {...}}
         """
-        # 验证
+        # Validate
         valid, errors = self.validate(workflow)
         if not valid:
             return {
                 "status": WorkflowStatus.FAILED.value,
-                "error": f"DAG 验证失败: {'; '.join(errors)}",
+                "error": f"DAG validation failed: {'; '.join(errors)}",
                 "steps": {},
                 "context": {},
                 "stats": {},
             }
 
-        # 初始化三层记忆
+        # Initialize three-layer memory
         memory = ThreeLayerMemory(external_connectors or {})
         if initial_context:
             for k, v in initial_context.items():
                 memory.set_l2(k, v)
 
-        # 拓扑排序
+        # Topological sort
         sorted_ids, _ = self._topological_sort(workflow)
         step_map = {s.id: s for s in workflow.steps}
 
-        # 状态跟踪
+        # State tracking
         step_results: dict[str, dict] = {}
         completed_count = 0
         failed_count = 0
         skipped_count = 0
         start_time = time.time()
 
-        # 安全检查
+        # Safety checks
         for check_name in workflow.safety_checks:
             if check_name in self._safety_hooks:
                 result = self._safety_hooks[check_name](workflow, memory)
                 if result is False:
                     return {
                         "status": WorkflowStatus.FAILED.value,
-                        "error": f"安全检查 '{check_name}' 未通过",
+                        "error": f"Safety check '{check_name}' failed",
                         "steps": step_results,
                         "context": memory.l2_structured,
                         "stats": {},
                     }
 
-        # 按拓扑序执行
+        # Execute in topological order
         for step_id in sorted_ids:
             step = step_map.get(step_id)
             if not step:
                 continue
 
-            # 检查前置依赖是否全部完成
+            # Check if all prerequisites completed
             deps_failed = False
             for dep_id in step.depends_on:
                 if dep_id in step_results:
@@ -397,7 +398,7 @@ class DAGEngine:
             if deps_failed:
                 step_results[step_id] = {
                     "status": StepStatus.SKIPPED.value,
-                    "reason": "前置步骤失败",
+                    "reason": "Prerequisite step failed",
                     "output": None,
                     "error": None,
                     "duration_ms": 0,
@@ -405,11 +406,11 @@ class DAGEngine:
                 skipped_count += 1
                 continue
 
-            # 条件检查
+            # Condition check
             if step.condition and not self._evaluate_condition(step.condition, memory):
                 step_results[step_id] = {
                     "status": StepStatus.SKIPPED.value,
-                    "reason": f"条件不满足: {step.condition}",
+                    "reason": f"Condition not met: {step.condition}",
                     "output": None,
                     "error": None,
                     "duration_ms": 0,
@@ -417,12 +418,12 @@ class DAGEngine:
                 skipped_count += 1
                 continue
 
-            # 解析输入
+            # Resolve inputs
             resolved_inputs = {}
             for param, source_path in step.inputs.items():
                 resolved_inputs[param] = memory.resolve(source_path)
 
-            # 执行步骤（带重试）
+            # Execute step (with retry)
             step_result = None
             last_error = None
             for _attempt in range(step.retry + 1):
@@ -430,15 +431,15 @@ class DAGEngine:
                 if step_result["status"] == StepStatus.COMPLETED.value:
                     break
                 last_error = step_result.get("error")
-                memory.clear_l1()  # 重试前清 L1
+                memory.clear_l1()  # Clear L1 before retry
 
             if step_result["status"] == StepStatus.COMPLETED.value:
                 completed_count += 1
-                # 将输出写入 L2
+                # Write outputs to L2
                 for output_key in step.outputs:
                     if output_key in step_result["output"]:
                         memory.set_l2(f"{step_id}.{output_key}", step_result["output"][output_key])
-                # 也写入一个聚合键
+                # Also write an aggregated key
                 memory.set_l2(f"{step_id}._result", step_result["output"])
             else:
                 failed_count += 1
@@ -448,7 +449,7 @@ class DAGEngine:
 
         total_duration = (time.time() - start_time) * 1000
 
-        # 确定整体状态
+        # Determine overall status
         if failed_count == 0:
             overall_status = WorkflowStatus.COMPLETED
         elif completed_count == 0:
@@ -456,7 +457,7 @@ class DAGEngine:
         else:
             overall_status = WorkflowStatus.PARTIAL
 
-        # 记录执行历史
+        # Record execution history
         self._execution_history.append(
             {
                 "workflow": workflow.name,
@@ -470,13 +471,13 @@ class DAGEngine:
             }
         )
 
-        # 保留最近 100 条
+        # Keep last 100 entries
         if len(self._execution_history) > 100:
             self._execution_history = self._execution_history[-100:]
 
         return {
             "status": overall_status.value,
-            "error": None if failed_count == 0 else f"{failed_count} 个步骤失败",
+            "error": None if failed_count == 0 else f"{failed_count} step(s) failed",
             "steps": step_results,
             "context": memory.l2_structured,
             "stats": {
@@ -489,13 +490,13 @@ class DAGEngine:
         }
 
     def _execute_step(self, step: DAGStep, inputs: dict[str, Any], memory: ThreeLayerMemory) -> dict[str, Any]:
-        """执行单个步骤。"""
+        """Execute a single step."""
         agent_func = self._agent_registry.get(step.agent)
         if not agent_func:
             return {
                 "status": StepStatus.FAILED.value,
                 "output": None,
-                "error": f"Agent '{step.agent}' 未注册",
+                "error": f"Agent '{step.agent}' is not registered",
                 "duration_ms": 0,
             }
 
@@ -503,7 +504,7 @@ class DAGEngine:
         t0 = time.time()
 
         try:
-            # 调用 Agent 函数: agent(inputs, memory)
+            # Call Agent function: agent(inputs, memory)
             result = agent_func(inputs, memory)
             duration = (time.time() - t0) * 1000
 
@@ -523,12 +524,12 @@ class DAGEngine:
             }
 
     def _evaluate_condition(self, condition: str, memory: ThreeLayerMemory) -> bool:
-        """评估条件表达式。
+        """Evaluate a conditional expression.
 
-        支持: l2.xxx == 'value' / l2.xxx >= 1 等简单表达式。
+        Supports: l2.xxx == 'value' / l2.xxx >= 1 etc.
         """
         try:
-            # 替换变量引用
+            # Replace variable references
             import re
 
             expr = condition
@@ -541,19 +542,19 @@ class DAGEngine:
                     value = "None"
                 expr = expr.replace(ref, str(value), 1)
 
-            # 安全评估（仅允许比较和逻辑运算）
+            # Safe evaluation (only comparison and logical ops allowed)
             return bool(eval(expr, {"__builtins__": {}}, {}))
         except Exception:
-            return True  # 条件无法评估时默认通过（不阻塞）
+            return True  # Default to pass when condition cannot be evaluated (non-blocking)
 
-    # ─── 统计与历史 ──────────────────────────────────────
+    # --- Stats & History ---
 
     def get_history(self, limit: int = 10) -> list[dict]:
-        """返回最近的执行历史。"""
+        """Return recent execution history."""
         return self._execution_history[-limit:]
 
     def stats(self) -> dict[str, Any]:
-        """返回引擎统计。"""
+        """Return engine statistics."""
         history = self._execution_history
         if not history:
             return {"total_executions": 0}
@@ -567,26 +568,26 @@ class DAGEngine:
         }
 
 
-# ─── 预置 Pilot 工作流定义 ──────────────────────────────
+# --- Built-in Pilot Workflow Definitions ---
 
 PILOT_WORKFLOWS = {
     "daily-patrol": {
         "name": "daily-patrol",
         "version": "1.0",
-        "description": "Gbase 每日巡逻 - 健康检查 + 日志审计 + 门户外链检查",
+        "description": "Gbase daily patrol - Health check + Log audit + Portal link check",
         "start_step": "health_check",
         "safety_checks": ["constitution_check"],
         "steps": [
             {
                 "id": "health_check",
-                "name": "健康心跳检查",
+                "name": "Health heartbeat check",
                 "agent": "health_check",
                 "outputs": ["healthy", "nodes_checked"],
                 "timeout": 30,
             },
             {
                 "id": "log_audit",
-                "name": "日志审计",
+                "name": "Log audit",
                 "agent": "log_audit",
                 "depends_on": ["health_check"],
                 "inputs": {"node_count": "l2.health_check.nodes_checked"},
@@ -595,7 +596,7 @@ PILOT_WORKFLOWS = {
             },
             {
                 "id": "portal_link_check",
-                "name": "门户外链检查",
+                "name": "Portal link check",
                 "agent": "portal_check",
                 "depends_on": ["health_check"],
                 "outputs": ["broken_links", "total_links"],
@@ -603,7 +604,7 @@ PILOT_WORKFLOWS = {
             },
             {
                 "id": "summary",
-                "name": "生成巡逻报告",
+                "name": "Generate patrol report",
                 "agent": "generate_report",
                 "depends_on": ["log_audit", "portal_link_check"],
                 "inputs": {
@@ -618,20 +619,20 @@ PILOT_WORKFLOWS = {
     "mail-digest": {
         "name": "mail-digest",
         "version": "1.0",
-        "description": "邮件摘要 - 检查收件箱 → 分类 → 生成摘要",
+        "description": "Mail digest - Check inbox → Classify → Generate digest",
         "start_step": "check_inbox",
         "safety_checks": [],
         "steps": [
             {
                 "id": "check_inbox",
-                "name": "检查收件箱",
+                "name": "Check inbox",
                 "agent": "check_inbox",
                 "outputs": ["new_count", "mail_ids"],
                 "timeout": 30,
             },
             {
                 "id": "classify",
-                "name": "邮件分类",
+                "name": "Mail classification",
                 "agent": "classify_mail",
                 "depends_on": ["check_inbox"],
                 "condition": "l2.check_inbox.new_count > 0",
@@ -641,7 +642,7 @@ PILOT_WORKFLOWS = {
             },
             {
                 "id": "digest",
-                "name": "生成摘要",
+                "name": "Generate digest",
                 "agent": "generate_digest",
                 "depends_on": ["classify"],
                 "inputs": {"categories": "l2.classify.categories"},
@@ -653,27 +654,27 @@ PILOT_WORKFLOWS = {
     "quality-check": {
         "name": "quality-check",
         "version": "1.0",
-        "description": "质量检查 - 代码规范 → 安全检查 → 性能基准",
+        "description": "Quality check - Code lint → Security scan → Performance benchmark",
         "start_step": "code_lint",
         "safety_checks": ["constitution_check"],
         "steps": [
             {
                 "id": "code_lint",
-                "name": "代码规范检查",
+                "name": "Code lint check",
                 "agent": "code_lint",
                 "outputs": ["issues", "score"],
                 "timeout": 60,
             },
             {
                 "id": "security_scan",
-                "name": "安全扫描",
+                "name": "Security scan",
                 "agent": "security_scan",
                 "outputs": ["vulnerabilities", "risk_level"],
                 "timeout": 120,
             },
             {
                 "id": "perf_bench",
-                "name": "性能基准测试",
+                "name": "Performance benchmark test",
                 "agent": "perf_bench",
                 "depends_on": ["code_lint"],
                 "inputs": {"code_score": "l2.code_lint.score"},
@@ -682,7 +683,7 @@ PILOT_WORKFLOWS = {
             },
             {
                 "id": "quality_report",
-                "name": "质量报告",
+                "name": "Quality report",
                 "agent": "generate_report",
                 "depends_on": ["code_lint", "security_scan", "perf_bench"],
                 "inputs": {
@@ -698,7 +699,7 @@ PILOT_WORKFLOWS = {
 }
 
 
-# ─── 便捷函数 ───────────────────────────────────────────
+# --- Convenience Functions ---
 
 _engine_instance: DAGEngine | None = None
 
@@ -712,7 +713,7 @@ def get_engine() -> DAGEngine:
 
 
 def _init_pilot_workflows(_engine: DAGEngine):
-    """初始化 Pilot 工作流定义。"""
+    """Initialize Pilot workflow definitions."""
     for name, wf_data in PILOT_WORKFLOWS.items():
         wf_path = DAG_DIR / f"{name}.yaml"
         if not wf_path.exists():
@@ -737,6 +738,6 @@ if __name__ == "__main__":
                 for e in errors:
                     print(f"  ❌ {e}")
             else:
-                print("  ✅ 验证通过")
+                print("  ✅ Validation passed")
     else:
         print(json.dumps(engine.stats(), ensure_ascii=False, indent=2))

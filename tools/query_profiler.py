@@ -20,17 +20,17 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-query-profiler/scripts")
 
 @tool()
 async def profile_database(db_path: str = "", sql: str = "") -> dict:
-    """分析数据库性能或单条 SQL 查询，检测慢查询、全表扫描、N+1、缺失索引。
+    """Analyze database performance or a single SQL query, detecting slow queries, full table scans, N+1, and missing indexes.
 
     Args:
-        db_path: SQLite 数据库路径（分析整库的表/索引/推荐索引）
-        sql: 单条 SQL 查询语句（分析风险和优化建议）
+        db_path: SQLite database path (analyze tables/indexes/recommended indexes for the entire database)
+        sql: A single SQL query statement (analyze risks and optimization suggestions)
 
     Returns:
-        分析报告含慢查询、索引建议、风险检测
+        Analysis report including slow queries, index suggestions, and risk detection
     """
     if not db_path and not sql:
-        return {"error": "需要指定 db_path 或 sql 参数"}
+        return {"error": "Must specify db_path or sql parameter"}
 
     cmd = [
         sys.executable or "python3",
@@ -65,6 +65,6 @@ async def profile_database(db_path: str = "", sql: str = "") -> dict:
             "errors": stderr.decode("utf-8", errors="replace")[:500],
         }
     except TimeoutError:
-        return {"error": "分析超时（30秒）"}
+        return {"error": "Analysis timed out (30s)"}
     except Exception as e:
         return {"error": str(e)}

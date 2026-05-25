@@ -17,32 +17,32 @@ SCRIPT = "scripts/profile_memory.py"
 
 
 def _build_skill_path() -> str:
-    """根据运行环境推测 skill 脚本路径。"""
+    """Infer the skill script path based on the runtime environment."""
     import os
 
-    # 优先相对路径（与 tools/ 同级的 skills/）
+    # Prefer relative path (skills/ at the same level as tools/)
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     path = os.path.join(base, SKILL_DIR, SCRIPT)
     if os.path.exists(path):
         return path
-    # 备选：~/.qclaw/skills/
+    # Fallback: ~/.qclaw/skills/
     fallback = os.path.expanduser(f"~/.qclaw/skills/{SKILL_DIR}/{SCRIPT}")
     if os.path.exists(fallback):
         return fallback
-    # 最后尝试，可能调用时 cd 到正确目录
+    # Last attempt: maybe the caller has cd to the right directory
     return os.path.join(base, SKILL_DIR, SCRIPT)
 
 
 @tool()
 async def analyze_memory(pid: int = 0, watch: bool = False) -> dict:
-    """分析进程内存使用，检测泄漏风险。
+    """Analyze process memory usage and detect leak risks.
 
     Args:
-        pid: 目标进程 PID（0 表示列出所有可分析的进程）
-        watch: 是否持续采样监控（每隔30s采样一次，共5次）
+        pid: Target process PID (0 means list all analyzable processes)
+        watch: Whether to continuously sample and monitor (sample every 30s, 5 times total)
 
     Returns:
-        内存分析结果（JSON 格式）
+        Memory analysis result (JSON format)
     """
     script = _build_skill_path()
     cmd = ["python3", script]
@@ -52,7 +52,7 @@ async def analyze_memory(pid: int = 0, watch: bool = False) -> dict:
     if watch:
         cmd.append("--watch")
 
-    logger.info("执行内存分析: %s", " ".join(cmd))
+    logger.info("Running memory analysis: %s", " ".join(cmd))
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -61,13 +61,13 @@ async def analyze_memory(pid: int = 0, watch: bool = False) -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
         if proc.returncode != 0:
-            return {"error": f"内存分析失败: {stderr.decode().strip()}"}
+            return {"error": f"Memory analysis failed: {stderr.decode().strip()}"}
         output = stdout.decode().strip()
         return {"result": output}
     except TimeoutError:
-        return {"error": "内存分析超时（>120秒）"}
+        return {"error": "Memory analysis timed out (>120s)"}
     except FileNotFoundError:
-        return {"error": f"找不到 skill 脚本: {script}"}
+        return {"error": f"Skill script not found: {script}"}
     except Exception as e:
-        logger.exception("analyze_memory 异常")
+        logger.exception("analyze_memory exception")
         return {"error": str(e)}

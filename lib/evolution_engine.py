@@ -4,16 +4,16 @@ lib/evolution_engine.py
 
 Phase 2: auto-evolution trigger chain.
 
-提供：
-- 进化触发规则引擎 — 判定哪些改动需要触发评估
-- 多角度评估 — 稳定性/性能/安全三维检查
-- 自动回滚决策 — 评估不通过自动恢复
-- 恢复后诊断 — 回滚后验证系统正常
+Provides:
+- Evolution trigger rule engine — determines which changes trigger evaluation
+- Multi-angle evaluation — stability/performance/security triple check
+- Auto-rollback decision — auto-restore on evaluation failure
+- Post-recovery diagnosis — verify system health after rollback
 
-设计原则：
-- 可回滚（所有改动前自动备份）
-- 低侵入（评估不影响正常运行）
-- 渐进式（评估失败先回滚再诊断，不停机）
+Design principles:
+- Rollbackable (auto-backup before all changes)
+- Low-intrusion (evaluation does not affect normal operation)
+- Progressive (rollback then diagnose on failure, no downtime)
 """
 
 import json
@@ -21,7 +21,7 @@ import os
 import subprocess
 from datetime import datetime
 
-# ── 配置 ───────────────────────────────────────────
+# ── Configuration ───────────────────────────────────
 from pathlib import Path
 
 from lib.backup import list_backups, restore_backup
@@ -30,10 +30,10 @@ ENGINE_DIR = os.getenv("GBASE_EVOLUTION_DIR") or str(Path(__file__).resolve().pa
 EVAL_LOG_PATH = os.path.join(ENGINE_DIR, "evaluations.jsonl")
 RULES_PATH = os.path.join(ENGINE_DIR, "rules.json")
 
-# 默认触发规则
+# Default trigger rules
 DEFAULT_RULES = {
     "triggers": {
-        # 哪些文件改动需要评估
+        # Which file changes need evaluation
         "paths": [
             "/main.py",
             "/lib/",
@@ -42,26 +42,26 @@ DEFAULT_RULES = {
             "/config/",
             "/systemd/",
         ],
-        # 文件大小变化阈值（超过该比率触发评估）
+        # File size change threshold (exceeding this ratio triggers evaluation)
         "size_change_ratio": 0.10,  # 10%
-        # 最小改动行数（行数变化超过此值触发）
+        # Minimum line change count (triggers when exceeding this value)
         "min_line_change": 5,
     },
     "evaluation": {
-        # 稳定性检查
+        # Stability check
         "stability": {
             "enabled": True,
             "check_services": ["opprime.service"],
             "max_restart_attempts": 3,
             "startup_timeout_sec": 15,
         },
-        # 性能检查
+        # Performance check
         "performance": {
             "enabled": True,
             "max_response_time_ms": 5000,
             "memory_increase_threshold_mb": 100,
         },
-        # 安全检查
+        # Security check
         "security": {
             "enabled": True,
             "forbidden_patterns": [
@@ -74,14 +74,14 @@ DEFAULT_RULES = {
         },
     },
     "rollback": {
-        "auto_rollback": True,  # 评估失败自动回滚
-        "max_rollback_depth": 5,  # 最多回滚 5 个版本
-        "diagnose_after_rollback": True,  # 回滚后自动诊断
+        "auto_rollback": True,  # Auto-rollback on evaluation failure
+        "max_rollback_depth": 5,  # Max 5 versions rollback
+        "diagnose_after_rollback": True,  # Auto-diagnose after rollback
     },
 }
 
 
-# ── 内部工具 ────────────────────────────────────────
+# ── Internal Utilities ───────────────────────────────
 
 
 def _ensure_dirs():
@@ -96,7 +96,7 @@ def _load_rules() -> dict:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             pass
-    # 写入默认规则
+    # Write default rules
     with open(RULES_PATH, "w") as f:
         json.dump(DEFAULT_RULES, f, indent=2, ensure_ascii=False)
     return DEFAULT_RULES
@@ -123,7 +123,7 @@ def _count_lines(filepath: str) -> int:
         return 0
 
 
-# ── 阶段1：触发规则引擎 ─────────────────────────────
+# ── Phase 1: Trigger Rule Engine ─────────────────────
 
 
 def should_trigger_evaluation(
@@ -134,14 +134,14 @@ def should_trigger_evaluation(
     new_lines: int | None = None,
 ) -> tuple[bool, str]:
     """
-    判断文件修改是否应触发进化评估。
+    Determine whether a file modification should trigger evolution evaluation.
 
-    返回 (should_evaluate, reason)
+    Returns (should_evaluate, reason)
     """
     rules = _load_rules()
     triggers = rules["triggers"]
 
-    # 检查路径匹配
+    # Check path matching
     path_matched = False
     for pattern in triggers["paths"]:
         if pattern in filepath:
@@ -149,36 +149,36 @@ def should_trigger_evaluation(
             break
 
     if not path_matched:
-        return False, f"路径 {filepath} 不在触发范围内"
+        return False, f"Path {filepath} is not in trigger scope"
 
-    # 检查大小变化
+    # Check size change
     if old_size is not None and new_size is not None and old_size > 0:
         ratio = abs(new_size - old_size) / old_size
         if ratio >= triggers["size_change_ratio"]:
-            return True, f"文件大小变化 {ratio:.1%}，超过阈值 {triggers['size_change_ratio']:.1%}"
+            return True, f"File size changed {ratio:.1%}, exceeds threshold {triggers['size_change_ratio']:.1%}"
 
-    # 检查行数变化
+    # Check line count change
     if old_lines is not None and new_lines is not None:
         delta = abs(new_lines - old_lines)
         if delta >= triggers["min_line_change"]:
-            return True, f"行数变化 {delta}，超过阈值 {triggers['min_line_change']}"
+            return True, f"Line count changed by {delta}, exceeds threshold {triggers['min_line_change']}"
 
-    return False, "变化量未达触发阈值"
+    return False, "Change amount below trigger threshold"
 
 
-# ── 阶段2：多角度评估 ───────────────────────────────
+# ── Phase 2: Multi-Angle Evaluation ──────────────────
 
 
 def evaluate_stability() -> dict:
     """
-    稳定性评估：检查主服务是否正常运行。
-    返回 {passed, score, details, recommendation}
+    Stability evaluation: check if main services are running normally.
+    Returns {passed, score, details, recommendation}
     """
     rules = _load_rules()
     cfg = rules["evaluation"]["stability"]
 
     if not cfg["enabled"]:
-        return {"passed": True, "score": 1.0, "details": "稳定性检查已禁用"}
+        return {"passed": True, "score": 1.0, "details": "Stability check disabled"}
 
     services = cfg["check_services"]
     results = []
@@ -197,23 +197,23 @@ def evaluate_stability() -> dict:
     return {
         "passed": passed,
         "score": 1.0 if passed else 0.0,
-        "details": "服务状态: " + ", ".join(r["service"] + "=" + str(r["active"]) for r in results),
+        "details": "Service status: " + ", ".join(r["service"] + "=" + str(r["active"]) for r in results),
         "services": results,
     }
 
 
 def evaluate_performance() -> dict:
     """
-    性能评估：检查内存、响应时间等指标。
-    返回 {passed, score, details}
+    Performance evaluation: check memory, response time, and other metrics.
+    Returns {passed, score, details}
     """
     rules = _load_rules()
     cfg = rules["evaluation"]["performance"]
 
     if not cfg["enabled"]:
-        return {"passed": True, "score": 1.0, "details": "性能检查已禁用"}
+        return {"passed": True, "score": 1.0, "details": "Performance check disabled"}
 
-    # 当前内存使用（通过 /proc 或 ps）
+    # Current memory usage (via /proc or ps)
     try:
         result = subprocess.run(["ps", "-o", "rss=", "-p", str(os.getpid())], capture_output=True, text=True, timeout=5)
         mem_kb = int(result.stdout.strip()) if result.stdout.strip() else 0
@@ -227,55 +227,55 @@ def evaluate_performance() -> dict:
     return {
         "passed": passed,
         "score": 1.0 if passed else 0.5,
-        "details": f"当前内存: {mem_mb:.1f}MB",
+        "details": f"Current memory: {mem_mb:.1f}MB",
         "memory_mb": round(mem_mb, 1),
     }
 
 
 def evaluate_security(filepath: str, content: str = "") -> dict:
     """
-    安全性评估：扫描改动中是否有危险模式。
-    返回 {passed, score, details, findings}
+    Security evaluation: scan for dangerous patterns in changes.
+    Returns {passed, score, details, findings}
     """
     rules = _load_rules()
     cfg = rules["evaluation"]["security"]
 
     if not cfg["enabled"]:
-        return {"passed": True, "score": 1.0, "details": "安全检查已禁用"}
+        return {"passed": True, "score": 1.0, "details": "Security check disabled"}
 
     findings = []
 
-    # 扫描内容
+    # Scan content
     if content:
         for pattern in cfg["forbidden_patterns"]:
             if pattern in content:
-                findings.append(f"⚠️ 危险模式: {pattern}")
+                findings.append(f"⚠️ Dangerous pattern: {pattern}")
 
-    # 扫描整个文件
+    # Scan entire file
     if os.path.exists(filepath):
         try:
             with open(filepath) as f:
                 full_content = f.read()
             for imp in cfg["forbidden_imports"]:
                 if f"import {imp}" in full_content or f"from {imp}" in full_content:
-                    findings.append(f"⚠️ 禁止导入: {imp}")
+                    findings.append(f"⚠️ Forbidden import: {imp}")
         except UnicodeDecodeError:
-            pass  # 非文本文件跳过
+            pass  # Non-text file, skipped
 
     passed = len(findings) == 0
 
     return {
         "passed": passed,
         "score": 1.0 if passed else 0.0,
-        "details": "安全扫描通过" if passed else f"发现 {len(findings)} 个问题",
+        "details": "Security scan passed" if passed else f"Found {len(findings)} issues",
         "findings": findings,
     }
 
 
 def run_full_evaluation(filepath: str, content: str = "") -> dict:
     """
-    执行完整的多角度评估。
-    返回 {overall_passed, overall_score, stability, performance, security, recommendation}
+    Execute full multi-angle evaluation.
+    Returns {overall_passed, overall_score, stability, performance, security, recommendation}
     """
     stability = evaluate_stability()
     performance = evaluate_performance()
@@ -290,42 +290,42 @@ def run_full_evaluation(filepath: str, content: str = "") -> dict:
         "stability": stability,
         "performance": performance,
         "security": security,
-        "recommendation": "通过" if all_passed else "建议回滚",
+        "recommendation": "Passed" if all_passed else "Rollback recommended",
     }
 
 
-# ── 阶段3：自动回滚决策 ─────────────────────────────
+# ── Phase 3: Auto-Rollback Decision ──────────────────
 
 
 def decide_rollback(evaluation: dict, filepath: str) -> tuple[bool, str, str | None]:
     """
-    根据评估结果决定是否回滚。
+    Decide whether to rollback based on evaluation results.
 
-    返回 (should_rollback, reason, backup_id)
+    Returns (should_rollback, reason, backup_id)
     """
     rules = _load_rules()
     cfg = rules["rollback"]
 
     if not cfg["auto_rollback"]:
-        return False, "自动回滚已禁用", None
+        return False, "Auto-rollback disabled", None
 
     if evaluation["overall_passed"]:
-        return False, "评估通过，无需回滚", None
+        return False, "Evaluation passed, no rollback needed", None
 
-    # 找最近的备份
+    # Find latest backup
     backups = list_backups(filepath, limit=cfg["max_rollback_depth"])
     if not backups:
-        return False, "未找到可用备份", None
+        return False, "No available backup found", None
 
     latest = backups[0]
-    return True, f"评估未通过(得分{evaluation['overall_score']})，回滚到 {latest['id'][:20]}...", latest["id"]
+    return True, f"Evaluation failed (score {evaluation['overall_score']}), rolling back to {latest['id'][:20]}...", latest["id"]
 
 
 def execute_rollback_if_needed(evaluation: dict, filepath: str) -> dict:
     """
-    评估 + 回滚一步完成。
+    Evaluation + rollback in one step.
 
-    返回 {evaluation, rollback_performed, rollback_result, diagnosis}
+    Returns {evaluation, rollback_performed, rollback_result, diagnosis}
     """
     should, reason, backup_id = decide_rollback(evaluation, filepath)
 
@@ -342,7 +342,7 @@ def execute_rollback_if_needed(evaluation: dict, filepath: str) -> dict:
         result["rollback_performed"] = True
         result["rollback_result"] = restore_result
 
-        # 阶段4：恢复后诊断
+        # Phase 4: Post-recovery diagnosis
         if _load_rules()["rollback"]["diagnose_after_rollback"]:
             result["diagnosis"] = diagnose_after_rollback(filepath)
 
@@ -350,24 +350,24 @@ def execute_rollback_if_needed(evaluation: dict, filepath: str) -> dict:
     return result
 
 
-# ── 阶段4：恢复后诊断 ────────────────────────────────
+# ── Phase 4: Post-Recovery Diagnosis ──────────────────
 
 
 def diagnose_after_rollback(filepath: str) -> dict:
     """
-    回滚后自我诊断：检查系统是否恢复正常。
-    返回 {healthy, checks, summary}
+    Self-diagnosis after rollback: check if system is back to normal.
+    Returns {healthy, checks, summary}
     """
     checks = {}
 
-    # 检查1：文件是否恢复成功
+    # Check 1: file restored successfully
     checks["file_restored"] = os.path.exists(filepath)
 
-    # 检查2：稳定性
+    # Check 2: stability
     stability = evaluate_stability()
     checks["stability"] = stability["passed"]
 
-    # 检查3：文件语法（如果是 Python 文件）
+    # Check 3: file syntax (if Python file)
     if filepath.endswith(".py"):
         try:
             result = subprocess.run(
@@ -382,16 +382,16 @@ def diagnose_after_rollback(filepath: str) -> dict:
 
     healthy = all(checks.get(k, True) for k in ["file_restored", "stability"])
     checks["healthy"] = healthy
-    checks["summary"] = "系统正常" if healthy else "⚠️ 部分检查未通过"
+    checks["summary"] = "System healthy" if healthy else "⚠️ Some checks failed"
 
     return checks
 
 
-# ── 公开 API ────────────────────────────────────────
+# ── Public API ───────────────────────────────────────
 
 
 def get_engine_status() -> dict:
-    """获取进化引擎状态。"""
+    """Get evolution engine status."""
     rules = _load_rules()
     eval_count = 0
     if os.path.exists(EVAL_LOG_PATH):
@@ -407,11 +407,11 @@ def get_engine_status() -> dict:
 
 def full_evolution_cycle(filepath: str, old_size: int, new_size: int, content: str = "") -> dict:
     """
-    完整进化周期：触发判定 → 多角度评估 → 回滚决策 → 执行回滚 → 恢复诊断。
+    Full evolution cycle: trigger check → multi-angle evaluation → rollback decision → execute rollback → recovery diagnosis.
 
-    这是波段二的入口函数。外部只需调用这一个函数。
+    This is the entry point for Wave 2. External callers only need this one function.
 
-    返回完整的周期报告。
+    Returns complete cycle report.
     """
     cycle = {
         "filepath": filepath,
@@ -419,7 +419,7 @@ def full_evolution_cycle(filepath: str, old_size: int, new_size: int, content: s
         "stages": {},
     }
 
-    # 阶段1：触发判定
+    # Phase 1: Trigger check
     should, reason = should_trigger_evaluation(
         filepath,
         old_size=old_size,
@@ -431,29 +431,29 @@ def full_evolution_cycle(filepath: str, old_size: int, new_size: int, content: s
     }
 
     if not should:
-        cycle["conclusion"] = "未触发评估"
+        cycle["conclusion"] = "Evaluation not triggered"
         _log_evaluation(cycle)
         return cycle
 
-    # 阶段2：多角度评估
+    # Phase 2: Multi-angle evaluation
     evaluation = run_full_evaluation(filepath, content)
     cycle["stages"]["evaluation"] = evaluation
 
-    # 阶段3-4：回滚决策 + 执行 + 诊断
+    # Phase 3-4: Rollback decision + execution + diagnosis
     rollback_result = execute_rollback_if_needed(evaluation, filepath)
     cycle["stages"]["rollback"] = rollback_result
 
-    # 结论
+    # Conclusion
     if rollback_result["rollback_performed"]:
         cycle["conclusion"] = (
-            "已回滚"
+            "Rolled back"
             if rollback_result["diagnosis"] and rollback_result["diagnosis"].get("healthy")
-            else "回滚后系统异常"
+            else "System abnormal after rollback"
         )
     elif not evaluation["overall_passed"]:
-        cycle["conclusion"] = "评估未通过但未回滚"
+        cycle["conclusion"] = "Evaluation failed but not rolled back"
     else:
-        cycle["conclusion"] = "评估通过"
+        cycle["conclusion"] = "Evaluation passed"
 
     _log_evaluation(cycle)
     return cycle

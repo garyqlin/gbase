@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 """
 search_tunnel.py — Tunnel search bridge
-优先调用本地 SSH 隧道 (127.0.0.1:18430) 的 ProSearch，
-不可用时 fallback 到原有自爬引擎。
+Prioritize calling ProSearch via local SSH tunnel (127.0.0.1:18430),
+fallback to existing self-crawling engine when unavailable.
 """
 
 import json
@@ -13,17 +13,17 @@ import urllib.request
 logger = logging.getLogger(__name__)
 
 TUNNEL_URL = "http://127.0.0.1:18430/search"
-TUNNEL_TIMEOUT = 8  # 隧道超时短，快速降级
+TUNNEL_TIMEOUT = 8  # Short tunnel timeout for fast degradation
 
 
 async def search_via_tunnel(query: str, count: int = 8) -> list[dict] | None:
-    """通过 SSH 隧道调用本地 ProSearch，成功返回结果列表，失败返回 None。"""
+    """Call local ProSearch via SSH tunnel. Returns result list on success, None on failure."""
     import asyncio
 
     try:
         payload = json.dumps({"query": query, "count": count}).encode("utf-8")
 
-        # 用 asyncio 的线程池执行阻塞 HTTP 请求
+        # Execute blocking HTTP request via asyncio thread pool
         loop = asyncio.get_event_loop()
 
         def _do_req():
@@ -42,12 +42,12 @@ async def search_via_tunnel(query: str, count: int = 8) -> list[dict] | None:
         if not results:
             return None
 
-        logger.info("隧道搜索成功: %s -> %d 条", query, len(results))
+        logger.info("Tunnel search success: %s -> %d results", query, len(results))
         return results
 
     except (urllib.error.URLError, ConnectionRefusedError, TimeoutError, OSError, json.JSONDecodeError) as e:
-        logger.warning("隧道搜索失败 (%s)，回退自爬引擎", str(e)[:60])
+        logger.warning("Tunnel search failed (%s), falling back to self-crawling engine", str(e)[:60])
         return None
     except Exception as e:
-        logger.warning("隧道搜索异常 (%s)，回退自爬引擎", str(e)[:60])
+        logger.warning("Tunnel search exception (%s), falling back to self-crawling engine", str(e)[:60])
         return None

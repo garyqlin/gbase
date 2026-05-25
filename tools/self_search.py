@@ -3,12 +3,12 @@
 opprime-core-v2/tools/self_search.py
 
 Self-search: retrieve relevant records from experience/knowledge base.
-使用 LLM 做语义匹配，零额外依赖。
+Uses LLM for semantic matching, zero extra dependencies.
 
-流程：
-1. 从 storage 读取所有经验（最近 limit 条）
-2. 把问题 + 经验摘要发给 LLM → LLM 判断哪些最相关
-3. 返回匹配的经验（最多 5 条）
+Process:
+1. Read all experiences from storage (most recent <limit> entries)
+2. Send question + experience summaries to LLM → LLM determines which are most relevant
+3. Return matched experiences (up to 5)
 """
 
 import contextlib
@@ -18,36 +18,37 @@ from lib.toolkit import get_global, tool
 
 logger = logging.getLogger(__name__)
 
-_SEARCH_LIMIT = 50  # 保留最近 50 条经验用于搜索
+_SEARCH_LIMIT = 50  # Keep the most recent 50 experiences for search
 
 
 @tool()
 async def search_self(question: str) -> dict:
-    """从你自己的经验/知识库中搜索相关信息。
+    """Search relevant information from your own experience/knowledge base.
 
-    当你需要回忆过去对话中出现的知识点、技巧、配置或决策时，
-    调用此工具来搜索自己的记忆。特别适合：
-    - 用户问到与技术配置、历史决策、常用设置相关的问题
-    - 用户问了但你感觉答案好像在之前对话里出现过
-    - 用户用了自然语言描述（不是精确关键词）
+    When you need to recall knowledge, techniques, configurations, or decisions
+    from past conversations, call this tool to search your own memory.
+    Especially suitable for:
+    - User asks about technical configurations, historical decisions, or common settings
+    - User asks something but you feel the answer may have appeared in past conversations
+    - User uses natural language description (not exact keywords)
 
     Args:
-        question: 用户的问题或关键词
+        question: User's question or keywords
     """
     exp_engine = get_global("experience_engine")
     client = get_global("llm_client")
     model = get_global("llm_model") or "gpt-4o"
 
     if not exp_engine or not client:
-        return {"result": "记忆系统尚未就绪。"}
+        return {"result": "Memory system not yet ready."}
 
-    # 读取最近的记录（含 injected=True 的预注经验）
+    # Read recent records (including injected=True pre-seeded experiences)
     exps = exp_engine.storage.read_recent("experience", limit=_SEARCH_LIMIT)
 
     if not exps:
-        return {"result": "目前还没有存储任何经验。"}
+        return {"result": "No experiences stored yet."}
 
-    # 构造给 LLM 的搜索请求
+    # Build search request for LLM
     candidates = []
     for i, exp in enumerate(exps):
         s = exp.get("summary", "") or ""
@@ -56,19 +57,19 @@ async def search_self(question: str) -> dict:
             candidates.append(f"{i}. [{c}] {s}")
 
     if not candidates:
-        return {"result": "经验库存在但没有可用的摘要内容。"}
+        return {"result": "Experience base exists but has no usable summary content."}
 
-    search_prompt = f"""你是 Opprime 的记忆搜索系统。
+    search_prompt = f"""You are Opprime's memory search system.
 
-用户刚才问了一个问题，你需要从已有的经验库里找出最相关的 1-3 条。
-请注意：经验是之前对话里学到的知识点，不是用户现在问的内容。
+The user just asked a question. You need to find the 1-3 most relevant entries from the experience base.
+Note: The experiences are knowledge learned from past conversations, not what the user is asking now.
 
-用户问题：「{question}」
+User question: "{question}"
 
-已有经验（共 {len(candidates)} 条）：
+Existing experiences (total {len(candidates)}):
 {chr(10).join(candidates)}
 
-请返回最相关的经验编号（从 0 开始），每行一个编号，只输出编号。如果不相关则返回空。"""
+Please return the indices of the most relevant experiences (starting from 0), one per line, output only the numbers. Return empty if none are relevant."""
 
     try:
         resp = await client.chat.completions.create(
@@ -79,10 +80,10 @@ async def search_self(question: str) -> dict:
         )
         text = (resp.choices[0].message.content or "").strip()
     except Exception as e:
-        logger.warning("搜自己 LLM 调用失败: %s", e)
-        return {"result": "搜索失败。"}
+        logger.warning("self_search LLM call failed: %s", e)
+        return {"result": "Search failed."}
 
-    # 解析编号
+    # Parse indices
     matched = []
     lines = text.strip().split("\n")
     for line in lines:
@@ -94,9 +95,9 @@ async def search_self(question: str) -> dict:
             pass
 
     if not matched:
-        return {"result": f"没有找到与「{question}」相关的经验。"}
+        return {"result": f"Found no experience relevant to \"{question}\"."}
 
-    # 记录一次命中
+    # Record a hit
     for m in matched:
         rid = m.get("id") or m.get("rowid")
         if rid:
@@ -110,6 +111,6 @@ async def search_self(question: str) -> dict:
         results.append(f"[{c}] {s}")
 
     return {
-        "result": "找到以下相关经验：\n" + "\n".join(results),
+        "result": "Found the following relevant experiences:\n" + "\n".join(results),
         "count": len(matched),
     }

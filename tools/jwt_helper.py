@@ -31,18 +31,18 @@ def _build_skill_path() -> str:
 
 @tool()
 async def jwt_decode(token: str) -> dict:
-    """解码 JWT token，解析 header/payload。
+    """Decode JWT token, parse header/payload.
 
     Args:
-        token: JWT 令牌字符串
+        token: JWT token string
 
     Returns:
-        解码后的 header 和 payload
+        Decoded header and payload
     """
     script = _build_skill_path()
     cmd = ["python3", script, "--action", "decode", "--token", token]
 
-    logger.info("执行 JWT 解码")
+    logger.info("Executing JWT decode")
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -51,32 +51,32 @@ async def jwt_decode(token: str) -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
         if proc.returncode != 0:
-            return {"error": f"JWT 解码失败: {stderr.decode().strip()}"}
+            return {"error": f"JWT decode failed: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
     except TimeoutError:
-        return {"error": "JWT 解码超时"}
+        return {"error": "JWT decode timeout"}
     except FileNotFoundError:
-        return {"error": f"找不到 skill 脚本: {script}"}
+        return {"error": f"Skill script not found: {script}"}
     except Exception as e:
-        logger.exception("jwt_decode 异常")
+        logger.exception("jwt_decode exception")
         return {"error": str(e)}
 
 
 @tool()
 async def jwt_verify(token: str, secret: str) -> dict:
-    """验证 JWT token 的签名有效性。
+    """Verify JWT token signature validity.
 
     Args:
-        token: JWT 令牌字符串
-        secret: 签名密钥
+        token: JWT token string
+        secret: signing key
 
     Returns:
-        验证结果（是否有效、payload 信息）
+        Verification result (valid or not, payload info)
     """
     script = _build_skill_path()
     cmd = ["python3", script, "--action", "verify", "--token", token, "--secret", secret]
 
-    logger.info("执行 JWT 验证")
+    logger.info("Executing JWT verify")
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -85,12 +85,12 @@ async def jwt_verify(token: str, secret: str) -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
         if proc.returncode != 0:
-            return {"error": f"JWT 验证失败: {stderr.decode().strip()}"}
+            return {"error": f"JWT verify failed: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
     except TimeoutError:
-        return {"error": "JWT 验证超时"}
+        return {"error": "JWT verify timeout"}
     except FileNotFoundError:
-        return {"error": f"找不到 skill 脚本: {script}"}
+        return {"error": f"Skill script not found: {script}"}
     except Exception as e:
-        logger.exception("jwt_verify 异常")
+        logger.exception("jwt_verify exception")
         return {"error": str(e)}

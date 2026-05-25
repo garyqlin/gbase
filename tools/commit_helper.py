@@ -21,16 +21,16 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-ai-commit-gen/scripts")
 async def suggest_commit_message(
     project_dir: str = "", commit_type: str = "", scope: str = "", message: str = ""
 ) -> dict:
-    """根据当前 git diff 生成建议的 commit message。
+    """Generate a suggested commit message from the current git diff.
 
     Args:
         project_dir: Project directory (default: current working directory)
-        commit_type: 强制指定类型 feat/fix/docs/refactor/test/chore
-        scope: 强制指定范围
-        message: 自定义描述文本，不传则从 diff 自动推断
+        commit_type: Force specific type (feat/fix/docs/refactor/test/chore)
+        scope: Force specific scope
+        message: Custom description text. If not provided, auto-inferred from diff.
 
     Returns:
-        建议的 commit message
+        Suggested commit message
     """
     workdir = project_dir or os.path.expanduser("~")
 
@@ -45,7 +45,7 @@ async def suggest_commit_message(
         cmd.extend(["--scope", scope])
     if message:
         cmd.extend(["--message", message])
-    cmd.append("<<<")  # 用输入自动确认
+    cmd.append("<<<")  # auto-confirm via stdin
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -56,13 +56,13 @@ async def suggest_commit_message(
             stdin=asyncio.subprocess.PIPE,
         )
 
-        # 输入 "n" 取消提交（只生成建议）
+        # Input "n" to cancel commit (only generate suggestion)
         stdout, stderr = await asyncio.wait_for(proc.communicate(input=b"n\n"), timeout=15)
 
         stdout_text = stdout.decode("utf-8", errors="replace")
         stderr_text = stderr.decode("utf-8", errors="replace")
 
-        # 提取 commit message 部分
+        # Extract commit message section
         msg = ""
         lines = stdout_text.split("\n")
         in_msg = False
@@ -82,6 +82,6 @@ async def suggest_commit_message(
             "errors": stderr_text[:500] if stderr_text else "",
         }
     except TimeoutError:
-        return {"success": False, "error": "commit 建议超时（15秒）"}
+        return {"success": False, "error": "commit suggestion timed out (15 seconds)"}
     except Exception as e:
         return {"success": False, "error": str(e)}

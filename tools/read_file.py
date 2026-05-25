@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 """
 Local file reader tool.
-供 LLM 按需读取 SKILL.md、AGENTS.md 等 workspace 文件。
+Allows LLM to read SKILL.md, AGENTS.md, and other workspace files on demand.
 """
 
 import logging
@@ -14,25 +14,25 @@ logger = logging.getLogger(__name__)
 
 @tool()
 async def read_file(filepath: str, offset: int = 0, max_chars: int = 0) -> dict:
-    """读取本地文件内容。
+    """Read local file content.
 
-    用于读取 workspace 中的配置文件、skill 的 SKILL.md 等本地文本文件。
-    不适用于网络 URL（用 fetch_page 读取网页）。
+    For reading config files, skill SKILL.md files, and other local text files in workspace.
+    Not for network URLs (use fetch_page for web pages).
 
     Args:
-        filepath: 文件路径（相对路径或绝对路径）
-        offset: 跳过前 offset 字节（默认0）。用于分批读取大文件。
-        max_chars: 限制返回字符数，0 表示完整读取（默认）。超出部分截断。
+        filepath: File path (relative or absolute)
+        offset: Skip first offset bytes (default 0). For reading large files in chunks.
+        max_chars: Max characters to return, 0 means full read (default). Excess is truncated.
     """
     try:
         expanded = os.path.expanduser(filepath)
         abs_path = os.path.abspath(expanded)
 
         if not os.path.exists(abs_path):
-            return {"error": f"文件不存在: {filepath}", "path": abs_path}
+            return {"error": f"File not found: {filepath}", "path": abs_path}
 
         if not os.path.isfile(abs_path):
-            return {"error": f"路径不是文件: {filepath}", "path": abs_path}
+            return {"error": f"Path is not a file: {filepath}", "path": abs_path}
 
         file_size = os.path.getsize(abs_path)
 
@@ -45,7 +45,7 @@ async def read_file(filepath: str, offset: int = 0, max_chars: int = 0) -> dict:
 
         truncated = read_limit is not None and len(content) >= read_limit
 
-        # 判断是否到文件结尾: 当前偏移+已读 >= 文件大小
+        # Check if end of file reached: current offset + bytes read >= file size
         current_pos = (offset if offset > 0 else 0) + len(content)
         end_of_file = current_pos >= file_size or not truncated
 
@@ -55,9 +55,9 @@ async def read_file(filepath: str, offset: int = 0, max_chars: int = 0) -> dict:
             "content": content,
             "truncated": truncated,
             "end_of_file": end_of_file,
-            "note": (f"[全文] {file_size} 字节" if end_of_file else f"截断: 已读 {current_pos}/{file_size} 字节"),
+            "note": (f"[Full] {file_size} bytes" if end_of_file else f"Truncated: {current_pos}/{file_size} bytes read"),
         }
     except PermissionError:
-        return {"error": "无权限读取文件", "path": filepath}
+        return {"error": "Permission denied", "path": filepath}
     except Exception as e:
-        return {"error": f"读取失败: {str(e)}", "path": filepath}
+        return {"error": f"Read failed: {str(e)}", "path": filepath}

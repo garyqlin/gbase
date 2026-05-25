@@ -3,13 +3,13 @@
 opprime-core-v2/tools/__init__.py
 
 Tool set and platform route registration.
-各身份可以在自己的配置中覆写。
+Each identity can override in their own configuration.
 """
 
 from lib.toolkit import register_platform_map, register_toolset
 
-# 自动注册的工具（通过 @tool 装饰器自动注册）
-# YF-image-base 和场景技能
+# Tools auto-registered via @tool decorator
+# YF-image-base and scene skills
 from . import (  # noqa: F401
     anchor_keeper,  # noqa: F401  # noqa: F401
     commit_helper,  # noqa: F401
@@ -43,8 +43,8 @@ def register_default():
 
 
 def _register_new_skills():
-    """注册新技能到对应 toolset。
-    导入即触发 @tool 装饰器，这里只添加 keywords。
+    """Register new skills to corresponding toolsets.
+    Import triggers @tool decorator; here we only add keywords.
     """
     register_toolset(
         "test",
@@ -242,7 +242,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── 代码索引工具集 ──
+    # ── Code Index Toolset ──
     register_toolset(
         "code",
         [
@@ -265,7 +265,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── 安全写入工具集 ──
+    # ── Safe Write Toolset ──
     register_toolset(
         "safe_write",
         ["改文件", "写文件", "修改", "创建文件", "新建文件", "编辑", "写入"],
@@ -274,7 +274,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── 回滚工具集（波段一：刹车装置）──
+    # ── Rollback Toolset (Phase 1: Brake) ──
     register_toolset(
         "rollback",
         [
@@ -298,7 +298,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── 鉴面工具集 ──
+    # ── Mirror Toolset ──
     register_toolset(
         "mirror",
         [
@@ -321,7 +321,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── 代码会话工具集 ──
+    # ── Code Session Toolset ──
     register_toolset(
         "code_session",
         [
@@ -342,7 +342,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── 文档：Laser 文档撰写工具 ──
+    # ── Document: Laser Documentation Authoring ──
     register_toolset(
         "doc",
         [
@@ -376,7 +376,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── 锚点盔甲：项目锚点管理 ──
+    # ── Anchor Armor: Project Anchor Management ──
     register_toolset(
         "anchor",
         [
@@ -401,7 +401,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── YF Image 套件 ──
+    # ── YF Image Suite ──
     register_toolset(
         "image",
         [
@@ -431,7 +431,7 @@ def _register_new_skills():
         ],
     )
 
-    # 平台路由（全部激活，含 rollback）
+    # Platform routes (all activated, including rollback)
     register_platform_map(
         "cli",
         [
@@ -587,7 +587,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── 蒸馏引擎（从经验训练本地模型）
+    # ── Distillation Engine (train local model from experience)
     register_toolset(
         "distill",
         [

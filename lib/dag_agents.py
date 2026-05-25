@@ -4,22 +4,22 @@
 ╔═══════════════════════════════════════════════════════════╗
 ║  DAG Agent Registry — register cron scripts as DAG engine functions       ║
 ║                                                           ║
-║  一次性调用:                                                ║
+║  One-shot invocation:                                      ║
 ║    from lib.dag_agents import register_all                ║
 ║    orch = DAGOrchestrator()                               ║
 ║    register_all(orch)                                     ║
-║    result = orch.run("执行每日巡检")                       ║
+║    result = orch.run("execute daily patrol")              ║
 ║                                                           ║
-║  注册的 Agent 类型 → 实际函数:                               ║
-║    health_check   → cron-health.sh 心跳检测                ║
-║    arch_audit     → arch-audit.py JSON 审计               ║
-║    check_inbox    → 精灵邮箱 check_inbox 工具              ║
-║    mirror_decay   → mirror-maintain.py 衰减+审查          ║
-║    cognifold_sync → cognifold-maintain.py 概念簇同步      ║
-║    whitebox_check → qa_double_check 白盒                  ║
-║    blackbox_check → qa_execute_blackbox 黑盒              ║
-║    swarm_test     → qa_swarm_test 蜂群                   ║
-║    weekly_stats   → cron-analyzer.py 统计                ║
+║  Registered Agent Types → Actual Functions:                ║
+║    health_check   → cron-health.sh heartbeat check        ║
+║    arch_audit     → arch-audit.py JSON audit              ║
+║    check_inbox    → spirit mailbox check_inbox tool       ║
+║    mirror_decay   → mirror-maintain.py decay + review     ║
+║    cognifold_sync → cognifold-maintain.py concept sync    ║
+║    whitebox_check → qa_double_check whitebox              ║
+║    blackbox_check → qa_execute_blackbox blackbox          ║
+║    swarm_test     → qa_swarm_test swarm test              ║
+║    weekly_stats   → cron-analyzer.py statistics           ║
 ╚═══════════════════════════════════════════════════════════╝
 """
 
@@ -30,14 +30,14 @@ import sys
 import time
 from pathlib import Path
 
-PROJECT_ROOT = Path("/home/opprime-v2")
+PROJECT_ROOT = Path(os.getenv("GBASE_ROOT_DIR", "."))
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# ── 工具级安全钩子 ──
+# ── Tool-Level Safety Hooks ──
 
 
 def disk_safety_hook(step: dict, context: dict) -> tuple:
-    """磁盘安全检查：如果磁盘使用 > 90%，阻止写入类操作。"""
+    """Disk safety check: if disk usage > 90%, block write-class operations."""
     try:
         df = subprocess.run(["df", "-P", "/"], capture_output=True, text=True, timeout=5)
         for line in df.stdout.strip().split("\n")[1:]:
@@ -45,17 +45,17 @@ def disk_safety_hook(step: dict, context: dict) -> tuple:
             if len(parts) >= 5:
                 pct = int(parts[4].replace("%", ""))
                 if pct > 90:
-                    # 只有写入类 agent 才阻止
+                    # Only block write-type agents
                     write_agents = {"arch_audit", "cognifold_sync", "qa_summary"}
                     if step.get("agent_type") in write_agents:
-                        return False, f"磁盘使用率 {pct}% > 90%，阻止写入操作"
+                        return False, f"Disk usage {pct}% > 90%, blocking write operation"
     except Exception:
         pass
     return True, "ok"
 
 
 def mem_safety_hook(step: dict, context: dict) -> tuple:
-    """内存安全检查：如果可用内存 < 200MB，阻止重量级操作。"""
+    """Memory safety check: if available memory < 200MB, block heavy operations."""
     try:
         with open("/proc/meminfo") as f:
             content = f.read()
@@ -67,29 +67,29 @@ def mem_safety_hook(step: dict, context: dict) -> tuple:
             if avail_kb < 200 * 1024:
                 heavy_agents = {"swarm_test", "arch_audit", "cognifold_sync"}
                 if step.get("agent_type") in heavy_agents:
-                    return False, f"可用内存 {avail_kb // 1024}MB < 200MB，阻止重量级操作"
+                    return False, f"Available memory {avail_kb // 1024}MB < 200MB, blocking heavy operation"
     except Exception:
         pass
     return True, "ok"
 
 
 # ═══════════════════════════════════════════════════════
-# Agent 函数实现
+# Agent Function Implementations
 # ═══════════════════════════════════════════════════════
 
 
 def agent_health_check(inputs: dict, context: dict) -> dict:
-    """执行 cron-health.sh 心跳检测并解析结果。"""
+    """Execute cron-health.sh heartbeat check and parse results."""
     script = PROJECT_ROOT / "cron" / "cron-health.sh"
     if not script.exists():
-        return {"status": "error", "error": "cron-health.sh 不存在"}
+        return {"status": "error", "error": "cron-health.sh not found"}
 
     try:
         result = subprocess.run(["bash", str(script)], capture_output=True, text=True, timeout=15)
     except subprocess.TimeoutExpired:
-        return {"status": "error", "error": "心跳检测超时"}
+        return {"status": "error", "error": "Heartbeat check timeout"}
 
-    # 读取最新心跳
+    # Read the latest heartbeat
     heartbeat_file = PROJECT_ROOT / "logs" / "cron" / "heartbeat.jsonl"
     latest = {}
     if heartbeat_file.exists():
@@ -110,16 +110,16 @@ def agent_health_check(inputs: dict, context: dict) -> dict:
 
 
 def agent_arch_audit(inputs: dict, context: dict) -> dict:
-    """执行 arch-audit.py JSON 审计。"""
+    """Execute arch-audit.py JSON audit."""
     script = PROJECT_ROOT / "cron" / "arch-audit.py"
     if not script.exists():
-        return {"status": "error", "error": "arch-audit.py 不存在"}
+        return {"status": "error", "error": "arch-audit.py not found"}
 
     try:
         result = subprocess.run([sys.executable, str(script), "--json"], capture_output=True, text=True, timeout=60)
         if result.returncode == 0:
             audit_data = json.loads(result.stdout)
-            # 汇总统计
+            # Aggregate statistics
             findings = audit_data.get("findings", [])
             by_type = {}
             for f in findings:
@@ -135,54 +135,54 @@ def agent_arch_audit(inputs: dict, context: dict) -> dict:
         else:
             return {"status": "error", "error": result.stderr[:500]}
     except subprocess.TimeoutExpired:
-        return {"status": "error", "error": "架构审计超时"}
+        return {"status": "error", "error": "Architecture audit timeout"}
     except json.JSONDecodeError:
-        return {"status": "error", "error": "审计输出 JSON 解析失败"}
+        return {"status": "error", "error": "Audit output JSON parse failed"}
 
 
 def agent_generate_report(inputs: dict, context: dict) -> dict:
-    """将 health + audit 结果汇总为巡检报告。"""
+    """Aggregate health + audit results into an inspection report."""
     health = inputs.get("health", {})
     audit = inputs.get("audit", {})
 
     report_lines = []
     report_lines.append("=" * 50)
-    report_lines.append("Opprime 每日巡检报告")
-    report_lines.append(f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    report_lines.append("Opprime Daily Inspection Report")
+    report_lines.append(f"Time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     report_lines.append("=" * 50)
 
-    # 心跳
+    # Heartbeat
     hb = health.get("heartbeat", {})
     if hb:
         status = hb.get("status", "unknown")
         load = hb.get("load_1", "N/A")
         mem_avail = hb.get("mem_avail_mb", "N/A")
         disk = hb.get("disk_pct", "N/A")
-        report_lines.append(f"\n[健康] cron: {status} | 负载: {load} | 可用内存: {mem_avail}MB | 磁盘: {disk}%")
+        report_lines.append(f"\n[Health] cron: {status} | Load: {load} | Avail Mem: {mem_avail}MB | Disk: {disk}%")
 
-    # 审计
+    # Audit
     total = audit.get("total_findings", 0)
     by_type = audit.get("by_type", {})
-    report_lines.append(f"\n[审计] 发现 {total} 个问题")
+    report_lines.append(f"\n[Audit] Found {total} issue(s)")
     for t, count in sorted(by_type.items()):
         report_lines.append(f"  - {t}: {count}")
 
-    # 评估
+    # Assessment
     if total == 0 and hb.get("status") == "alive":
-        report_lines.append("\n[结论] ✅ 系统健康，无需人工介入")
+        report_lines.append("\n[Conclusion] \u2705 System healthy, no human intervention needed")
     elif hb.get("status") != "alive":
-        report_lines.append("\n[结论] ❌ CRITICAL: cron 守护进程离线!")
+        report_lines.append("\n[Conclusion] \u274c CRITICAL: cron daemon offline!")
     else:
-        report_lines.append(f"\n[结论] ⚠️ 发现 {total} 个问题，建议审查")
+        report_lines.append(f"\n[Conclusion] \u26a0\ufe0f Found {total} issue(s), review recommended")
 
     report = "\n".join(report_lines)
     return {"status": "ok", "report": report, "health_ok": hb.get("status") == "alive", "audit_count": total}
 
 
 def agent_check_inbox(inputs: dict, context: dict) -> dict:
-    """读取精灵邮箱收件箱（调用 check_inbox 工具）。"""
+    """Read spirit mailbox inbox (call check_inbox tool)."""
     try:
-        # 直接读取邮件存储目录
+        # Directly read mail storage directory
         inbox_dir = PROJECT_ROOT / "data" / "mailbox" / "zagu" / "inbox"
         mails = []
         if inbox_dir.exists():
@@ -206,26 +206,26 @@ def agent_check_inbox(inputs: dict, context: dict) -> dict:
 
 
 def agent_classify_mails(inputs: dict, context: dict) -> dict:
-    """邮件分类（基于规则）。"""
+    """Mail classification (rule-based)."""
     mails = inputs.get("mails", [])
-    categories = {"系统": [], "学习": [], "通知": [], "其他": []}
+    categories = {"System": [], "Learning": [], "Notice": [], "Other": []}
 
     for mail in mails:
         subject = mail.get("subject", "").lower()
         if any(kw in subject for kw in ["健康", "告警", "error", "失败", "crash"]):
-            categories["系统"].append(mail)
+            categories["System"].append(mail)
         elif any(kw in subject for kw in ["学习", "learn", "rss", "知识"]):
-            categories["学习"].append(mail)
+            categories["Learning"].append(mail)
         elif any(kw in subject for kw in ["通知", "提醒", "周报"]):
-            categories["通知"].append(mail)
+            categories["Notice"].append(mail)
         else:
-            categories["其他"].append(mail)
+            categories["Other"].append(mail)
 
     return {"status": "ok", "classified": categories, "total": len(mails)}
 
 
 def agent_summarize_mails(inputs: dict, context: dict) -> dict:
-    """邮件摘要（规则引擎）。"""
+    """Mail digest (rule engine)."""
     classified = inputs.get("classified", {})
     lines = []
     total = 0
@@ -234,17 +234,17 @@ def agent_summarize_mails(inputs: dict, context: dict) -> dict:
         total += count
         if count > 0:
             subjects = [m.get("subject", "?")[:50] for m in mails[:3]]
-            lines.append(f"[{cat}] {count}封: {', '.join(subjects)}")
+            lines.append(f"[{cat}] {count} msg(s): {', '.join(subjects)}")
             if count > 3:
-                lines[-1] += f" ...等{count}封"
+                lines[-1] += f" ...+{count} more"
 
-    digest = "\n".join(lines) if lines else "无新邮件"
+    digest = "\n".join(lines) if lines else "No new mail"
     return {"status": "ok", "digest": digest, "total_mails": total}
 
 
 def agent_whitebox_check(inputs: dict, context: dict) -> dict:
-    """白盒检查（代码静态分析）。"""
-    # 简化版：检查关键文件是否存在、语法是否正确
+    """Whitebox check (static code analysis)."""
+    # Simplified: check if key files exist and syntax is correct
     key_files = [
         "lib/kernel.py",
         "lib/mirror.py",
@@ -284,9 +284,9 @@ def agent_whitebox_check(inputs: dict, context: dict) -> dict:
 
 
 def agent_blackbox_check(inputs: dict, context: dict) -> dict:
-    """黑盒检查（接口可达性）。"""
+    """Blackbox check (endpoint reachability)."""
     endpoints = [
-        ("localhost", 8420, "标准版"),
+        ("localhost", 8420, "Standard"),
         ("localhost", 8431, "agent-1"),
         ("localhost", 8432, "agent-2"),
     ]
@@ -308,7 +308,7 @@ def agent_blackbox_check(inputs: dict, context: dict) -> dict:
 
 
 def agent_swarm_test(inputs: dict, context: dict) -> dict:
-    """蜂群压力测试（简化版：并发 ping 多个端点）。"""
+    """Swarm stress test (simplified: concurrent ping multiple endpoints)."""
     import concurrent.futures
 
     endpoints = [("localhost", p) for p in [8420, 8431, 8432]]
@@ -326,7 +326,7 @@ def agent_swarm_test(inputs: dict, context: dict) -> dict:
         except Exception as e:
             return {"port": port, "ok": False, "error": str(e)[:100]}
 
-    # 10 并发 × 3 轮
+    # 10 concurrent x 3 rounds
     all_results = []
     for round_num in range(3):
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -348,7 +348,7 @@ def agent_swarm_test(inputs: dict, context: dict) -> dict:
 
 
 def agent_qa_summary(inputs: dict, context: dict) -> dict:
-    """QA 结果汇总。"""
+    """QA result summary."""
     parts = {}
     for key in ["whitebox", "blackbox", "swarm"]:
         val = inputs.get(key, inputs.get(f"{key}_result", {}))
@@ -372,17 +372,17 @@ def agent_qa_summary(inputs: dict, context: dict) -> dict:
     elif errors > 3:
         verdict = "WARN"
 
-    report = f"QA 报告 | 白盒: {parts.get('whitebox', {}).get('errors', '?')}错误 | "
+    report = f"QA Report | Whitebox: {parts.get('whitebox', {}).get('errors', '?')} errors | "
     report += (
-        f"黑盒: {parts.get('blackbox', {}).get('reachable', '?')}/{parts.get('blackbox', {}).get('total', '?')}可达 | "
+        f"Blackbox: {parts.get('blackbox', {}).get('reachable', '?')}/{parts.get('blackbox', {}).get('total', '?')} reachable | "
     )
-    report += f"蜂群: {len(swarm_rounds)}轮 退化={degradation} | 结论: {verdict}"
+    report += f"Swarm: {len(swarm_rounds)} rounds degradation={degradation} | Verdict: {verdict}"
 
     return {"status": "ok", "verdict": verdict, "report": report, "errors": errors}
 
 
 def agent_weekly_stats(inputs: dict, context: dict) -> dict:
-    """周度统计（调用 cron-analyzer.py 的输出）。"""
+    """Weekly statistics (call cron-analyzer.py output)."""
     analysis_file = PROJECT_ROOT / "logs" / "cron" / "analysis.json"
     if analysis_file.exists():
         try:
@@ -391,51 +391,51 @@ def agent_weekly_stats(inputs: dict, context: dict) -> dict:
         except json.JSONDecodeError:
             pass
 
-    # 降级：手动统计
+    # Fallback: manual statistics
     return {
         "status": "ok",
         "analysis": {
-            "note": "无 analysis.json，需先运行 cron-analyzer.py",
+            "note": "No analysis.json, run cron-analyzer.py first",
             "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         },
     }
 
 
 def agent_trend_analysis(inputs: dict, context: dict) -> dict:
-    """趋势分析（基于 weekly_stats 的简化版）。"""
+    """Trend analysis (simplified version based on weekly_stats)."""
     stats = inputs.get("stats", inputs.get("analysis", {}))
-    return {"status": "ok", "trend": "stable", "detail": "本周各项指标正常范围内波动", "data": stats}
+    return {"status": "ok", "trend": "stable", "detail": "All metrics this week fluctuate within normal range", "data": stats}
 
 
 def agent_weekly_report(inputs: dict, context: dict) -> dict:
-    """周报生成。"""
+    """Weekly report generation."""
     stats = inputs.get("stats", "?")
     trend = inputs.get("trend", "?")
-    report = f"Opprime 周度报告\n统计: {stats}\n趋势: {trend}\n生成时间: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+    report = f"Opprime Weekly Report\nStats: {stats}\nTrend: {trend}\nGenerated at: {time.strftime('%Y-%m-%d %H:%M:%S')}"
     return {"status": "ok", "report": report}
 
 
 def agent_mirror_decay(inputs: dict, context: dict) -> dict:
-    """鉴面衰减 + 审查。"""
+    """Mirror decay + review."""
     script = PROJECT_ROOT / "cron" / "mirror-maintain.py"
     if not script.exists():
-        return {"status": "error", "error": "mirror-maintain.py 不存在"}
+        return {"status": "error", "error": "mirror-maintain.py not found"}
     try:
         result = subprocess.run([sys.executable, str(script), "--dry-run"], capture_output=True, text=True, timeout=30)
         return {"status": "ok", "output": result.stdout.strip()[-500:], "exit_code": result.returncode}
     except subprocess.TimeoutExpired:
-        return {"status": "error", "error": "鉴面维护超时"}
+        return {"status": "error", "error": "Mirror maintenance timeout"}
 
 
 def agent_mirror_review(inputs: dict, context: dict) -> dict:
-    """鉴面回溯审查。"""
+    """Mirror retrospective review."""
     try:
         from lib.mirror import Mirror
 
         mirror = Mirror()
         mirror.setup()
         if mirror._conn is None:
-            return {"status": "error", "error": "mirror 未初始化"}
+            return {"status": "error", "error": "mirror not initialized"}
         stats = mirror.get_stats()
         mirror.close()
         return {"status": "ok", "stats": stats}
@@ -444,7 +444,7 @@ def agent_mirror_review(inputs: dict, context: dict) -> dict:
 
 
 def agent_cognifold_concepts(inputs: dict, context: dict) -> dict:
-    """Cognifold 概念簇自组织。"""
+    """Cognifold concept cluster self-organization."""
     try:
         from lib.cognifold import Cognifold
 
@@ -468,7 +468,7 @@ def agent_cognifold_concepts(inputs: dict, context: dict) -> dict:
 
 
 def agent_intent_emergence(inputs: dict, context: dict) -> dict:
-    """意图浮现。"""
+    """Intent emergence."""
     try:
         from lib.cognifold import Cognifold
 
@@ -488,7 +488,7 @@ def agent_intent_emergence(inputs: dict, context: dict) -> dict:
 
 
 # ═══════════════════════════════════════════════════════
-# 全量注册
+# Full Registration
 # ═══════════════════════════════════════════════════════
 
 AGENT_REGISTRY = {
@@ -518,13 +518,13 @@ SAFETY_HOOKS = {
 
 
 def register_all(orchestrator) -> int:
-    """一次性注册所有 agent 和安全钩子到 DAGOrchestrator。
+    """Register all agents and safety hooks to DAGOrchestrator at once.
 
     Args:
-        orchestrator: DAGOrchestrator 实例
+        orchestrator: DAGOrchestrator instance
 
     Returns:
-        注册的 agent 数量
+        Number of registered agents
     """
     count = 0
     for name, func in AGENT_REGISTRY.items():
@@ -537,17 +537,17 @@ def register_all(orchestrator) -> int:
     return count
 
 
-# ── CLI 入口 ──
+# ── CLI Entry Point ──
 
 if __name__ == "__main__":
-    """独立测试：注册后跑一次 daily-patrol。"""
-    print("注册 DAG agent...")
+    """Standalone test: run one daily-patrol after registration."""
+    print("Registering DAG agents...")
     from lib.dag_orchestrator import DAGOrchestrator
 
     orch = DAGOrchestrator()
     n = register_all(orch)
-    print(f"  ✓ 注册 {n} 个 agent + {len(SAFETY_HOOKS)} 个安全钩子")
+    print(f"  \u2713 Registered {n} agents + {len(SAFETY_HOOKS)} safety hooks")
 
-    print("\n执行 daily-patrol...")
-    result = orch.run(task="执行每日巡检", context={"date": time.strftime("%Y-%m-%d")})
+    print("\nExecuting daily-patrol...")
+    result = orch.run(task="execute daily patrol", context={"date": time.strftime("%Y-%m-%d")})
     print(json.dumps(result, ensure_ascii=False, indent=2))

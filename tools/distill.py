@@ -55,7 +55,7 @@ def _export_data(force: bool = False) -> tuple[Path, int]:
         if parts:
             "Current learning direction:\n" + "\n".join(parts)
 
-    # 1. 经验库
+    # 1. Experience library
     for fname in ["experience.jsonl", "knowledge.jsonl"]:
         fp = DATA_DIR / fname
         if not fp.exists():
@@ -76,13 +76,13 @@ def _export_data(force: bool = False) -> tuple[Path, int]:
                     continue
                 if c == "low":
                     continue
-                rc = {"instruction": f"请问关于以下主题有什么经验？\n主题：{s}", "output": d if d else s}
+                rc = {"instruction": f"What experience do you have on the following topic?\nTopic: {s}", "output": d if d else s}
                 records.append(rc)
-                # 反向 QA
+                # Reverse QA
                 if len(s) > 20:
-                    records.append({"instruction": s[:200], "output": f"经验记录：{s}"})
+                    records.append({"instruction": s[:200], "output": f"Experience record: {s}"})
 
-    # 2. 最近会话（取 assistant 较长回答）
+    # 2. Recent sessions (longer assistant responses)
     sessions_dir = DATA_DIR / "sessions"
     if sessions_dir.exists():
         for sf in sorted(sessions_dir.glob("*.jsonl"), key=os.path.getmtime, reverse=True)[:5]:
@@ -98,18 +98,18 @@ def _export_data(force: bool = False) -> tuple[Path, int]:
                     role = entry.get("role", "")
                     content = entry.get("content", "")
                     if role == "assistant" and len(content) > 200:
-                        records.append({"instruction": "请回答用户的问题。", "output": content[:2000]})
+                        records.append({"instruction": "Please answer the user's question.", "output": content[:2000]})
 
     with open(out_path, "w", encoding="utf-8") as f:
         for rec in records:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
-    logger.info("✅ 导出完成: %s (%d 条)", out_path, len(records))
+    logger.info("✅ Export complete: %s (%d records)", out_path, len(records))
     return out_path, len(records)
 
 
 def _check_ollama() -> bool:
-    """检查 ollama 服务是否运行。"""
+    """Check if ollama service is running."""
     try:
         r = subprocess.run(["curl", "-s", "http://localhost:11434/api/tags"], capture_output=True, text=True, timeout=3)
         return r.returncode == 0 and len(r.stdout) > 10
@@ -118,19 +118,19 @@ def _check_ollama() -> bool:
 
 
 def _do_train(model: str = "opprime-7b", epochs: int = 3):
-    """用 mlx 训练 LoRA。"""
+    """Train LoRA with mlx."""
     data_path, count = _export_data(force=False)
     if count < 3:
-        logger.warning("训练数据太少 (%d 条)，强制重新导出", count)
+        logger.warning("Training data too few (%d records), forcing re-export", count)
         data_path, count = _export_data(force=True)
 
-    logger.info("🏋️ 开始微调 model=%s epochs=%d 数据=%d条", model, epochs, count)
+    logger.info("🏋️ Starting fine-tuning model=%s epochs=%d data=%d records", model, epochs, count)
 
     adapter_dir = EXPORT_DIR / f"lora-{model}"
     if adapter_dir.exists():
         shutil.rmtree(adapter_dir)
 
-    # 转换训练数据
+    # Convert training data
     train_dir = EXPORT_DIR / "mlx_data" / "train"
     val_dir = EXPORT_DIR / "mlx_data" / "val"
     _convert_mlx(data_path, train_dir, val_dir)
@@ -142,10 +142,10 @@ def _do_train(model: str = "opprime-7b", epochs: int = 3):
         if not gguf_path:
             return None
 
-        logger.info("使用 llama-cpp-python 做微调 (no LoRA yet, 先创建基础蒸馏模型)")
-        logger.info("训练数据: %d 条经验", count)
+        logger.info("Using llama-cpp-python for fine-tuning (no LoRA yet, creating base distillation model first)")
+        logger.info("Training data: %d experiences", count)
 
-        # 加载数据
+        # Loading data
         texts = []
         with open(data_path, encoding="utf-8") as f:
             for line in f:
@@ -153,58 +153,58 @@ def _do_train(model: str = "opprime-7b", epochs: int = 3):
                     obj = json.loads(line)
                     inst = obj.get("instruction", "")
                     out = obj.get("output", "")
-                    if inst and out and len(out) > 15 and "（需要根据" not in out:
-                        texts.append(f"用户: {inst}\n助手: {out}")
+                    if inst and out and len(out) > 15 and "(requires based on" not in out:
+                        texts.append(f"User: {inst}\nAssistant: {out}")
                 except json.JSONDecodeError:
                     pass
 
-        logger.info("有效训练样本: %d 条", len(texts))
+        logger.info("Valid training samples: %d", len(texts))
 
         if len(texts) < 3:
-            logger.warning("训练样本太少，跳过训练")
+            logger.warning("Training samples too few, skipping training")
             return None
 
-        # 导入训练库
-        # 这里用 llama.cpp 的 embed 做数据增强训练
-        # 实际 LoRA 训练需要编译 llama-finetune
-        # 当前实现：保存训练数据供后续使用，创建蒸馏模型名
+        # Import training library
+        # Using llama.cpp embed for data augmentation training
+        # Actual LoRA training requires compiling llama-finetune
+        # Current implementation: save training data for later use, create distilled model name
 
         train_txt = EXPORT_DIR / "distill_training.txt"
         with open(train_txt, "w", encoding="utf-8") as f:
             f.write("\n---\n".join(texts))
 
-        logger.info("训练文本已保存: %s (%d 条, %d 字符)", train_txt, len(texts), sum(len(t) for t in texts))
+        logger.info("Training text saved: %s (%d records, %d chars)", train_txt, len(texts), sum(len(t) for t in texts))
 
-        # 用 llama.cpp 做一次验证：模型能否加载
+        # Validate with llama.cpp: check if model can load
         Llama(model_path=str(gguf_path), n_ctx=128, verbose=False, n_gpu_layers=-1)
-        logger.info("✅ 模型可正常加载 (GPU加速)")
+        logger.info("✅ Model loaded successfully (GPU accelerated)")
 
-        return adapter_dir  # 标记成功
+        return adapter_dir  # Mark success
 
     except Exception as e:
-        logger.warning("微调异常: %s", e)
-        logger.info("训练数据已保存到 %s", EXPORT_DIR / "distill_training.txt")
+        logger.warning("Fine-tuning error: %s", e)
+        logger.info("Training data saved to %s", EXPORT_DIR / "distill_training.txt")
         return None
 
 
 def _resolve_gguf(model: str) -> Path | None:
-    """从模型名解析 GGUF 文件路径。"""
+    """Resolve GGUF file path from model name."""
     gguf_map = {
         "opprime-lite": MODELS_DIR / "DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
         "opprime-7b": MODELS_DIR / "DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
     }
     p = gguf_map.get(model)
     if not p or not p.exists():
-        logger.error("❌ 模型文件不存在: %s", p)
+        logger.error("❌ Model file not found: %s", p)
         return None
     return p
 
 
 def _convert_mlx(src: Path, train_dir: Path, val_dir: Path):
-    """JSONL SFT → MLX 目录格式（train.jsonl / valid.jsonl）。
+    """JSONL SFT → MLX directory format (train.jsonl / valid.jsonl).
 
-    mlx_lm.lora 要求数据在 train/valid 子目录中，
-    每行格式: {"text": "<|im_start|>user\n...\n<|im_end|>\n..."}
+    mlx_lm.lora requires data in train/valid subdirectories,
+    each line format: {"text": "<|im_start|>user\n...\n<|im_end|>\n..."}
     """
     import random
 
@@ -220,11 +220,11 @@ def _convert_mlx(src: Path, train_dir: Path, val_dir: Path):
                 obj = json.loads(line)
                 inst = obj.get("instruction", "")
                 out = obj.get("output", "")
-                if not inst or not out or "（需要根据" in out:
+                if not inst or not out or "(requires based on" in out:
                     continue
                 if len(out) < 15:
                     continue
-                # 用通用格式：llama/chatml
+                # Using generic format: llama/chatml
                 text = f"<|im_start|>user\n{inst}\n<|im_end|>\n<|im_start|>assistant\n{out}\n<|im_end|>"
                 lines.append({"text": text})
             except json.JSONDecodeError:
@@ -233,14 +233,14 @@ def _convert_mlx(src: Path, train_dir: Path, val_dir: Path):
     if not lines:
         lines.append(
             {
-                "text": "<|im_start|>user\n你好\n<|im_end|>\n<|im_start|>assistant\n你好！有什么可以帮你的吗？\n<|im_end|>"
+                "text": "<|im_start|>user\nHello\n<|im_end|>\n<|im_start|>assistant\nHello! How can I help you?\n<|im_end|>"
             }
         )
 
     random.shuffle(lines)
     split = max(1, int(len(lines) * 0.8))
 
-    # mlx_lm.lora 要求: data_dir/train.jsonl and data_dir/valid.jsonl
+    # mlx_lm.lora requires: data_dir/train.jsonl and data_dir/valid.jsonl
     train_dir.mkdir(parents=True, exist_ok=True)
     val_dir.mkdir(parents=True, exist_ok=True)
 
@@ -254,7 +254,7 @@ def _convert_mlx(src: Path, train_dir: Path, val_dir: Path):
 
 
 def _do_push(model: str = "opprime-7b"):
-    """将 LoRA 推送到 ollama。"""
+    """Push LoRA to ollama."""
     adapter_dir = EXPORT_DIR / f"lora-{model}"
     target_name = f"{model}-distilled"
 
@@ -266,10 +266,10 @@ def _do_push(model: str = "opprime-7b"):
             if weights:
                 safetensors = weights[0]
             else:
-                logger.info("没有 LoRA 权重，创建基础模型 %s", target_name)
+                logger.info("No LoRA weights, creating base model %s", target_name)
                 safetensors = None
 
-    # 创建 Modelfile
+    # Create Modelfile
     mf = EXPORT_DIR / "Modelfile-distilled"
     content = f"FROM {model}\n"
     if safetensors:
@@ -278,77 +278,77 @@ def _do_push(model: str = "opprime-7b"):
     with open(mf, "w") as f:
         f.write(content)
 
-    logger.info("创建蒸馏模型: %s", target_name)
+    logger.info("Creating distilled model: %s", target_name)
     r = subprocess.run(["ollama", "create", target_name, "-f", str(mf)], capture_output=True, text=True, timeout=300)
     if r.returncode == 0:
-        logger.info("✅ 创建成功: %s", target_name)
+        logger.info("✅ Created successfully: %s", target_name)
     else:
-        logger.warning("创建失败: %s", r.stderr[:300])
+        logger.warning("Creation failed: %s", r.stderr[:300])
         target_name = model
 
     return target_name
 
 
 def _do_eval(model: str = "opprime-7b"):
-    """评估蒸馏质量。
+    """Evaluate distillation quality.
 
-    使用预定义的测试集评估原始模型和蒸馏模型的差异。
-    测试集分成两层：
+    Use predefined test sets to evaluate the difference between original and distilled models.
+    Test sets are divided into two layers:
     - Agent-specific: agent-1/agent-3 domain capabilities
-    - 基础通用：纯推理/知识问答
+    - General: pure reasoning/knowledge Q&A
     """
     distilled = f"{model}-distilled"
 
     # agent-1 test set (code)
     hammer_tests = [
-        # 类型注解
+        # Type annotations
         {
-            "q": "用 Python 写一个带类型注解的异步 HTTP 客户端，包含异常处理和超时",
+            "q": "Write an async HTTP client in Python with type annotations, including exception handling and timeout",
             "tags": ["typing", "async", "error_handling"],
         },
-        {"q": "帮我 review 这段代码: def add(a,b): return a+b — 缺少什么？", "tags": ["code_review", "edge_cases"]},
+        {"q": "Review this code for me: def add(a,b): return a+b — what's missing?", "tags": ["code_review", "edge_cases"]},
         # Docker
-        {"q": "写一个 docker-compose.yml，包含 Nginx 反代 + FastAPI 后端 + PostgreSQL", "tags": ["docker", "compose"]},
-        # 异常路径
+        {"q": "Write a docker-compose.yml with Nginx reverse proxy + FastAPI backend + PostgreSQL", "tags": ["docker", "compose"]},
+        # Exception paths
         {
-            "q": "Python 中 try/except/finally 的执行顺序？如果 except 里又抛异常呢？",
+            "q": "What is the execution order of try/except/finally in Python? What if an exception is thrown inside except?",
             "tags": ["error_handling", "exception"],
         },
-        # 日志
-        {"q": "用 Python logging 模块写一个按天轮转的日志配置，保留 30 天", "tags": ["logging", "best_practice"]},
-        # 测试
-        {"q": "用 pytest 写一个测试，mock 外部 HTTP 调用，验证异常重试逻辑", "tags": ["testing", "pytest", "mock"]},
-        {"q": "SQLAlchemy ORM：一次性批量插入 10000 条数据，怎么最有效率？", "tags": ["db", "performance"]},
-        {"q": "解释 FastAPI 的 BackgroundTasks 和 Celery 的区别，什么时候用哪个？", "tags": ["api", "architecture"]},
+        # Logging
+        {"q": "Write a daily rotating log config using Python logging module, keeping 30 days", "tags": ["logging", "best_practice"]},
+        # Testing
+        {"q": "Write a pytest test, mock external HTTP calls, verify exception retry logic", "tags": ["testing", "pytest", "mock"]},
+        {"q": "SQLAlchemy ORM: what's the most efficient way to batch insert 10000 records at once?", "tags": ["db", "performance"]},
+        {"q": "Explain the difference between FastAPI's BackgroundTasks and Celery, when to use which?", "tags": ["api", "architecture"]},
     ]
 
     # agent-3 test set (task/automation/quality)
     bumblebee_tests = [
         {
-            "q": "设计一个文件变化监听任务，当目录有新文件时自动分类归档，考虑重复和错误",
+            "q": "Design a file change monitoring task that automatically categorizes and archives new files in a directory, considering duplicates and errors",
             "tags": ["automation", "workflow"],
         },
-        {"q": "如何判断一个 API 接口是健康的？列出 5 个检查维度", "tags": ["monitoring", "quality"]},
+        {"q": "How to determine if an API endpoint is healthy? List 5 check dimensions", "tags": ["monitoring", "quality"]},
         {
-            "q": "写一个 Python 函数：给定多个任务和它们的依赖关系，返回合理的执行顺序",
+            "q": "Write a Python function: given multiple tasks and their dependencies, return a reasonable execution order",
             "tags": ["scheduling", "topological_sort"],
         },
         {
-            "q": "日志分析：如果某个服务每 5 分钟报一次同样的 warning，应该怎么处理？",
+            "q": "Log analysis: if a service reports the same warning every 5 minutes, how should it be handled?",
             "tags": ["troubleshooting", "log_analysis"],
         },
-        {"q": "设计一个简单的重试队列，任务失败后指数退避重试，最多 3 次", "tags": ["retry", "queue", "resilience"]},
-        {"q": "监控报警阈值怎么设计？哪些是 P0 级必须立刻处理的？", "tags": ["monitoring", "alerting", "priority"]},
+        {"q": "Design a simple retry queue, exponential backoff retry after task failure, max 3 attempts", "tags": ["retry", "queue", "resilience"]},
+        {"q": "How to design monitoring alert thresholds? Which are P0 level that must be handled immediately?", "tags": ["monitoring", "alerting", "priority"]},
     ]
 
-    # ── 基础通用测试（所有模型）──
+    # ── General tests (all models) ──
     general_tests = [
-        {"q": "请用一句话总结什么是 AI 蒸馏技术", "tags": ["general", "knowledge"]},
-        {"q": "解释 REST API 和 GraphQL 的区别", "tags": ["general", "api"]},
-        {"q": "Mac 的 M4 芯片有哪些核心特点", "tags": ["general", "hardware"]},
-        {"q": "Docker 和 Podman 的核心区别是什么？", "tags": ["general", "devops"]},
-        {"q": "Python 的 GIL 是什么意思？怎么绕过去？", "tags": ["general", "python"]},
-        {"q": "HTTPS 握手过程简述", "tags": ["general", "security"]},
+        {"q": "Summarize what AI distillation technology is in one sentence", "tags": ["general", "knowledge"]},
+        {"q": "Explain the difference between REST API and GraphQL", "tags": ["general", "api"]},
+        {"q": "What are the core features of Mac's M4 chip?", "tags": ["general", "hardware"]},
+        {"q": "What are the core differences between Docker and Podman?", "tags": ["general", "devops"]},
+        {"q": "What does Python's GIL mean? How to work around it?", "tags": ["general", "python"]},
+        {"q": "Briefly describe the HTTPS handshake process", "tags": ["general", "security"]},
     ]
 
     all_tests = hammer_tests + bumblebee_tests + general_tests
@@ -368,16 +368,16 @@ def _do_eval(model: str = "opprime-7b"):
                 r = subprocess.run(["ollama", "run", name, q], capture_output=True, text=True, timeout=45)
                 ans = r.stdout.strip()
                 entry[name] = ans[:300]
-                # 基础质量检查：非空、非错误信息
+                # Basic quality check: non-empty, non-error message
                 is_valid = bool(ans) and len(ans) > 10 and "error" not in ans.lower()[:50]
                 entry[f"{name}_valid"] = is_valid
                 logger.info("  %s: %s... ✓=%s", name, ans[:50], is_valid)
             except Exception as e:
-                logger.warning("  %s 失败: %s", name, e)
-                entry[name] = f"<执行失败: {e}>"
+                logger.warning("  %s failed: %s", name, e)
+                entry[name] = f"<Execution failed: {e}>"
                 entry[f"{name}_valid"] = False
 
-        # 对比蒸馏模型是否退化
+        # Compare if distilled model has degraded
         orig_valid = entry.get(f"{model}_valid", False)
         dist_valid = entry.get(f"{distilled}_valid", False)
         if dist_valid:
@@ -396,7 +396,7 @@ def _do_eval(model: str = "opprime-7b"):
         degraded = sum(1 for r in tagged if r.get("degraded", False))
         return {"total": len(tagged), "original_ok": orig_ok, "distilled_ok": dist_ok, "degraded": degraded}
 
-    # 报告
+    # Report
     report = EXPORT_DIR / "eval_report.json"
     report_data = {
         "model": model,
@@ -415,10 +415,10 @@ def _do_eval(model: str = "opprime-7b"):
     }
     with open(report, "w", encoding="utf-8") as f:
         json.dump(report_data, f, ensure_ascii=False, indent=2)
-    logger.info("✅ 评估报告: %s", report)
-    logger.info("📊 通过率: %d/%d (%.1f%%)", pass_count, total_questions, report_data["pass_rate"])
+    logger.info("✅ Evaluation report: %s", report)
+    logger.info("📊 Pass rate: %d/%d (%.1f%%)", pass_count, total_questions, report_data["pass_rate"])
     if report_data["degraded_count"]:
-        logger.warning("⚠️ 蒸馏模型有 %d 个问题退化！", report_data["degraded_count"])
+        logger.warning("⚠️ Distilled model has %d degraded questions!", report_data["degraded_count"])
     return results
 
 
@@ -434,9 +434,9 @@ def _load_self_learn_status() -> dict:
         try:
             with open(path, encoding="utf-8") as f:
                 content = f.read()
-            # 提取学习方向
+            # Extract learning directions
             lines = [line.strip() for line in content.split("\n") if line.strip().startswith("##")]
-            focus = [ln.lstrip("# ").strip() for ln in lines if ln.startswith("##") and "学习" in ln]
+            focus = [ln.lstrip("# ").strip() for ln in lines if ln.startswith("##") and "learn" in ln]
             result[name] = {
                 "file": path,
                 "active": True,
@@ -447,16 +447,16 @@ def _load_self_learn_status() -> dict:
     return result
 
 
-# @tool 注册（供 agent 使用）
+# @tool registration (for agent use)
 # ═══════════════════════════════════════════
 
 
 @tool()
 async def distill_export() -> dict:
-    """从 Opprime 的经验库导出训练数据，用于本地模型蒸馏。
+    """Export training data from Opprime's experience library for local model distillation.
 
-    将 experience.jsonl 和 knowledge.jsonl 中
-    高置信度的经验转化为标准 SFT 格式（JSONL）。
+    Convert high-confidence experiences from experience.jsonl and knowledge.jsonl
+    into standard SFT format (JSONL).
     """
     path, count = _export_data(force=True)
     ov = _check_ollama()
@@ -465,55 +465,55 @@ async def distill_export() -> dict:
         "path": str(path),
         "count": count,
         "ollama_running": ov,
-        "note": f"导出 {count} 条训练数据",
+        "note": f"Exported {count} training records",
         "self_learn": _load_self_learn_status(),
     }
 
 
 @tool()
 async def distill_train(model: str = "opprime-7b", epochs: int = 3) -> dict:
-    """用导出的训练数据对本地 GGUF 模型做 LoRA 微调。
+    """Fine-tune local GGUF model with LoRA using exported training data.
 
     Args:
-        model: 基础模型名（opprime-lite=1.5B, opprime-7b=7B，默认 7B）
-        epochs: 训练轮数（默认 3）
+        model: Base model name (opprime-lite=1.5B, opprime-7b=7B, default 7B)
+        epochs: Training epochs (default 3)
     """
     adapter = _do_train(model=model, epochs=epochs)
     if adapter:
         return {"status": "ok", "adapter": str(adapter), "model": model}
-    return {"status": "warn", "note": "训练未完成（缺少 mlx-lm 或训练失败），数据已导出", "export_dir": str(EXPORT_DIR)}
+    return {"status": "warn", "note": "Training not completed (missing mlx-lm or training failed), data exported", "export_dir": str(EXPORT_DIR)}
 
 
 @tool()
 async def distill_push(model: str = "opprime-7b") -> dict:
-    """将微调后的 LoRA 适配器推送到 ollama。
+    """Push fine-tuned LoRA adapter to ollama.
 
-    创建模型名为 opprime-7b-distilled（或 opprime-lite-distilled）的新模型。
-    之后可用 `ollama run opprime-7b-distilled` 直接使用。
+    Create a new model named opprime-7b-distilled (or opprime-lite-distilled).
+    Then use `ollama run opprime-7b-distilled` to use it directly.
     """
     name = _do_push(model=model)
-    return {"status": "ok", "model_name": name, "note": f"蒸馏模型 '{name}' 就绪，可用 ollama run {name}"}
+    return {"status": "ok", "model_name": name, "note": f"Distilled model '{name}' ready, use ollama run {name}"}
 
 
 @tool()
 async def distill_eval(model: str = "opprime-7b") -> dict:
-    """评估蒸馏模型与原始模型的质量对比。
+    """Evaluate quality comparison between distilled and original models.
 
     Args:
-        model: 要评估的模型（默认 opprime-7b）
+        model: Model to evaluate (default opprime-7b)
     """
     results = _do_eval(model=model)
-    return {"status": "ok", "total": len(results), "note": f"评估报告: {EXPORT_DIR}/eval_report.json"}
+    return {"status": "ok", "total": len(results), "note": f"Evaluation report: {EXPORT_DIR}/eval_report.json"}
 
 
 # ═══════════════════════════════════════════
-# CLI 入口
+# CLI entry
 # ═══════════════════════════════════════════
 
 
 def cli_main():
-    parser = argparse.ArgumentParser(description="Opprime 蒸馏工具")
-    parser.add_argument("action", choices=["export", "train", "push", "eval", "deps", "all"], help="操作类型")
+    parser = argparse.ArgumentParser(description="Opprime distillation tool")
+    parser.add_argument("action", choices=["export", "train", "push", "eval", "deps", "all"], help="Action type")
     parser.add_argument("--model", default="opprime-7b", choices=["opprime-lite", "opprime-7b"])
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--force", action="store_true")
@@ -522,14 +522,14 @@ def cli_main():
 
     if args.action == "export":
         path, count = _export_data(force=args.force)
-        print(f"✅ 导出完成: {path} ({count} 条)")
+        print(f"✅ Export complete: {path} ({count} records)")
 
     elif args.action == "train":
         _do_train(model=args.model, epochs=args.epochs)
 
     elif args.action == "push":
         name = _do_push(model=args.model)
-        print(f"✅ 推送完成: {name}")
+        print(f"✅ Push complete: {name}")
 
     elif args.action == "eval":
         _do_eval(model=args.model)
@@ -548,20 +548,20 @@ def cli_main():
                     "https://pypi.tuna.tsinghua.edu.cn/simple",
                 ]
             )
-            print("✅ 依赖安装完成")
+            print("✅ Dependencies installed")
         except Exception as e:
-            print(f"❌ 安装失败: {e}")
+            print(f"❌ Installation failed: {e}")
 
     elif args.action == "all":
-        print("🏭 开始蒸馏流水线")
+        print("🏭 Starting distillation pipeline")
         _export_data(force=True)
         adapter = _do_train(model=args.model, epochs=args.epochs)
         if adapter:
             name = _do_push(model=args.model)
             _do_eval(model=args.model)
-            print(f"🎉 完成! 蒸馏模型: {name}")
+            print(f"🎉 Done! Distilled model: {name}")
         else:
-            print("⚠️ 训练未完成，数据已导出")
+            print("⚠️ Training not completed, data exported")
 
 
 if __name__ == "__main__":

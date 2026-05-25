@@ -32,7 +32,7 @@ def _save_reminders(reminders: list):
 
 @tool()
 async def reminder_add(content: str) -> dict:
-    """添加一条提醒。"""
+    """Add a reminder."""
     reminders = _load_reminders()
     reminder = {
         "id": int(time.time() * 1000),
@@ -42,27 +42,27 @@ async def reminder_add(content: str) -> dict:
     }
     reminders.append(reminder)
     _save_reminders(reminders)
-    return {"result": f"已添加提醒: {content}"}
+    return {"result": f"Reminder added: {content}"}
 
 
 @tool()
 async def reminder_list() -> dict:
-    """列出所有未完成的提醒。"""
+    """List all pending reminders."""
     reminders = _load_reminders()
     pending = [r for r in reminders if not r.get("done")]
     if not pending:
-        return {"result": "没有未完成的提醒。"}
-    items = [f"- {r['content']}（{r.get('created_at', '')}）" for r in pending]
-    return {"result": "未完成提醒：\n" + "\n".join(items)}
+        return {"result": "No pending reminders."}
+    items = [f"- {r['content']}({r.get('created_at', '')})" for r in pending]
+    return {"result": "Pending reminders:\n" + "\n".join(items)}
 
 
 @tool()
 async def reminder_delete(id: int) -> dict:
-    """删除一条提醒。id 是 reminder_add 时返回的 id。"""
+    """Delete a reminder by its id (the id returned by reminder_add)."""
     reminders = _load_reminders()
     for r in reminders:
         if r.get("id") == id:
             r["done"] = True
             _save_reminders(reminders)
-            return {"result": f"已删除提醒: {r['content']}"}
-    return {"error": f"未找到 id={id} 的提醒"}
+            return {"result": f"Reminder deleted: {r['content']}"}
+    return {"error": f"Reminder with id={id} not found"}

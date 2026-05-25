@@ -20,15 +20,15 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-log-analyzer/scripts")
 
 @tool()
 async def analyze_log_file(file_path: str, log_format: str = "auto", slow_threshold_ms: int = 1000) -> dict:
-    """分析日志文件，检测错误模式、慢请求、资源告警。
+    """Analyze a log file for error patterns, slow requests, and resource alerts.
 
     Args:
-        file_path: 日志文件路径
-        log_format: 日志格式 auto / text / json
-        slow_threshold_ms: 慢请求阈值（毫秒，默认1000）
+        file_path: Log file path
+        log_format: Log format: auto / text / json
+        slow_threshold_ms: Slow request threshold in ms (default 1000)
 
     Returns:
-        分析报告（错误统计、慢请求、资源告警）
+        Analysis report (error stats, slow requests, resource alerts)
     """
     cmd = [
         sys.executable or "python3",
@@ -52,7 +52,7 @@ async def analyze_log_file(file_path: str, log_format: str = "auto", slow_thresh
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
 
-        # 读取 JSON 报告
+        # Read JSON report
         report_path = "/tmp/opprime-log-analysis.json"
         if os.path.exists(report_path):
             with open(report_path) as f:
@@ -66,6 +66,6 @@ async def analyze_log_file(file_path: str, log_format: str = "auto", slow_thresh
             "stderr": stderr.decode("utf-8", errors="replace")[:500],
         }
     except TimeoutError:
-        return {"success": False, "error": "日志分析超时（15秒）"}
+        return {"success": False, "error": "Log analysis timed out (15s)"}
     except Exception as e:
         return {"success": False, "error": str(e)}

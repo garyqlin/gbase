@@ -12,25 +12,25 @@ logger = logging.getLogger(__name__)
 
 
 @tool()
-async def gen_pdf(title: str = "文档", content: list = None, output_path: str = "") -> dict:
+async def gen_pdf(title: str = "Document", content: list = None, output_path: str = "") -> dict:
     """
-    生成 PDF 文件（使用 reportlab）。
+    Generate PDF file (using reportlab).
 
     Args:
-        title: 文档标题
-        content: 内容结构，每项为 {"type": "h1|h2|p|table|image|pagebreak", "text": "...", ...}
-                  - h1/h2: 标题层级
-                  - p: 段落
-                  - table: {"type": "table", "headers": ["列1"], "rows": [["数据"]]}
+        title: Document title
+        content: Content structure, each item is {"type": "h1|h2|p|table|image|pagebreak", "text": "...", ...}
+                  - h1/h2: Heading level
+                  - p: Paragraph
+                  - table: {"type": "table", "headers": ["Col1"], "rows": [["Data"]]}
                   - image: {"type": "image", "path": "/path/to/img.png", "width": 400}
-                  - pagebreak: 分页
-        output_path: 输出路径
+                  - pagebreak: Page break
+        output_path: Output path
 
     Returns:
         {"path": "...", "size": 12345}
     """
     if content is None:
-        content = [{"type": "p", "text": "（空文档）"}]
+        content = [{"type": "p", "text": "(Empty document)"}]
 
     if not output_path:
         output_path = os.path.expanduser(f"~/Downloads/{title}.pdf")
@@ -45,7 +45,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# 注册中文字体（多个路径尝试）
+# Register CJK fonts (try multiple paths)
 font_registered = False
 for font_path in [
     "/System/Library/Fonts/PingFang.ttc",
@@ -122,4 +122,4 @@ print("OK:" + {json.dumps(output_path)})
     if os.path.isfile(output_path):
         size = os.path.getsize(output_path)
         return {"path": output_path, "size": size}
-    return {"error": "文件未生成"}
+    return {"error": "File not generated"}

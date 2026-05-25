@@ -3,7 +3,7 @@
 opprime-core-v2/tools/laser_doc.py
 
 Laser doc writer: developer docs + test plans.
-为 Laser（测试臂）提供文档撰写能力：先写开发文档，再按文档做测试。
+Provides doc authoring capabilities for Laser (test arm): write developer docs first, then test based on the docs.
 """
 
 import asyncio
@@ -19,7 +19,7 @@ ANCHOR_DIR = os.path.join(SKILL_DIR, "YF-anchor-keeper/scripts")
 
 
 async def _run_script(script_path, *args):
-    """运行 shell 脚本并返回结果"""
+    """Run a shell script and return the result"""
     cmd = ["bash", script_path] + [str(a) for a in args if a]
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -28,30 +28,31 @@ async def _run_script(script_path, *args):
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
         return {"status": "ok", "stdout": stdout.decode(), "stderr": stderr.decode()}
     except TimeoutError:
-        return {"status": "error", "message": "执行超时"}
+        return {"status": "error", "message": "Execution timed out"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 
 @tool()
 async def scan_project(project_dir: str) -> dict:
-    """扫描项目结构——自动识别路由/控制器/数据库迁移/配置文件/测试文件。
+    """Scan project structure — automatically identify routes/controllers/migrations/configs/tests.
 
-    用于写开发文档前了解项目全貌，也用于制定测试计划前的系统分析。
+    Used for understanding the project landscape before writing developer docs,
+    and for system analysis before drafting test plans.
 
     Args:
-        project_dir: 项目目录路径
+        project_dir: Project directory path
 
     Returns:
-        扫描结果，包含 routes/controllers/migrations/configs/tests 分类列表
+        Scan result containing categorized lists: routes/controllers/migrations/configs/tests
     """
     if not os.path.isdir(project_dir):
-        return {"status": "error", "message": f"目录不存在: {project_dir}"}
+        return {"status": "error", "message": f"Directory not found: {project_dir}"}
 
     info = {"routes": [], "controllers": [], "migrations": [], "configs": [], "tests": []}
 
     for root, dirs, files in os.walk(project_dir):
-        # 跳过不扫描的目录
+        # Skip directories not to scan
         skip_dirs = {"node_modules", "vendor", ".git", "__pycache__", ".venv", "venv"}
         dirs[:] = [d for d in dirs if d not in skip_dirs]
 
@@ -74,23 +75,23 @@ async def scan_project(project_dir: str) -> dict:
 
 @tool()
 async def author_doc(project_dir: str, doc_type: str = "readme") -> dict:
-    """为项目创建开发文档骨架文件（README/API/架构说明等）。
+    """Create developer documentation skeleton files (README/API/architecture docs, etc.).
 
-    先调 scan_project 了解项目结构后再调用此工具撰写文档。
-    文档格式请遵循 YF-documentation-zh 技能规范。
+    Call scan_project first to understand the project structure before invoking this tool to write docs.
+    Doc format should follow the YF-documentation-zh skill specification.
 
     Args:
-        project_dir: 项目目录路径
-        doc_type: 文档类型
-            - readme: 项目 README（快速开始/安装/用法）
-            - api: API 参考手册（接口列表/参数/响应/错误码）
-            - architecture: 架构说明（技术栈/模块划分/数据流）
-            - dev_guide: 开发指南（环境搭建/代码规范/分支策略）
-            - deploy: 部署文档（环境要求/配置/部署步骤）
-            - changelog: 更新日志
+        project_dir: Project directory path
+        doc_type: Document type
+            - readme: Project README (quick start/install/usage)
+            - api: API reference manual (endpoints/params/responses/error codes)
+            - architecture: Architecture overview (tech stack/modules/data flow)
+            - dev_guide: Developer guide (env setup/code conventions/branch strategy)
+            - deploy: Deployment docs (env requirements/config/deploy steps)
+            - changelog: Changelog
 
     Returns:
-        文档骨架路径，由你（LLM）按规范填充内容
+        Skeleton file path, to be filled in by you (the LLM) per the specification
     """
     docs_dir = os.path.join(project_dir, "docs")
     os.makedirs(docs_dir, exist_ok=True)
@@ -109,7 +110,7 @@ async def author_doc(project_dir: str, doc_type: str = "readme") -> dict:
 
     return {
         "status": "ok",
-        "message": f"骨架已创建，请按 YF-documentation-zh 规范撰写到 {filepath}",
+        "message": f"Skeleton created, please write content per the YF-documentation-zh specification to {filepath}",
         "path": filepath,
         "doc_type": doc_type,
     }
@@ -117,17 +118,17 @@ async def author_doc(project_dir: str, doc_type: str = "readme") -> dict:
 
 @tool()
 async def author_test_plan(project_dir: str, module: str = "") -> dict:
-    """根据文档和项目扫描结果生成测试计划骨架。
+    """Generate a test plan skeleton based on docs and project scan results.
 
-    测试前先确保开发文档已就位（调 author_doc 写过至少 README 或 API 文档）。
-    测试计划按项目结构和 API 定义生成，覆盖场景流+异常边界。
+    Ensure developer docs are in place first (call author_doc to write at least README or API docs before testing).
+    Test plan is generated based on project structure and API definitions, covering scenario flows + exception boundaries.
 
     Args:
-        project_dir: 项目目录路径
-        module: 测试模块名称（可选，默认全量测试）
+        project_dir: Project directory path
+        module: Test module name (optional, defaults to full test coverage)
 
     Returns:
-        测试计划文件路径，由你（LLM）按 Laser 测试方法论填充
+        Test plan file path, to be filled in by you (the LLM) per the Laser testing methodology
     """
     test_dir = os.path.join(project_dir, "tests")
     os.makedirs(test_dir, exist_ok=True)
@@ -137,7 +138,7 @@ async def author_test_plan(project_dir: str, module: str = "") -> dict:
 
     return {
         "status": "ok",
-        "message": f"测试计划骨架已创建，请按测试方法论填充到 {plan_path}",
+        "message": f"Test plan skeleton created, please fill in per the testing methodology to {plan_path}",
         "path": plan_path,
         "module": module or "full",
     }

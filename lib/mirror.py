@@ -4,17 +4,17 @@ opprime-core-v2/lib/mirror.py
 
 Mirror engine — Mirror Layer
 
-不是替代 experience.py，而是在它之上覆盖一个"知道记什么、忘什么、什么时候更新"的层。
+Not a replacement for experience.py, but a layer on top that knows "what to remember, what to forget, and when to update".
 
-核心能力：
-1. 记正确做法（不只是教训）
-2. 遗忘机制（权重衰减 + 过时淘汰）
-3. 正确强化（被验证的正确做法，权重上升）
-4. 定时回溯（定期回顾，更新过时的记忆）
+Core capabilities:
+1. Record correct practices (not just lessons)
+2. Forgetting mechanism (weight decay + obsolescence pruning)
+3. Correctness reinforcement (verified correct practices gain weight)
+4. Periodic review (regular review, update outdated memories)
 
-哲学根基：
-    鉴不在一刻而在每一刻。
-    鉴不是记住一切，而是知道记什么、忘什么、什么时候更新。
+Philosophical foundation:
+    Mirroring is not in a single moment but in every moment.
+    Mirroring is not remembering everything, but knowing what to remember, what to forget, and when to update.
 """
 
 import json
@@ -43,21 +43,21 @@ _MIN_STRENGTH = 0.1
 _REVIEW_INTERVAL = 7 * 86400
 _MAX_REVIEW_ITEMS = 20
 
-# ── Ebbinghaus (Oblivion 框架) ──
-_EBBINGHAUS_T = 50  # 温度：50天半衰期，适合间歇对话场景
+# ── Ebbinghaus (Oblivion Framework) ──
+_EBBINGHAUS_T = 50  # Temperature: 50-day half-life, suitable for intermittent conversation scenarios
 
 
 def ebbinghaus_retention(n_rounds, utility, frequency, temperature=None):
-    """Ebbinghaus 遗忘曲线：R = exp(-n / ((U+F) × T))
+    """Ebbinghaus forgetting curve: R = exp(-n / ((U+F) × T))
 
     Args:
-        n_rounds:  距上次使用的交互轮数（天）
-        utility:   效用评分 (0-1)，对应 strength
-        frequency: 访问频率 (0-1)，对应 hits/50
-        temperature: 温度调节，默认 _EBBINGHAUS_T
+        n_rounds:  Rounds (days) since last use
+        utility:   Utility score (0-1), maps to strength
+        frequency: Access frequency (0-1), maps to hits/50
+        temperature: Temperature adjustment, default _EBBINGHAUS_T
 
     Returns:
-        R: 保留评分 (0-1)，1=新鲜，0=完全衰减
+        R: Retention score (0-1), 1=fresh, 0=fully decayed
     """
     import math
 
@@ -67,7 +67,7 @@ def ebbinghaus_retention(n_rounds, utility, frequency, temperature=None):
 
 
 class Mirror:
-    """鉴面引擎。"""
+    """Mirror engine."""
 
     def __init__(self, db_path: str = None):
         self._db_path = db_path or str(MIRROR_DB)
@@ -101,7 +101,7 @@ class Mirror:
             CREATE INDEX IF NOT EXISTS idx_mirror_type
             ON memories(type, strength DESC)
         """)
-        # 注：中文场景不适用FTS5，搜索使用LIKE（数据量可控）
+        # Note: FTS5 not suitable for Chinese scenarios, use LIKE for search (manageable data size)
 
         self._conn.commit()
 
@@ -114,7 +114,7 @@ class Mirror:
         existing = self._find_similar(content, mtype)
         if existing:
             new_strength = min(1.0, existing["strength"] * 1.2)
-            # 去重合并：如果新内容更完整，合并内容+标签（方案A+时间戳）
+            # Dedup merge: if new content is more complete, merge content+tags (Plan A + timestamp)
             _merge_content_if_better(self._conn, existing["id"], content, tags_str, now)
             self._conn.execute(
                 "UPDATE memories SET strength=?, hits=hits+1, last_access=? WHERE id=?",
@@ -135,8 +135,8 @@ class Mirror:
             return None
         keywords = [
             w
-            for w in content.replace("，", " ").replace("。", " ").split()
-            if len(w) > 1 and w not in ("一个", "这个", "那个", "什么", "怎么", "可以", "就是", "不是")
+            for w in content.replace(",", " ").replace(".", " ").split()
+            if len(w) > 1 and w not in ("one", "this", "that", "what", "how", "can", "is", "not")
         ]
         key_set = set(keywords[:5])
         if not key_set:
@@ -146,7 +146,7 @@ class Mirror:
             (mtype,),
         )
         for row in cursor.fetchall():
-            mem_words = set(row[1].replace("，", " ").replace("。", " ").split())
+            mem_words = set(row[1].replace(",", " ").replace(".", " ").split())
             if len(key_set & mem_words) >= 2:
                 return {"id": row[0], "strength": row[2]}
         return None
@@ -217,13 +217,13 @@ class Mirror:
                 "verified": verified,
             }
             if age_days > 30 and verified < 2:
-                item["status"] = "可能过时"
+                item["status"] = "possibly outdated"
                 report["outdated"] += 1
             elif age_days > 7 and hits < 2:
-                item["status"] = "需要审视"
+                item["status"] = "needs review"
                 report["needs_update"] += 1
             else:
-                item["status"] = "有效"
+                item["status"] = "still valid"
                 report["still_valid"] += 1
             report["items"].append(item)
         return report
@@ -236,7 +236,7 @@ class Mirror:
             "SELECT id, type, content, strength, hits, verified, "
             "created_at, last_access "
             "FROM memories WHERE is_active=1 "
-            "ORDER BY strength DESC LIMIT ?",  # 先全取，Python 侧排序
+            "ORDER BY strength DESC LIMIT ?",  # Fetch all first, sort on Python side
             (max_items,),
         )
         rows = cursor.fetchall()
@@ -258,9 +258,9 @@ class Mirror:
         for row in rows:
             _, mtype, content, _, _, verified, *_ = row
             icon = icons.get(mtype, "📝")
-            vmark = f" [已验证{verified}次]" if verified > 0 else ""
+            vmark = f" [verified {verified} times]" if verified > 0 else ""
             lines.append(f"- {icon} {content}{vmark}")
-        return "\n\n## 🔮 鉴面记忆\n以下是你从过去中学到的、经过筛选的记忆（鉴面引擎自动管理）：\n" + "\n".join(lines)
+        return "\n\n## 🔮 Mirror Memory\nBelow are filtered memories you have learned from the past (auto-managed by Mirror Engine):\n" + "\n".join(lines)
 
     def get_stats(self) -> dict:
         if self._conn is None:
@@ -282,22 +282,22 @@ class Mirror:
         }
 
     def inject_last_context(self, target_bytes: int = 16000) -> str:
-        """从最近的 session 文件提取上下文，修复跨对话失忆。
+        """Extract context from the most recent session file to fix cross-conversation amnesia.
 
-        读取倒数第二个 session JSONL 文件末尾，解析最近几轮对话。
+        Reads the end of the second-to-last session JSONL file, parsing the last few rounds of conversation.
 
         Returns:
-            格式化后的上下文文本，或空字符串（没有 session 文件时）。
+            Formatted context text, or empty string when no session file is available.
         """
         import os
         from pathlib import Path
 
-        # 查找 session 目录
+        # Find session directory
         _db_path_obj = Path(self._db_path) if self._db_path else None
         session_dir = _db_path_obj.parent / "sessions" if _db_path_obj else None
         if not session_dir or not session_dir.exists():
-            # 尝试默认路径
-            alt = Path("/home/opprime-v2/data/sessions")
+            # Try default path
+            alt = None  # cloud sessions path removed for release
             if alt.exists():
                 session_dir = alt
             else:
@@ -308,23 +308,23 @@ class Mirror:
         if len(session_files) < 2:
             return ""
 
-        # 取倒数第二个（最新的是当前对话）
+        # Take second-to-last (the latest is current conversation)
         target_file = session_files[-2]
 
         try:
-            # 直接读文件尾，取最后 N 条 entry
+            # Read file tail directly, take last N entries
             file_size = os.path.getsize(target_file)
             read_size = min(target_bytes, file_size)
             with open(target_file, encoding="utf-8") as f:
                 if read_size < file_size:
                     f.seek(file_size - read_size)
-                    # 跳到完整行开头
+                    # Jump to start of complete line
                     f.readline()
                 all_text = f.read()
 
-            # 解析最后几行
+            # Parse last few lines
             lines = []
-            lines.append("--- 上次对话摘要 ---")
+            lines.append("--- Previous conversation summary ---")
             count = 0
             for line in reversed(all_text.split("\n")):
                 line = line.strip()
@@ -348,14 +348,14 @@ class Mirror:
                 return "\n".join(lines)
             return ""
         except Exception as e:
-            logger.warning("上下文交接失败: %s", e)
+            logger.warning("Context handoff failed: %s", e)
             return ""
 
     def recall(self, query: str, limit: int = 10, ebbinghaus: bool = True) -> list:
-        """搜索记忆（LIKE 模糊匹配，中文友好）。
+        """Search memories (LIKE fuzzy matching, Chinese-friendly).
 
-        Oblivion 闭环：检索后回写 hits + last_access，
-        使 Ebbinghaus F 分量反映真实访问频率。
+        Oblivion closed-loop: write back hits + last_access after retrieval,
+        so the Ebbinghaus F component reflects real access frequency.
         """
         if self._conn is None:
             return []
@@ -369,7 +369,7 @@ class Mirror:
                FROM memories
                WHERE is_active=1 AND (content LIKE ? OR type LIKE ?)
                ORDER BY strength DESC
-               LIMIT ?""",  # Python 侧用 Ebbinghaus 重排
+               LIMIT ?""",  # Python side re-ranks with Ebbinghaus
             (like_q, like_q, limit),
         )
         rows = cursor.fetchall()
@@ -383,7 +383,7 @@ class Mirror:
                 scored.append((r_score, r))
             scored.sort(key=lambda x: x[0], reverse=True)
             rows = [s[1] for s in scored[:limit]]
-        # Oblivion 写回：更新访问统计，闭合 Ebbinghaus 反馈回路
+        # Oblivion write-back: update access stats, close Ebbinghaus feedback loop
         if rows:
             for r in rows:
                 self._conn.execute("UPDATE memories SET hits=hits+1, last_access=? WHERE id=?", (now, r[0]))
@@ -394,7 +394,7 @@ class Mirror:
         ]
 
     def forget(self, pattern: str) -> int:
-        """批量软删除匹配的记忆。返回删除数量。"""
+        """Batch soft-delete matching memories. Returns deletion count."""
         if self._conn is None:
             return 0
         now = time.time()
@@ -416,8 +416,8 @@ class Mirror:
 
 
 def _merge_content_if_better(conn, mem_id: int, new_content: str, new_tags: str, now: float):
-    """当发现重复记忆时，如果新内容信息更丰富则更新旧记录。
-    全自动运行，不会抛出异常影响主流程。"""
+    """When duplicate memory is found, update old record if new content is more informative.
+    Fully automatic, will not throw exceptions affecting main flow."""
     try:
         cursor = conn.execute("SELECT content, tags, strength FROM memories WHERE id=?", (mem_id,))
         row = cursor.fetchone()
@@ -441,4 +441,4 @@ def _merge_content_if_better(conn, mem_id: int, new_content: str, new_tags: str,
             if combined != old_tags:
                 conn.execute("UPDATE memories SET tags=? WHERE id=?", (combined, mem_id))
     except Exception:
-        logger.warning("合并记忆失败（非阻塞）", exc_info=True)
+        logger.warning("Memory merge failed (non-blocking)", exc_info=True)

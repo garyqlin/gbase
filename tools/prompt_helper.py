@@ -31,14 +31,14 @@ def _build_skill_path() -> str:
 
 @tool()
 async def optimize_prompt(prompt: str, action: str = "optimize") -> dict:
-    """优化、对比或管理 prompt 模板。
+    """Optimize, compare, or manage prompt templates.
 
     Args:
-        prompt: 要优化的 prompt 文本（对于 compare 和 version 保留）
-        action: 操作类型 — optimize（优化）、compare（对比）、version（列出版本）
+        prompt: The prompt text to optimize (preserved for compare and version)
+        action: Operation type — optimize, compare, version (list versions)
 
     Returns:
-        操作结果
+        Operation result
     """
     script = _build_skill_path()
     cmd = ["python3", script, "--action", action]
@@ -46,7 +46,7 @@ async def optimize_prompt(prompt: str, action: str = "optimize") -> dict:
     if action in ("optimize", "compare"):
         cmd.extend(["--prompt", prompt])
 
-    logger.info("执行 prompt 操作: %s --action %s", script, action)
+    logger.info("Executing prompt operation: %s --action %s", script, action)
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -55,12 +55,12 @@ async def optimize_prompt(prompt: str, action: str = "optimize") -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
         if proc.returncode != 0:
-            return {"error": f"操作失败: {stderr.decode().strip()}"}
+            return {"error": f"Operation failed: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
     except TimeoutError:
-        return {"error": "prompt 操作超时"}
+        return {"error": "Prompt operation timed out"}
     except FileNotFoundError:
-        return {"error": f"找不到 skill 脚本: {script}"}
+        return {"error": f"Skill script not found: {script}"}
     except Exception as e:
-        logger.exception("optimize_prompt 异常")
+        logger.exception("optimize_prompt exception")
         return {"error": str(e)}

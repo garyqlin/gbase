@@ -24,38 +24,38 @@ _PROJECT_ROOTS = [
 async def exec_command(command: str, timeout: int = 30, workdir: str = "") -> dict:
     """Execute shell command (non-interactive).
 
-    用于运行 Python 脚本、pytest 测试、git 命令等。
-    只能在项目根目录及其子目录下执行。
+    For running Python scripts, pytest tests, git commands, etc.
+    Only allowed within the project root and its subdirectories.
 
     Args:
-        command: 要执行的 Shell 命令（单行，非交互式）
-        timeout: 超时秒数（默认 30，最大 120）
-        workdir: 工作目录（留空默认项目根，也可传子目录名）
+        command: Shell command to execute (single line, non-interactive)
+        timeout: Timeout in seconds (default 30, max 120)
+        workdir: Working directory (empty for project root, or a subdirectory name)
 
     Returns:
-        执行结果：returncode / stdout / stderr / error
+        Execution result: returncode / stdout / stderr / error
     """
-    # 安全校验
+    # Safety check
     if not command or not command.strip():
-        return {"error": "命令不能为空"}
+        return {"error": "Command cannot be empty"}
 
     timeout = min(max(timeout, 1), 120)
 
-    # 解析工作目录
+    # Resolve working directory
     if workdir:
-        # 绝对路径直接使用（多项目支持）
+        # Use absolute paths directly (multi-project support)
         target = Path(workdir) if workdir.startswith("/") else _PROJECT_ROOT / workdir
-        # 防止 path traversal
+        # Prevent path traversal
         try:
             target = target.resolve()
             target.relative_to(_PROJECT_ROOT)
         except (ValueError, RuntimeError):
-            return {"error": f"工作目录不在允许范围内: {workdir}"}
+            return {"error": f"Working directory not in allowed scope: {workdir}"}
         workdir = str(target)
     else:
         workdir = str(_PROJECT_ROOT)
 
-    # 创建目录（如果不存在）
+    # Create directory (if not exists)
     os.makedirs(workdir, exist_ok=True)
 
     try:
@@ -73,7 +73,7 @@ async def exec_command(command: str, timeout: int = 30, workdir: str = "") -> di
             proc.kill()
             await proc.wait()
             return {
-                "error": f"命令执行超时（{timeout} 秒）",
+                "error": f"Command execution timed out ({timeout}s)",
                 "command": command[:200],
                 "workdir": workdir,
             }
@@ -88,7 +88,7 @@ async def exec_command(command: str, timeout: int = 30, workdir: str = "") -> di
             "workdir": workdir,
         }
 
-        # 如果输出被截断，标记一下
+        # Mark if output was truncated
         if len(stdout_text) > 6000:
             result["stdout_truncated"] = True
             result["stdout_full_length"] = len(stdout_text)
@@ -98,4 +98,4 @@ async def exec_command(command: str, timeout: int = 30, workdir: str = "") -> di
         return result
 
     except Exception as e:
-        return {"error": f"执行失败: {e}"}
+        return {"error": f"Execution failed: {e}"}

@@ -4,7 +4,7 @@ opprime-core-v2/lib/storage.py
 
 Storage engine — SQLite primary + JSONL readable mirror dual-write.
 
-栈内存所有经验/知识/Skill 都通过这个模块读写。
+All experiences/knowledge/skills are read and written through this module.
 """
 
 import json
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).parent.parent / "data"
 DB_PATH = DATA_DIR / "dat.db"
 
-# 三层对应的 JSONL 镜像文件名
+# JSONL mirror filenames for the three layers
 _MIRROR_FILES = {
     "experience": "experience.jsonl",
     "knowledge": "knowledge.jsonl",
@@ -28,19 +28,18 @@ _MIRROR_FILES = {
 }
 
 _MAX_RECORDS = 50
-"""每个类型最多保留的记录数（超过删最旧）"""
+"""Maximum number of records per type (oldest deleted when exceeded)"""
 
 
 class Storage:
-    """沉淀引擎。
+    """Storage engine.
 
-    用法：
+    Usage:
         store = Storage()
-        store.setup()           # 首次初始化
-        store.write("experience", {"summary": "xxx", ...})
+        store.setup()           # First-time initialization
         entries = store.read_recent("experience", limit=5)
 
-    线程安全：内部使用 threading.Lock。
+    Thread-safe: internally uses threading.Lock.
     """
 
     def __init__(self, db_path: str = None, data_dir: str = None):
@@ -49,10 +48,10 @@ class Storage:
         self._lock = threading.Lock()
         self._conn: sqlite3.Connection | None = None
 
-    # ── 初始化 ──────────────────────────────────────────
+    # -- Initialization -----------------------------------
 
     def setup(self):
-        """首次初始化（建表 + 建目录 + WAL 模式）。"""
+        """First-time initialization (create tables + directories + WAL mode)."""
         os.makedirs(self._data_dir, exist_ok=True)
 
         with self._lock:
@@ -62,10 +61,10 @@ class Storage:
                 CREATE TABLE IF NOT EXISTS entries (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     type TEXT NOT NULL,           -- experience | knowledge | skills
-                    content TEXT NOT NULL,        -- JSON 字符串
-                    summary TEXT DEFAULT '',       -- 一句话摘要
-                    created_at REAL NOT NULL,       -- 时间戳
-                    hits INTEGER DEFAULT 0,         -- 被引用次数
+                    content TEXT NOT NULL,        -- JSON string
+                    summary TEXT DEFAULT '',       -- one-line summary
+                    created_at REAL NOT NULL,       -- timestamp
+                    hits INTEGER DEFAULT 0,         -- reference count
                     confidence TEXT DEFAULT 'low'    -- low | medium | high
                 )
             """)
@@ -73,8 +72,8 @@ class Storage:
                 CREATE INDEX IF NOT EXISTS idx_type_created
                 ON entries(type, created_at DESC)
             """)
-            # FTS5 全文索引（支持中文 unicode61 tokenizer）
-            # content='entries' 表示不单独存文本，通过 entries 表 rowid 关联
+            # FTS5 full-text index (supports Chinese via unicode61 tokenizer)
+            # content='entries' means text is not stored separately, linked via entries table rowid
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS entries_fts USING fts5(
                     content, summary,
@@ -83,7 +82,7 @@ class Storage:
                     detail=column
                 )
             """)
-            # 触发器：写入/删除/更新时自动同步 FTS
+            # Triggers: auto-sync FTS on insert/delete/update
             conn.executescript("""
                 CREATE TRIGGER IF NOT EXISTS entries_fts_ai AFTER INSERT ON entries BEGIN
                     INSERT INTO entries_fts(rowid, content, summary)
@@ -102,7 +101,7 @@ class Storage:
             """)
             conn.commit()
             self._conn = conn
-            # 重建 FTS（已有的数据未进 FTS）
+            # Rebuild FTS (existing data not yet in FTS)
             try:
                 cursor = conn.execute("SELECT COUNT(*) FROM entries_fts")
                 fts_count = cursor.fetchone()[0]
@@ -112,33 +111,33 @@ class Storage:
                     conn.executescript("""
                         INSERT INTO entries_fts(entries_fts) VALUES('rebuild');
                     """)
-                    logger.info("FTS 索引重建完成: %d 条", total)
+                    logger.info("FTS index rebuild complete: %d entries", total)
             except Exception as rebuild_err:
-                logger.warning("FTS 索引重建跳过: %s", rebuild_err)
-            logger.info("存储引擎已就绪: %s", self._db_path)
+                logger.warning("FTS index rebuild skipped: %s", rebuild_err)
+            logger.info("Storage engine ready: %s", self._db_path)
 
-    # ── 写入 ────────────────────────────────────────────
+    # -- Write -----------------------------------------
 
     def write(self, type_: str, entry: dict, summary: str = "", confidence: str = "low", **_kwargs) -> int:
-        """写入一条记录。自动写 SQLite + 追加 JSONL 镜像。
+        """Write a record. Auto-writes SQLite + appends JSONL mirror.
 
         Args:
-            type_: 类型（experience / knowledge / skills）
-            entry: 内容字典（会被 JSON 序列化）
-            summary: 一句话摘要
-            confidence: 确信度（low / medium / high）
+            type_: Type (experience / knowledge / skills)
+            entry: Content dict (will be JSON-serialized)
+            summary: One-line summary
+            confidence: Confidence (low / medium / high)
 
         Returns:
-            记录的 id（写入成功）或 0（跳过）
+            Record ID (on success) or 0 (skipped)
         """
         now = time.time()
         content_json = json.dumps(entry, ensure_ascii=False)
 
         with self._lock:
             if self._conn is None:
-                raise RuntimeError("Storage 未初始化，请先调用 setup()")
+                raise RuntimeError("Storage not initialized, call setup() first")
 
-            # 写入 SQLite
+            # Write to SQLite
             cursor = self._conn.execute(
                 "INSERT INTO entries (type, content, summary, created_at, confidence) VALUES (?, ?, ?, ?, ?)",
                 (type_, content_json, summary, now, confidence),
@@ -146,7 +145,7 @@ class Storage:
             row_id = cursor.lastrowid
             self._conn.commit()
 
-            # 追加 JSONL 镜像
+            # Append to JSONL mirror
             mirror_path = self._data_dir / _MIRROR_FILES.get(type_, "unknown.jsonl")
             mirror_entry = {
                 "id": row_id,
@@ -159,20 +158,20 @@ class Storage:
             with open(mirror_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(mirror_entry, ensure_ascii=False) + "\n")
 
-            # 检查上限，删除最旧记录
+            # Check limit, delete oldest records
             self._prune(type_)
 
-            logger.debug("写入 %s[%d]: %s", type_, row_id, summary[:60])
+            logger.debug("Write %s[%d]: %s", type_, row_id, summary[:60])
             return row_id
 
-    # ── 读取 ────────────────────────────────────────────
+    # -- Read ------------------------------------------
 
     def read_recent(self, type_: str, limit: int = 5) -> list[dict]:
-        """读取最近 N 条记录。
+        """Read the most recent N records.
 
         Args:
-            type_: 类型
-            limit: 数量
+            type_: Type
+            limit: Count
 
         Returns:
             [{"id": 1, "type": ..., "content": ..., "summary": ...,
@@ -203,10 +202,10 @@ class Storage:
                 )
             return results
 
-    # ── 命中计数（增加引用权重）──────────────────────────
+    # -- Hit count (increase reference weight) ------------
 
     def record_hit(self, record_id: int):
-        """递增某条记录的 hits 计数。"""
+        """Increment the hits counter for a record."""
         with self._lock:
             if self._conn is None:
                 return
@@ -216,10 +215,10 @@ class Storage:
             )
             self._conn.commit()
 
-    # ── 内部方法 ────────────────────────────────────────
+    # -- Internal methods ------------------------------
 
     def _prune(self, type_: str):
-        """超过上限时，删除最旧的记录。"""
+        """When exceeding the limit, delete the oldest records."""
         if self._conn is None:
             return
         cursor = self._conn.execute(
@@ -234,13 +233,13 @@ class Storage:
                 (type_, excess),
             )
             self._conn.commit()
-            logger.info("已修剪 %d 条过期 %s 记录", excess, type_)
+            logger.info("Pruned %d expired %s records", excess, type_)
 
-    # ── 清理 ────────────────────────────────────────────
+    # -- Cleanup ---------------------------------------
 
     def close(self):
         with self._lock:
             if self._conn:
                 self._conn.close()
                 self._conn = None
-                logger.info("存储引擎已关闭")
+                logger.info("Storage engine closed")

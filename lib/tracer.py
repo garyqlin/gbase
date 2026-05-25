@@ -4,11 +4,11 @@ opprime-core-v2/lib/tracer.py
 
 Execution observability — auto-trace each tool call, output exact failure step number.
 
-架构：
-- 无侵入：通过包装 kernel._loop() 中的工具调用点记录，不改工具函数本身
-- 异步写入：JSONL 文件，<50ms 开销，不阻塞主流程
-- 失败分析：调用方可通过 get_failure_analysis() 拿到"第N步失败，失败原因"
-- 跨session关联：同一个 task_id 的 trace 文件可被后续任务读入
+Architecture:
+- Non-intrusive: records at the tool call point in kernel._loop(), does not modify tool functions
+- Async writes: JSONL file, <50ms overhead, non-blocking
+- Failure analysis: callers use get_failure_analysis() to get "step N failed, why"
+- Cross-session correlation: same task_id trace files can be loaded by subsequent tasks
 """
 
 import json
@@ -18,19 +18,19 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# ── 存储 ──
+# ── Storage ──
 
 TRACE_DIR = Path(__file__).resolve().parent.parent / "data" / "traces"
 
-# 当前活跃的 trace 上下文（线程安全：同一时间只有一个对话）
+# Currently active trace context (thread-safe: only one conversation at a time)
 _current_trace: dict | None = None
 
 
-# ── 初始化 ──
+# ── Init ──
 
 
 def init_trace(task_id: str, task_description: str = ""):
-    """开始一个新的 trace 追踪记录"""
+    """Start a new trace record"""
     global _current_trace
     TRACE_DIR.mkdir(parents=True, exist_ok=True)
     _current_trace = {
@@ -48,12 +48,12 @@ def init_trace(task_id: str, task_description: str = ""):
             "timestamp": time.time(),
         },
     )
-    logger.info("[trace %s] 初始化", task_id)
+    logger.info("[trace %s] initialized", task_id)
     return task_id
 
 
 def close_trace(status: str = "completed", error: str = ""):
-    """关闭当前 trace"""
+    """Close the current trace"""
     global _current_trace
     if not _current_trace:
         return
@@ -69,11 +69,11 @@ def close_trace(status: str = "completed", error: str = ""):
             "elapsed": time.time() - _current_trace["start_time"],
         },
     )
-    logger.info("[trace %s] 关闭: status=%s", _current_trace.get("task_id", "?"), status)
+    logger.info("[trace %s] closed: status=%s", _current_trace.get("task_id", "?"), status)
     _current_trace = None
 
 
-# ── 工具调用记录 ──
+# ── Tool Call Recording ──
 
 
 def record_tool_call(
@@ -85,16 +85,16 @@ def record_tool_call(
     error: str = "",
     duration_ms: float = 0,
 ):
-    """记录一次工具调用（由 kernel._loop 调用）。
+    """Record a single tool call (called by kernel._loop).
 
     Args:
-        step: 步骤号（从1开始递增）
-        tool_name: 工具名称
-        input_digest: 输入摘要（参数的前120字）
-        output_digest: 输出摘要（结果的前200字）
+        step: Step number (starts from 1)
+        tool_name: Tool name
+        input_digest: Input digest (first 120 chars of params)
+        output_digest: Output digest (first 200 chars of result)
         status: ok | error | timeout
-        error: 错误信息（status=error时必填）
-        duration_ms: 执行耗时（毫秒）
+        error: Error message (required when status=error)
+        duration_ms: Execution duration (milliseconds)
     """
     global _current_trace
     if not _current_trace:
@@ -115,15 +115,15 @@ def record_tool_call(
 
     if status == "error":
         logger.warning(
-            "[trace %s] 步骤%d 工具 %s 失败: %s", _current_trace.get("task_id", "?"), step, tool_name, error[:100]
+            "[trace %s] step%d tool %s failed: %s", _current_trace.get("task_id", "?"), step, tool_name, error[:100]
         )
 
 
-# ── 失败分析 ──
+# ── Failure Analysis ──
 
 
 def get_failure_analysis() -> dict:
-    """分析当前 trace，返回失败信息。
+    """Analyze current trace, return failure info.
 
     Returns:
         {
@@ -156,33 +156,33 @@ def get_failure_analysis() -> dict:
             "suggestion": None,
         }
 
-    # 失败类型推断
+    # Failure type inference
     error_text = (failed.get("error") or "").lower()
     if "timeout" in error_text or "timeout" in failed.get("output", ""):
-        failure_type = "工具超时"
+        failure_type = "Tool Timeout"
     elif "not found" in error_text or "404" in error_text:
-        failure_type = "资源不存在"
+        failure_type = "Resource Not Found"
     elif "auth" in error_text or "401" in error_text or "403" in error_text:
-        failure_type = "权限不足"
+        failure_type = "Permission Denied"
     elif "connection" in error_text or "connect" in error_text or "refused" in error_text:
-        failure_type = "连接失败"
+        failure_type = "Connection Failed"
     elif "500" in error_text or "error" in error_text:
-        failure_type = "服务端错误"
+        failure_type = "Server Error"
     elif "timeout" in error_text:
-        failure_type = "超时"
+        failure_type = "Timeout"
     else:
-        failure_type = "未知错误"
+        failure_type = "Unknown Error"
 
-    # 建议（基于失败步骤前后文）
-    suggestion = f"第{passed_before_fail + 1}步({failed['tool']})失败，失败类型：{failure_type}。"
+    # Suggestion (based on failure step context)
+    suggestion = f"Step {passed_before_fail + 1} ({failed['tool']}) failed, failure type: {failure_type}."
     if passed_before_fail == 0:
-        suggestion += "第一步即失败，检查环境和依赖是否就绪。"
-    elif failure_type == "工具超时":
-        suggestion += "考虑并行化或缩短命令超时。"
-    elif failure_type == "资源不存在":
-        suggestion += "检查路径和文件是否存在。"
+        suggestion += " First step failed, check environment and dependencies."
+    elif failure_type == "Tool Timeout":
+        suggestion += " Consider parallelization or reducing command timeout."
+    elif failure_type == "Resource Not Found":
+        suggestion += " Check if path and file exist."
     else:
-        suggestion += f"失败详情：{error_text[:200]}"
+        suggestion += f" Failure detail: {error_text[:200]}"
 
     return {
         "has_failure": True,
@@ -194,11 +194,11 @@ def get_failure_analysis() -> dict:
     }
 
 
-# ── 文件写入 ──
+# ── File Write ──
 
 
 def _write_entry(entry_type: str, data: dict):
-    """异步写入一条 JSONL trace 记录。"""
+    """Async write a JSONL trace record."""
     if _current_trace is None:
         return
     task_id = _current_trace["task_id"]
@@ -213,14 +213,14 @@ def _write_entry(entry_type: str, data: dict):
         with open(filepath, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception as e:
-        logger.warning("[trace] 写入失败: %s", e)
+        logger.warning("[trace] write failed: %s", e)
 
 
-# ── 读取已有 trace ──
+# ── Read Existing Traces ──
 
 
 def read_trace(task_id: str) -> list[dict]:
-    """读取已完成的 trace 文件。"""
+    """Read a completed trace file."""
     filepath = TRACE_DIR / f"{task_id}.jsonl"
     if not filepath.exists():
         return []
@@ -233,12 +233,12 @@ def read_trace(task_id: str) -> list[dict]:
                     entries.append(json.loads(line))
         return entries
     except Exception as e:
-        logger.warning("[trace] 读取失败 %s: %s", task_id, e)
+        logger.warning("[trace] read failed %s: %s", task_id, e)
         return []
 
 
 def analyze_task(trace_entries: list[dict]) -> dict:
-    """对一组 trace 条目做分析（独立于 active trace）。"""
+    """Analyze a set of trace entries (independent of active trace)."""
     tool_calls = [e for e in trace_entries if e.get("_type") == "tool_call"]
     errors = [e for e in tool_calls if e.get("status") == "error"]
 
@@ -255,11 +255,11 @@ def analyze_task(trace_entries: list[dict]) -> dict:
     }
 
 
-# ── 列表 ──
+# ── List ──
 
 
 def list_traces() -> list[str]:
-    """列出所有 trace 文件。"""
+    """List all trace files."""
     if not TRACE_DIR.exists():
         return []
     return sorted([f.stem for f in TRACE_DIR.glob("*.jsonl")], reverse=True)

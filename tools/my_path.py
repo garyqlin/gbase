@@ -15,7 +15,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 @tool()
 async def my_current_path() -> dict:
-    """查看当前工作目录和项目结构。当你不知道自己在哪里时调用。"""
+    """Show current working directory and project structure. Call when you don't know where you are."""
     return {
         "project_root": str(_PROJECT_ROOT),
         "current_directory": os.getcwd(),
@@ -28,7 +28,7 @@ async def my_current_path() -> dict:
 
 @tool()
 async def my_project_roots() -> dict:
-    """显示项目根路径信息"""
+    """Show project root path info."""
     return {
         "project_root": str(_PROJECT_ROOT),
         "getcwd": os.getcwd(),

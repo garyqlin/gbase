@@ -3,11 +3,11 @@
 opprime-core-v2/lib/toolkit.py
 
 Tool registration system:
-- @tool 装饰器自动注册
-- toolsets 关键词路由
-- platform_map 平台白名单过滤
+- @tool decorator auto-registration
+- toolsets keyword routing
+- platform_map platform whitelist filtering
 
-来自 V0，语义保留，代码精简。
+Migrated from V0. Semantics preserved, code streamlined.
 """
 
 import inspect
@@ -16,7 +16,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# ── 全局注册表 ──────────────────────────────────────────
+# ── Global registry ───────────────────────────────────────
 
 _tool_registry: dict[str, callable] = {}
 """{tool_name: async_function}"""
@@ -27,7 +27,7 @@ _tool_metadata: dict[str, dict] = {}
 _toolsets: dict[str, dict] = {}
 """{
     "toolset_name": {
-        "keywords": ["触发词", ...],
+        "keywords": ["trigger words", ...],
         "tools": ["tool_name", ...]
     }
 }"""
@@ -37,37 +37,36 @@ _platform_map: dict[str, list[str]] = {}
     "platform_name": ["toolset_name", ...]
 }"""
 
-# ── 全局上下文（工具可读） ──────────────────────────────
+# ── Global context (readable by tools) ────────────────────
 
 _globals: dict = {}
-"""工具可以读取的全局上下文。
-由 main.py 在初始化时设置。
+"""Global context readable by tools.
+Set by main.py during initialization.
 """
 
 
 def set_global(key: str, value):
-    """设置一个全局值供工具读取。"""
+    """Set a global value for tools to read."""
     _globals[key] = value
 
 
 def get_global(key: str, default=None):
-    """读取一个全局值。"""
+    """Read a global value."""
     return _globals.get(key, default)
 
 
-# ── @tool 装饰器 ────────────────────────────────────────
-
+# ── @tool decorator ───────────────────────────────────────
 
 def tool(name: str = "", description: str = "", parameters: dict | None = None):
-    """工具注册装饰器。
+    """Tool registration decorator.
 
-    用法：
+    Usage:
         @tool()
         async def get_weather(city: str):
-            '''查天气'''
+            '''Look up weather'''
             ...
 
-    自动从函数签名推导 parameters（OpenAI tool format）。
+    Auto-infers parameters from function signature (OpenAI tool format).
     """
 
     def decorator(func):
@@ -78,7 +77,7 @@ def tool(name: str = "", description: str = "", parameters: dict | None = None):
             description = (func.__doc__ or "").strip()
 
         if not parameters:
-            # 从函数签名推断
+            # Infer from function signature
             sig = inspect.signature(func)
             props = {}
             required = []
@@ -112,17 +111,16 @@ def tool(name: str = "", description: str = "", parameters: dict | None = None):
             "parameters": parameters,
         }
 
-        logger.debug("工具注册: %s", tool_name)
+        logger.debug("Tool registered: %s", tool_name)
         return func
 
     return decorator
 
 
-# ── 工具集注册 ──────────────────────────────────────────
-
+# ── Toolset registration ──────────────────────────────────
 
 def register_toolset(name: str, keywords: list[str], tools: list[str]):
-    """注册一个工具集（Intent-based routing 的 Intent/能力组）。"""
+    """Register a toolset (Intent/capability group for intent-based routing)."""
     _toolsets[name] = {
         "keywords": [kw.lower() for kw in keywords],
         "tools": tools,
@@ -130,45 +128,45 @@ def register_toolset(name: str, keywords: list[str], tools: list[str]):
 
 
 def register_platform_map(platform: str, toolsets: list[str]):
-    """注册平台到工具集的映射。"""
+    """Register a platform-to-toolset mapping."""
     _platform_map[platform] = toolsets
 
 
-# ── 工具执行 ────────────────────────────────────────────
+# ── Tool execution ────────────────────────────────────────
 
 
 async def execute(tool_name: str, args: dict) -> dict:
-    """执行工具。"""
+    """Execute a tool."""
     func = _tool_registry.get(tool_name)
     if not func:
-        return {"error": f"未知工具: {tool_name}"}
+        return {"error": f"Unknown tool: {tool_name}"}
     try:
         result = await func(**args)
         if result is None:
-            return {"error": f"工具 {tool_name} 返回 None"}
+            return {"error": f"Tool {tool_name} returned None"}
         if isinstance(result, dict):
             return result
         return {"result": str(result)}
     except Exception as e:
-        logger.error("工具执行失败 %s: %s", tool_name, e)
-        return {"error": f"工具执行失败: {str(e)}"}
+        logger.error("Tool execution failed %s: %s", tool_name, e)
+        return {"error": f"Tool execution failed: {str(e)}"}
 
 
-# ── 工具路由 ────────────────────────────────────────────
+# ── Tool routing ──────────────────────────────────────────
 
 
 def resolve_tools(platform: str, user_message: str) -> list[dict]:
-    """根据平台和用户消息关键词，解析可用的工具定义列表（OpenAI format）。
+    """Resolve available tool definitions (OpenAI format) based on platform and user message keywords.
 
-    流程：
-    1. 根据 platform 从 platform_map 获取允许的工具集名
-    2. 遍历工具集，检查用户消息中的关键词
-    3. 匹配到的工具集的工具 + 保底工具集的工具
-    4. 返回 OpenAI tool format 的列表
+    Flow:
+    1. Get allowed toolsets from platform_map by platform
+    2. Iterate toolsets, check keywords in user message
+    3. Include matched tools + fallback toolsets' tools
+    4. Return list in OpenAI tool format
     """
     allowed_toolsets = _platform_map.get(platform, [])
     if not allowed_toolsets:
-        # 没有平台限制，给所有工具
+        # No platform restriction, return all tools
         return _all_tool_defs()
 
     matched_tools: set[str] = set()
@@ -179,25 +177,25 @@ def resolve_tools(platform: str, user_message: str) -> list[dict]:
         ts = _toolsets.get(ts_name)
         if not ts:
             continue
-        # 检查关键词是否匹配
+        # Check if keyword matches
         for kw in ts["keywords"]:
             if kw in user_lower:
                 matched_tools.update(ts["tools"])
                 break
-        # 没匹配上的，如果工具集有关键词"*"（通配），也加上
+        # For unmatched toolsets, if they have keyword "*" (wildcard), include them too
         if "*" in ts.get("keywords", []):
             matched_tools.update(ts["tools"])
 
     if not matched_tools:
-        # 没有任何关键词匹配，给 chat 工具集（对话辅助）
+        # No keyword matched, return chat toolset (conversation helper)
         chat_ts = _toolsets.get("chat", {})
         matched_tools = set(chat_ts.get("tools", []))
 
-        # 加上保底：web 工具集
+        # Plus fallback: web toolset
         web_ts = _toolsets.get("web", {})
         matched_tools.update(web_ts.get("tools", []))
 
-    # 转成 OpenAI tool format
+    # Convert to OpenAI tool format
     defs = []
     for name in matched_tools:
         meta = _tool_metadata.get(name)
@@ -217,7 +215,7 @@ def resolve_tools(platform: str, user_message: str) -> list[dict]:
 
 
 def get_platform_toolsets(platform: str) -> list[dict]:
-    """获取平台允许的完整工具集定义（不按关键词缩小范围）。"""
+    """Get full toolset definitions allowed for a platform (no keyword narrowing)."""
     allowed = _platform_map.get(platform, [])
     return [_toolsets.get(ts, {}) for ts in allowed]
 
@@ -238,20 +236,20 @@ def _all_tool_defs() -> list[dict]:
     return defs
 
 
-# ── 工具文件自动扫描 ────────────────────────────────────
+# ── Auto-scan tool files ──────────────────────────────────
 
 
 def auto_scan(path: str = "tools"):
-    """自动扫描 tools/ 目录下的所有 .py 文件并 import（触发 @tool 延迟注册）。"""
+    """Auto-scan all .py files under tools/ directory and import them (triggers deferred @tool registration)."""
     import importlib
     import os
 
     tools_dir = path
     if not os.path.isdir(tools_dir):
-        logger.warning("工具目录不存在: %s", tools_dir)
+        logger.warning("Tool directory not found: %s", tools_dir)
         return
 
-    # 扫描目录下的所有 Python 文件
+    # Scan all Python files in the directory
     for fname in sorted(os.listdir(tools_dir)):
         if fname.endswith(".py") and not fname.startswith("_"):
             mod_name = fname[:-3]
@@ -259,12 +257,12 @@ def auto_scan(path: str = "tools"):
             if spec and spec.loader:
                 try:
                     spec.loader.exec_module(importlib.util.module_from_spec(spec))
-                    logger.debug("加载工具文件: %s", fname)
+                    logger.debug("Loaded tool file: %s", fname)
                 except Exception as e:
-                    logger.warning("加载工具文件失败 %s: %s", fname, e)
+                    logger.warning("Failed to load tool file %s: %s", fname, e)
 
 
-# ── 工具定义查询 ────────────────────────────────────────
+# ── Tool definition queries ───────────────────────────────
 
 
 def available_tools() -> list[str]:

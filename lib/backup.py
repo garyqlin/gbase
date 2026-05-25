@@ -19,15 +19,12 @@ import secrets
 import shutil
 from datetime import datetime, timedelta
 
-# Default backup dir: cloud /home/opprime-v2/.backups, local ~/opprime/.backups
+# Default backup dir: use GBASE_BACKUP_DIR env or project root/.backups
 _default_backup = os.environ.get("GBASE_BACKUP_DIR", "")
 if not _default_backup:
     # auto-detect working directory
     cwd = os.getcwd()
-    if "/home/opprime-v2" in cwd:
-        _default_backup = "/home/opprime-v2/.backups"
-    else:
-        _default_backup = os.path.join(os.path.expanduser("~"), "opprime", ".backups")
+    _default_backup = os.getenv("GBASE_BACKUP_DIR", "") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".backups")
 BACKUP_DIR = _default_backup
 INDEX_PATH = os.path.join(BACKUP_DIR, "index.json")
 

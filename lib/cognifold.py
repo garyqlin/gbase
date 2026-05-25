@@ -5,46 +5,47 @@
 ║  Cognifold — Active memory architecture                                  ║
 ║  arxiv: 2605.13438                                        ║
 ║                                                           ║
-║  三层认知结构（扩展 CLS 理论）:                              ║
-║    Layer 1 (海马体)    = mirror 记忆存储                    ║
-║    Layer 2 (新皮层)    = 概念簇自组织                        ║
-║    Layer 3 (前额叶)    = 意图浮现 + 决策                     ║
+║  Three-Layer Cognitive Structure (extending CLS theory):                              ║
+║    Layer 1 (Hippocampus)  = mirror memory store                    ║
+║    Layer 2 (Neocortex)    = concept cluster self-org                        ║
+║    Layer 3 (Prefrontal)   = intent emergence + decision                     ║
 ║                                                           ║
-║  核心机制:                                                  ║
-║    - 事件流 → 语义相似合并 → 过期衰减 → 关联回忆重链         ║
-║    - 概念簇密度超阈值 → 主动浮现意图                        ║
-║    - 不是"存好了等检索"，而是"记忆自动组织自己"               ║
+║  Core mechanisms:                                                  ║
+║    - Event stream → semantic similarity merge → decay → associative recall re-linking         ║
+║    - Cluster density exceeds threshold → active intent emergence                        ║
+║    - Not "store and retrieve", but "memories organize themselves"               ║
 ║                                                           ║
-║  用法:                                                      ║
+║  Usage:                                                      ║
 ║    from lib.cognifold import Cognifold                     ║
 ║    cf = Cognifold(mirror_instance)                         ║
-║    cf.on_record(content, mtype, tags)  # 记录时触发组织     ║
-║    intents = cf.check_intents()         # 检查浮现的意图   ║
+║    cf.on_record(content, mtype, tags)  # triggers organization on record     ║
+║    intents = cf.check_intents()         # check emerged intents   ║
 ╚═══════════════════════════════════════════════════════════╝
 """
 
 import json
+import os
 import re
 import sqlite3
 import time
 from pathlib import Path
 from typing import Any
 
-# === 配置 ===
-DATA_DIR = Path("/home/opprime-v2/data")
+# === Configuration ===
+DATA_DIR = Path(os.getenv("GBASE_COGNIFOLD_DIR", "./data"))
 COGNIFOLD_DB = DATA_DIR / "cognifold.db"
 
-# 概念簇参数
-CLUSTER_WINDOW_DAYS = 7  # 概念簇时间窗口
-CLUSTER_DENSITY_THRESHOLD = 5  # 同一概念 7 天内 ≥5 条触发意图浮现
-MIN_CLUSTER_SIZE = 3  # 最小聚类大小
-SIMILARITY_JACCARD = 0.35  # Jaccard 相似度阈值（合并阈值）
+# Concept cluster parameters
+CLUSTER_WINDOW_DAYS = 7  # Concept cluster time window
+CLUSTER_DENSITY_THRESHOLD = 5  # Same concept ≥5 events in 7 days triggers intent emergence
+MIN_CLUSTER_SIZE = 3  # Minimum cluster size
+SIMILARITY_JACCARD = 0.35  # Jaccard similarity threshold (merge threshold)
 
-# 意图浮现
+# Intent emergence
 INTENT_LEVELS = ["notice", "suggestion", "alert"]
-MAX_INTENTS_PER_CHECK = 3  # 每次检查最多浮现 3 个意图
+MAX_INTENTS_PER_CHECK = 3  # Max 3 intents emerged per check
 
-# 停用词（中文）
+# Stop words (Chinese)
 STOP_WORDS = {
     "的",
     "了",
@@ -103,12 +104,12 @@ STOP_WORDS = {
 
 
 class Cognifold:
-    """主动记忆架构 — 概念簇自组织 + 意图浮现。
+    """Active memory architecture — concept cluster self-organization + intent emergence.
 
-    架构:
-      - Layer 1: 事件流接入（通过 on_record 接收 mirror 事件）
-      - Layer 2: 概念簇自组织（语义相似合并、衰减、重链）
-      - Layer 3: 意图浮现（密度检测 + 触发器）
+    Architecture:
+      - Layer 1: Event stream ingestion (receives mirror events via on_record)
+      - Layer 2: Concept cluster self-organization (semantic similarity merge, decay, re-linking)
+      - Layer 3: Intent emergence (density detection + triggers)
     """
 
     def __init__(self, mirror_instance=None):
@@ -119,13 +120,13 @@ class Cognifold:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._setup_schema()
 
-        # 内存缓存：概念→簇映射（加速查询）
+        # In-memory cache: concept → cluster mapping (for faster queries)
         self._concept_cache: dict[str, int] = {}
         self._last_intent_check = 0.0
 
     def _setup_schema(self):
-        """初始化认知结构表。"""
-        # 概念表（Layer 2）
+        """Initialize cognitive structure tables."""
+        # Concepts table (Layer 2)
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS concepts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -139,7 +140,7 @@ class Cognifold:
             )
         """)
 
-        # 概念簇表（Layer 2）
+        # Concept clusters table (Layer 2)
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS clusters (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,7 +155,7 @@ class Cognifold:
             )
         """)
 
-        # 概念关联表
+        # Concept links table
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS concept_links (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -167,7 +168,7 @@ class Cognifold:
             )
         """)
 
-        # 意图浮现日志（Layer 3）
+        # Intent emergence log (Layer 3)
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS intents (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -189,75 +190,75 @@ class Cognifold:
 
         self._conn.commit()
 
-    # ─── Layer 1: 事件接入 ────────────────────────────────
+    # ─── Layer 1: Event Ingestion ─────────────────────────
 
     def on_record(self, content: str, _mtype: str = "", tags: list[str] = None, _source: str = ""):
-        """接收到新记忆事件时的处理入口。
+        """Entry point for processing new memory events.
 
-        这是 Cognifold 连接 mirror.record() 的钩子。
-        每次 mirror 记录新记忆时调用此方法。
+        This is the hook connecting Cognifold to mirror.record().
+        Called each time mirror records a new memory.
         """
         tags = tags or []
         now = time.time()
 
-        # 提取概念
+        # Extract concepts
         concepts = self._extract_concepts(content, tags)
 
         if not concepts:
             return
 
-        # 更新概念统计
+        # Update concept stats
         concept_ids = []
         for concept_name in concepts:
             cid = self._upsert_concept(concept_name, now)
             if cid:
                 concept_ids.append(cid)
 
-        # 更新共现关系
+        # Update co-occurrence relationships
         self._update_co_occurrence(concept_ids, now)
 
-        # 重新计算簇密度
+        # Recalculate cluster density
         self._recluster(concept_ids, now)
 
-        # 定期衰减
+        # Periodic decay
         self._decay_if_needed(now)
 
     def _extract_concepts(self, content: str, tags: list[str]) -> list[str]:
-        """从内容中提取概念关键词。
+        """Extract concept keywords from content.
 
-        策略:
-          1. 中文分词（简单正则 + 停用词过滤）
-          2. 提取 2-4 字词
-          3. 合并 tags 中的词
+        Strategy:
+          1. Chinese word segmentation (simple regex + stop word filtering)
+          2. Extract 2-4 character words
+          3. Merge words from tags
         """
         concepts = set()
 
-        # 从内容提取
+        # Extract from content
         cleaned = re.sub(r"[^\u4e00-\u9fff\w]", " ", content)
         words = cleaned.split()
 
         for word in words:
             word = word.strip()
-            # 中文词：2-4 字
+            # Chinese words: 2-4 chars
             if re.match(r"^[\u4e00-\u9fff]{2,4}$", word):
                 if word not in STOP_WORDS:
                     concepts.add(word)
-            # 英文技术词
+            # English tech terms
             elif re.match(r"^[A-Z][a-zA-Z]+$", word) and len(word) >= 3:
                 concepts.add(word.lower())
 
-        # 从 tags 合并
+        # Merge from tags
         for tag in tags:
             tag = tag.strip().lower()
             if tag and len(tag) >= 2 and tag not in STOP_WORDS:
                 concepts.add(tag)
 
-        return list(concepts)[:10]  # 最多 10 个概念
+        return list(concepts)[:10]  # Max 10 concepts
 
-    # ─── Layer 2: 概念簇自组织 ────────────────────────────
+    # ─── Layer 2: Concept Cluster Self-Organization ───────
 
     def _upsert_concept(self, name: str, now: float) -> int | None:
-        """更新或创建概念。"""
+        """Update or create concept."""
         if name in self._concept_cache:
             cid = self._concept_cache[name]
             self._conn.execute("UPDATE concepts SET last_seen=?, total_events=total_events+1 WHERE id=?", (now, cid))
@@ -280,7 +281,7 @@ class Cognifold:
         return cid
 
     def _update_co_occurrence(self, concept_ids: list[int], _now: float):
-        """更新概念共现矩阵。"""
+        """Update concept co-occurrence matrix."""
         for i in range(len(concept_ids)):
             for j in range(i + 1, len(concept_ids)):
                 a, b = sorted([concept_ids[i], concept_ids[j]])
@@ -300,18 +301,18 @@ class Cognifold:
         self._conn.commit()
 
     def _recluster(self, triggered_concept_ids: list[int], now: float):
-        """重新组织概念簇。
+        """Reorganize concept clusters.
 
-        算法:
-          1. 以触发的概念为种子
-          2. 通过共现关系找到强关联概念（strength >= SIMILARITY_JACCARD）
-          3. 合并重叠簇
-          4. 更新簇密度
+        Algorithm:
+          1. Use triggered concepts as seeds
+          2. Find strongly related concepts via co-occurrence (strength >= SIMILARITY_JACCARD)
+          3. Merge overlapping clusters
+          4. Update cluster density
         """
         if not triggered_concept_ids:
             return
 
-        # 加载所有活跃概念（7 天窗口内）
+        # Load all active concepts (within 7-day window)
         cutoff = now - (CLUSTER_WINDOW_DAYS * 86400)
         cursor = self._conn.execute(
             "SELECT id, name, cluster_id, total_events FROM concepts WHERE last_seen >= ?", (cutoff,)
@@ -321,12 +322,12 @@ class Cognifold:
         if not all_concepts:
             return
 
-        # 找每个触发概念的邻居
+        # Find neighbors for each triggered concept
         for seed_id in triggered_concept_ids:
             if seed_id not in all_concepts:
                 continue
 
-            # BFS 找关联概念
+            # BFS to find related concepts
             cluster_members = {seed_id}
             queue = [seed_id]
             while queue:
@@ -345,14 +346,14 @@ class Cognifold:
             if len(cluster_members) < MIN_CLUSTER_SIZE:
                 continue
 
-            # 创建或更新簇
+            # Create or update cluster
             event_count = sum(all_concepts[c]["events"] for c in cluster_members)
-            density = event_count / CLUSTER_WINDOW_DAYS  # 每天事件密度
+            density = event_count / CLUSTER_WINDOW_DAYS  # Events per day density
 
-            # 找最代表性的概念名作为簇标签
+            # Pick most representative concept name as cluster label
             label = self._pick_cluster_label(cluster_members, all_concepts)
 
-            # 检查是否与现有簇合并
+            # Check if merging with existing cluster
             existing_cluster_id = self._find_merge_target(cluster_members, all_concepts)
 
             if existing_cluster_id:
@@ -369,32 +370,32 @@ class Cognifold:
                 )
                 cluster_id = cursor.lastrowid
 
-            # 更新概念的簇归属
+            # Update concept cluster assignment
             for cid in cluster_members:
                 self._conn.execute("UPDATE concepts SET cluster_id=? WHERE id=?", (cluster_id, cid))
                 all_concepts[cid]["cluster_id"] = cluster_id
 
         self._conn.commit()
 
-        # 更新内存缓存
+        # Update memory cache
         for cid, info in all_concepts.items():
             if info["cluster_id"]:
                 self._concept_cache[info["name"]] = cid
 
     def _pick_cluster_label(self, member_ids: set[int], all_concepts: dict) -> str:
-        """选最具代表性的概念名作为簇标签。"""
+        """Pick most representative concept name as cluster label."""
         candidates = [(all_concepts[c]["events"], all_concepts[c]["name"]) for c in member_ids if c in all_concepts]
         candidates.sort(reverse=True)
         if not candidates:
             return "unknown"
         top = candidates[0][1]
-        # 如果还有第二名，用 "top + 第二名" 做标签
+        # If there is a runner-up, use "top + runner-up" as label
         if len(candidates) >= 2:
             return f"{top}/{candidates[1][1]}"
         return top
 
     def _find_merge_target(self, member_ids: set[int], all_concepts: dict) -> int | None:
-        """找可以合并的现有簇。"""
+        """Find existing cluster to merge into."""
         cluster_ids = set()
         for cid in member_ids:
             if cid in all_concepts and all_concepts[cid]["cluster_id"]:
@@ -405,8 +406,8 @@ class Cognifold:
         return None
 
     def _decay_if_needed(self, now: float):
-        """定期衰减过期概念。"""
-        if now - self._last_intent_check < 3600:  # 每小时检查一次
+        """Periodically decay expired concepts."""
+        if now - self._last_intent_check < 3600:  # Check once per hour
             return
 
         cutoff = now - (CLUSTER_WINDOW_DAYS * 2 * 86400)
@@ -415,20 +416,20 @@ class Cognifold:
         self._conn.commit()
         self._last_intent_check = now
 
-    # ─── Layer 3: 意图浮现 ────────────────────────────────
+    # ─── Layer 3: Intent Emergence ────────────────────────
 
     def check_intents(self) -> list[dict[str, Any]]:
-        """检查是否有需要浮现的意图。
+        """Check for intents that need to emerge.
 
-        当概念簇密度超过阈值时，自动生成意图并推送。
+        When a concept cluster density exceeds threshold, auto-generate and push intents.
 
         Returns:
-            浮现的意图列表，每个包含 {level, title, body, evidence}
+            List of emerged intents, each containing {level, title, body, evidence}
         """
         now = time.time()
         cutoff = now - (CLUSTER_WINDOW_DAYS * 86400)
 
-        # 查找高密度活跃簇
+        # Find high-density active clusters
         cursor = self._conn.execute(
             "SELECT c.id, c.label, c.concept_count, c.event_count, c.density, "
             "c.first_seen, c.last_seen "
@@ -446,14 +447,14 @@ class Cognifold:
         for row in clusters:
             cluster_id, label, concept_count, event_count, density, first_seen, last_seen = row
 
-            # 检查是否已浮现过相同意图（去重）
+            # Check if same intent already emerged (dedup)
             existing = self._conn.execute(
                 "SELECT id FROM intents WHERE cluster_id=? AND emerged_at > ?", (cluster_id, now - 86400 * 3)
             ).fetchone()
             if existing:
                 continue
 
-            # 生成意图
+            # Generate intent
             intent = self._generate_intent(
                 cluster_id, label, concept_count, event_count, density, first_seen, last_seen
             )
@@ -473,16 +474,16 @@ class Cognifold:
         first_seen: float,
         last_seen: float,
     ) -> dict[str, Any] | None:
-        """基于簇密度生成意图。
+        """Generate intent based on cluster density.
 
-        意图级别:
-          - notice:   density 5-10,   提示注意
-          - suggestion: density 10-20, 建议行动
-          - alert:    density > 20,    紧急告警
+        Intent levels:
+          - notice:     density 5-10,   heads-up
+          - suggestion: density 10-20,  recommended action
+          - alert:      density > 20,   urgent alert
         """
         now = time.time()
 
-        # 确定意图级别
+        # Determine intent level
         if density > 20:
             level = "alert"
         elif density > 10:
@@ -490,38 +491,38 @@ class Cognifold:
         else:
             level = "notice"
 
-        # 生成标题和正文
+        # Generate title and body
         days_span = max(1, int((last_seen - first_seen) / 86400))
 
         if level == "alert":
-            title = f"🚨 高密度概念簇: {label}"
+            title = f"🚨 High-Density Concept Cluster: {label}"
             body = (
-                f"过去 {days_span} 天内，'{label}' 相关事件密度达到 {density:.1f}/天 "
-                f"（共 {event_count} 条，{concept_count} 个关联概念）。"
-                f"建议立即审查并制定应对策略。"
+                f"In the past {days_span} days, '{label}' related event density reached {density:.1f}/day "
+                f"({event_count} events total, {concept_count} related concepts). "
+                f"Immediate review and response strategy recommended."
             )
         elif level == "suggestion":
-            title = f"💡 浮现模式: {label}"
+            title = f"💡 Emerging Pattern: {label}"
             body = (
-                f"'{label}' 相关事件在 {days_span} 天内出现了 {event_count} 次 "
-                f"（{concept_count} 个关联概念），密度 {density:.1f}/天。"
-                f"建议考虑将此模式纳入正式规则或流程。"
+                f"'{label}' related events appeared {event_count} times in {days_span} days "
+                f"({concept_count} related concepts), density {density:.1f}/day. "
+                f"Consider incorporating this pattern into formal rules or workflows."
             )
         else:
-            title = f"📌 注意: {label}"
+            title = f"📌 Notice: {label}"
             body = (
-                f"'{label}' 概念簇在 {days_span} 天内累积了 {event_count} 条事件 "
-                f"（密度 {density:.1f}/天）。值得关注其发展趋势。"
+                f"'{label}' concept cluster accumulated {event_count} events in {days_span} days "
+                f"(density {density:.1f}/day). Worth monitoring its development trend."
             )
 
-        # 收集证据（关联的概念）
+        # Collect evidence (related concepts)
         cursor = self._conn.execute(
             "SELECT name FROM concepts WHERE cluster_id=? ORDER BY total_events DESC LIMIT 5", (cluster_id,)
         )
         evidence_concepts = [row[0] for row in cursor.fetchall()]
-        evidence = f"关联概念: {', '.join(evidence_concepts)}"
+        evidence = f"Related concepts: {', '.join(evidence_concepts)}"
 
-        # 存储意图
+        # Store intent
         cursor = self._conn.execute(
             "INSERT INTO intents (cluster_id, level, title, body, evidence, emerged_at) VALUES (?, ?, ?, ?, ?, ?)",
             (cluster_id, level, title, body, evidence, now),
@@ -539,28 +540,28 @@ class Cognifold:
         }
 
     def acknowledge_intent(self, intent_id: int) -> bool:
-        """标记意图为已确认。"""
+        """Mark intent as acknowledged."""
         self._conn.execute("UPDATE intents SET acknowledged=1 WHERE id=?", (intent_id,))
         self._conn.commit()
         return True
 
     def act_on_intent(self, intent_id: int) -> bool:
-        """标记意图为已处理。"""
+        """Mark intent as acted upon."""
         self._conn.execute("UPDATE intents SET acted_upon=1 WHERE id=?", (intent_id,))
         self._conn.commit()
         return True
 
-    # ─── 统计与维护 ────────────────────────────────────────
+    # ─── Stats & Maintenance ──────────────────────────────
 
     def stats(self) -> dict[str, Any]:
-        """返回 Cognifold 统计信息。"""
+        """Return Cognifold statistics."""
         concept_count = self._conn.execute("SELECT COUNT(*) FROM concepts").fetchone()[0]
         active_concepts = self._conn.execute("SELECT COUNT(*) FROM concepts WHERE weight > 0.1").fetchone()[0]
         cluster_count = self._conn.execute("SELECT COUNT(*) FROM clusters WHERE is_active=1").fetchone()[0]
         intent_count = self._conn.execute("SELECT COUNT(*) FROM intents").fetchone()[0]
         unacknowledged = self._conn.execute("SELECT COUNT(*) FROM intents WHERE acknowledged=0").fetchone()[0]
 
-        # 当前高密度簇
+        # Current high-density clusters
         cursor = self._conn.execute(
             "SELECT label, round(density,1) FROM clusters "
             "WHERE is_active=1 AND density >= ? ORDER BY density DESC LIMIT 5",
@@ -582,7 +583,7 @@ class Cognifold:
             self._conn.close()
 
 
-# ─── 便捷函数 ───────────────────────────────────────────
+# ─── Convenience Functions ────────────────────────────
 
 _cognifold_instance: Cognifold | None = None
 

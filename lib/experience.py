@@ -4,9 +4,9 @@ opprime-core-v2/lib/experience.py
 
 Experience layer — auto-extract + read + inject.
 
-属于三层沉淀体系的第一层（experience）。
+Layer 1 of the three-layer sedimentation system — experience.
 
-v2.1 — 增加去重逻辑：同一规则在 DEDUP_WINDOW 内不重复记录。
+v2.1 — Added dedup logic: same rule not recorded twice within DEDUP_WINDOW.
 """
 
 import json
@@ -17,41 +17,43 @@ from . import storage as store_module  # type: ignore[import]
 logger = logging.getLogger(__name__)
 
 _MAX_INJECTION = 5
-"""每次注入到 system prompt 的经验条数。"""
+"""Number of experience entries injected into system prompt each time."""
 
 _RECENT_DEDUP_WINDOW = 10
-"""去重窗口：检查最近 N 条经验，同 rule 名出现 ≥2 次则跳过。"""
+"""Dedup window: check the last N experiences; skip if same rule name appears ≥2 times."""
 
 _RECENT_DEDUP_MIN_COUNT = 2
-"""去重阈值：窗口内同规则出现次数 ≥ 此值则跳过。"""
+"""Dedup threshold: skip if same rule appears ≥ this many times within the window."""
 
 
-# ── 规则提取 ────────────────────────────────────────────
+# ── Rule Extraction ─────────────────────────────────────
 
 _RULES = [
     {
         "name": "tool_excessive",
         "check": lambda ctx: ctx.get("tool_calls_count", 0) > 5,
-        "summary": "此次任务工具调用次数偏多（{tool_calls_count}次），下次同类任务应该先规划再调工具",
+        "summary": "Too many tool calls in this task ({tool_calls_count}); "
+        "next time, plan before calling tools for similar tasks",
         "confidence": "medium",
     },
     {
         "name": "short_reply",
         "check": lambda ctx: len(ctx.get("reply", "")) < 80,
-        "summary": "回复长度偏短（{reply_len}字），下次应尽量提供更完整的回答",
+        "summary": "Reply was too short ({reply_len} chars); "
+        "try to provide more complete answers next time",
         "confidence": "low",
     },
     {
         "name": "api_error",
         "check": lambda ctx: ctx.get("has_api_error", False),
-        "summary": "工具调用时有 API 错误，下次应注意检查工具是否可用",
+        "summary": "API error occurred during tool call; check tool availability next time",
         "confidence": "high",
     },
 ]
 
 
 def _rule_extract(context: dict) -> dict | None:
-    """用规则提取经验。命中最优先的规则则返回，否则 None。"""
+    """Extract experience using rules. Return the highest-priority match or None."""
     for rule in _RULES:
         if rule["check"](context):
             summary = rule["summary"].format(**context)
@@ -66,10 +68,11 @@ def _rule_extract(context: dict) -> dict | None:
 
 
 def _is_duplicate_rule(storage: "store_module.Storage", rule_name: str) -> bool:
-    """检查最近经验中同规则是否已过多。
+    """Check if the same rule has appeared too often recently.
 
-    读取最近 _RECENT_DEDUP_WINDOW 条经验，统计同 rule_name 的出现次数。
-    如果 ≥ _RECENT_DEDUP_MIN_COUNT，视为重复噪音，返回 True。
+    Read the last _RECENT_DEDUP_WINDOW experiences, count occurrences
+    of the same rule_name. If ≥ _RECENT_DEDUP_MIN_COUNT, treat as
+    duplicate noise, return True.
     """
     try:
         recent = storage.read_recent("experience", limit=_RECENT_DEDUP_WINDOW)
@@ -78,15 +81,15 @@ def _is_duplicate_rule(storage: "store_module.Storage", rule_name: str) -> bool:
         count = sum(1 for r in recent if r.get("rule") == rule_name or (rule_name in r.get("summary", "")))
         return count >= _RECENT_DEDUP_MIN_COUNT
     except Exception as e:
-        logger.debug("去重检查异常: %s", e)
+        logger.debug("Dedup check exception: %s", e)
         return False
 
 
-# ── 经验提取器 ──────────────────────────────────────────
+# ── Experience Extractor ────────────────────────────────
 
 
 class ExperienceEngine:
-    """经验引擎。绑定到一个 Storage 实例上运作。"""
+    """Experience engine. Operates on a Storage instance."""
 
     def __init__(self, storage: store_module.Storage):
         self.storage = storage
@@ -96,7 +99,7 @@ class ExperienceEngine:
     async def extract(
         self, user_message: str, reply: str, tool_calls_count: int = 0, has_api_error: bool = False, llm_client=None
     ):
-        """从一次对话中提取经验。先跑规则 → 去重 → 写库。"""
+        """Extract experience from a conversation. Run rules → dedup → write to store."""
         context = {
             "user_message": user_message,
             "reply": reply,
@@ -111,11 +114,11 @@ class ExperienceEngine:
 
             if _is_duplicate_rule(self.storage, rule_name):
                 self._skip_count[rule_name] = self._skip_count.get(rule_name, 0) + 1
-                logger.debug("经验去重跳过: rule=%s (已跳过%d次)", rule_name, self._skip_count[rule_name])
+                logger.debug("Experience dedup skipped: rule=%s (skipped %d times)", rule_name, self._skip_count[rule_name])
                 return
 
-            logger.info("经验提取（规则）: %s", rule_result["summary"][:60])
-            # --- 如果是成功完成任务自动刻入 insight ---
+            logger.info("Experience extracted (rule): %s", rule_result["summary"][:60])
+            # --- Auto-record insight on successful task completion ---
             if tool_calls_count > 0 and not has_api_error and rule_result["type"] != "insight":
                 _record_success_insight(self, user_message, tool_calls_count)
             entry = {
@@ -132,7 +135,7 @@ class ExperienceEngine:
                 confidence=rule_result["confidence"],
                 rule=rule_name,
             )
-            # --- 同步写入鉴面 ---
+            # --- Sync to mirror ---
             try:
                 from tools.mirror_tool import get_mirror_instance
 
@@ -153,18 +156,18 @@ class ExperienceEngine:
             try:
                 await self._llm_extract(context, llm_client)
             except Exception as e:
-                logger.warning("经验提取（LLM）失败: %s", e)
+                logger.warning("Experience extraction (LLM) failed: %s", e)
 
     async def _llm_extract(self, context: dict, client):
         prompt = (
-            "从一次对话中提取 0-1 条有价值的经验教训。\n\n"
-            f"用户说: {context['user_message'][:300]}\n"
-            f"AI 回复: {context['reply'][:300]}\n"
-            f"工具调用: {context['tool_calls_count']} 次\n"
-            f"API 错误: {context['has_api_error']}\n\n"
-            "如果没有什么值得记住的教训，只回复: null\n"
-            "如果有一条值得记住的教训，回复 JSON: "
-            '{"summary": "一句话教训", "context": "背景描述"}'
+            "Extract 0-1 valuable lessons from a conversation.\n\n"
+            f"User said: {context['user_message'][:300]}\n"
+            f"AI replied: {context['reply'][:300]}\n"
+            f"Tool calls: {context['tool_calls_count']}\n"
+            f"API errors: {context['has_api_error']}\n\n"
+            "If there is nothing worth remembering, just reply: null\n"
+            "If there is one lesson worth remembering, reply with JSON: "
+            '{"summary": "one-sentence lesson", "context": "background description"}'
         )
         try:
             response = await client.chat.completions.create(
@@ -175,7 +178,7 @@ class ExperienceEngine:
             )
             text = response.choices[0].message.content.strip()
             if text == "null" or not text:
-                logger.debug("经验提取（LLM）: 无有价值教训")
+                logger.debug("Experience extraction (LLM): no valuable lesson")
                 return
             result = json.loads(text)
             if "summary" in result:
@@ -186,7 +189,7 @@ class ExperienceEngine:
                     "confidence": "low",
                 }
                 self.storage.write("experience", entry, summary=result["summary"][:200], confidence="low")
-                # --- 同步写入鉴面 ---
+                # --- Sync to mirror ---
                 try:
                     from tools.mirror_tool import get_mirror_instance
 
@@ -201,18 +204,18 @@ class ExperienceEngine:
                 except Exception:
                     pass
 
-                logger.info("经验提取（LLM）: %s", result["summary"][:60])
+                logger.info("Experience extracted (LLM): %s", result["summary"][:60])
 
-                # --- 自动刻入 insight（成功任务不留空洞） ---
+                # --- Auto-record insight (successful tasks leave no gaps) ---
                 tc = context.get("tool_calls_count", 0)
                 he = context.get("has_api_error", True)
                 if tc > 0 and not he:
                     _record_success_insight(self, context.get("user_message", ""), tc)
         except Exception as e:
-            logger.debug("经验提取（LLM） 异常: %s", e)
+            logger.debug("Experience extraction (LLM) exception: %s", e)
 
     def search(self, query: str, limit: int = 5) -> list[dict]:
-        """搜索经验库。按 summary 模糊匹配。"""
+        """Search experience store by fuzzy-matching summary."""
         try:
             conn = None
             if hasattr(self.storage, "db_path") and self.storage.db_path:
@@ -248,11 +251,11 @@ class ExperienceEngine:
         except Exception as e:
             import logging
 
-            logging.getLogger(__name__).warning("experience.search 失败: %s", e)
+            logging.getLogger(__name__).warning("experience.search failed: %s", e)
             return []
 
     def forget_by_tags(self, tags_pattern: str = "") -> int:
-        """批量删除匹配关键词的经验记录。"""
+        """Batch-delete experience records matching keywords."""
         if not tags_pattern:
             return 0
         try:
@@ -282,13 +285,13 @@ class ExperienceEngine:
             import logging
 
             logging.getLogger(__name__).info(
-                "experience.forget_by_tags: 删除 %d 条 (pattern=%s)", deleted, tags_pattern
+                "experience.forget_by_tags: deleted %d record(s) (pattern=%s)", deleted, tags_pattern
             )
             return deleted
         except Exception as e:
             import logging
 
-            logging.getLogger(__name__).warning("experience.forget 失败: %s", e)
+            logging.getLogger(__name__).warning("experience.forget failed: %s", e)
             return 0
 
     def get_injection_text(self) -> str:
@@ -300,28 +303,33 @@ class ExperienceEngine:
             lines.append(f"- [{r['confidence']}] {r['summary']}")
             if r.get("hits", 0) > 0:
                 self.storage.record_hit(r["id"])
-        return "\n\n## 📝 经验提醒\n以下是你从之前对话中学到的经验（可能不适用于当前场景）：\n" + "\n".join(lines)
+        return (
+            "\n\n## 📝 Experience Reminders\n"
+            "The following are lessons learned from previous conversations "
+            "(may not apply to the current context):\n"
+            + "\n".join(lines)
+        )
 
     def get_skip_stats(self) -> dict:
         return dict(self._skip_count)
 
 
 def _record_success_insight(_engine, user_message: str, tool_calls_count: int):
-    """成功完成任务后自动刻入 insight，平衡 lesson 与 insight 比例。"""
+    """Auto-record insight after successful task completion to balance lesson/insight ratio."""
     try:
         from tools.mirror_tool import get_mirror_instance
 
         m = get_mirror_instance()
         if m is None:
             return
-        # 从用户消息中提取主题关键词
+        # Extract topic keywords from user message
         topic = user_message[:60].strip()
-        insight_text = f"成功完成: {topic}（工具调用 {tool_calls_count} 次）"
-        # 避免重复：先查有没有类似的
+        insight_text = f"Task completed: {topic} (tool calls: {tool_calls_count})"
+        # Avoid duplicates: check for similar first
         existing = m.recall(topic[:20], limit=3)
         for ex in existing:
             if ex.get("type") == "insight" and topic[:20] in ex.get("content", ""):
-                return  # 已存在同类 insight，跳过
+                return  # Similar insight already exists, skip
         m.record(
             content=insight_text,
             mtype="insight",
@@ -329,6 +337,6 @@ def _record_success_insight(_engine, user_message: str, tool_calls_count: int):
             source="experience:success",
             strength=0.8,
         )
-        logger.info("自动刻入 insight: %s", insight_text[:50])
+        logger.info("Auto-recorded insight: %s", insight_text[:50])
     except Exception:
-        logger.debug("auto insight 失败（非阻塞）")
+        logger.debug("auto insight failed (non-blocking)")

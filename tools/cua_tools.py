@@ -18,15 +18,15 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-cua-agent/scripts")
 
 @tool()
 async def cua_plan(action: str, target: str = "", url: str = "") -> dict:
-    """生成 CUA 桌面操作计划（仅规划，不执行）。
+    """Generate a CUA desktop action plan (planning only, no execution).
 
     Args:
-        action: 操作类型 click|type|scroll|screenshot|navigate
-        target: 操作目标描述
-        url: 导航目标 URL（仅 navigate 时使用）
+        action: Action type: click|type|scroll|screenshot|navigate
+        target: Description of the action target
+        url: Navigation target URL (used with navigate action only)
 
     Returns:
-        操作计划详情
+        Action plan details
     """
     cmd = [sys.executable or "python3", os.path.join(SKILL_DIR, "cua_executor.py"), "--action", action]
     if target:
@@ -55,28 +55,28 @@ async def cua_plan(action: str, target: str = "", url: str = "") -> dict:
 
 @tool()
 async def cua_execute(action: str, target: str = "", url: str = "") -> dict:
-    """执行 CUA 桌面操作（仅计划输出，需要配合 vision 模型执行）。
+    """Execute a CUA desktop action (plan output only, requires vision model for actual execution).
 
     Args:
         action: click|type|scroll|screenshot|navigate
-        target: 操作描述
-        url: URL（navigate 时用）
+        target: Action description
+        url: URL (for navigate action)
 
     Returns:
-        执行结果
+        Execution result
     """
     return await cua_plan(action, target, url)
 
 
 @tool()
 async def memory_load(date: str = "") -> dict:
-    """加载每日记忆摘要。
+    """Load daily memory summary.
 
     Args:
-        date: 日期 YYYY-MM-DD（留空=当天）
+        date: Date YYYY-MM-DD (leave empty for today)
 
     Returns:
-        记忆摘要内容
+        Memory summary content
     """
     cmd = [
         sys.executable or "python3",
@@ -105,7 +105,7 @@ async def memory_load(date: str = "") -> dict:
 
 @tool()
 async def memory_status() -> dict:
-    """查看记忆文件统计信息。"""
+    """View memory file statistics."""
     cmd = [
         sys.executable or "python3",
         os.path.expanduser("~/.qclaw/skills/YF-daily-memory-loader/scripts/load_daily_memory.py"),
@@ -124,13 +124,13 @@ async def memory_status() -> dict:
 
 @tool()
 async def exec_safe(command: str) -> dict:
-    """安全执行 shell 命令，捕获输出和返回码。
+    """Safely execute a shell command, capturing output and return code.
 
     Args:
-        command: 要执行的命令
+        command: Command to execute
 
     Returns:
-        执行结果（stdout/stderr/返回码/耗时）
+        Execution result (stdout/stderr/return code/elapsed time)
     """
     cmd = [
         sys.executable or "python3",
@@ -159,14 +159,14 @@ async def exec_safe(command: str) -> dict:
 
 @tool()
 async def manga_video_plan(files: str = "", script: str = "") -> dict:
-    """生成漫画转视频制作计划。
+    """Generate a manga-to-video production plan.
 
     Args:
-        files: 图片路径（支持通配符如 "*.png"）
-        script: 旁白文字
+        files: Image path (supports wildcards like "*.png")
+        script: Narration text
 
     Returns:
-        视频制作计划
+        Video production plan
     """
     cmd = [
         sys.executable or "python3",
@@ -194,14 +194,14 @@ async def manga_video_plan(files: str = "", script: str = "") -> dict:
 
 @tool()
 async def manga_video_estimate(pages: int = 20, audio_min: int = 3) -> dict:
-    """估算漫画转视频时长。
+    """Estimate manga-to-video duration.
 
     Args:
-        pages: 漫画页数
-        audio_min: 音频时长（分钟）
+        pages: Number of manga pages
+        audio_min: Audio duration (minutes)
 
     Returns:
-        估算结果
+        Estimation result
     """
     cmd = [
         sys.executable or "python3",

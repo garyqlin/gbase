@@ -3,14 +3,14 @@
 opprime-core-v2/tools/cron.py
 
 Cron/scheduler tool — called via @tool.
-调度器在 lib/scheduler.py 中（后台 asyncio Task 轮询投递）。
+Scheduler lives in lib/scheduler.py (background asyncio Task polling delivery).
 
-支持：
-- 一次性：at:2026-05-14T08:00:00+08:00
-- 周期：every:1800 (每30分钟) / every:30m / every:1h
-- Cron：cron:0 9 * * *（每天早上9点）
+Supports:
+- One-shot:   at:2026-05-14T08:00:00+08:00
+- Periodic:   every:1800 (every 30 min) / every:30m / every:1h
+- Cron:       cron:0 9 * * * (daily at 9am)
 
-由 toolkit globals 中的 scheduler 实例执行实际操作。
+The scheduler instance in toolkit globals performs the actual operations.
 """
 
 import logging
@@ -23,19 +23,19 @@ logger = logging.getLogger(__name__)
 
 @tool()
 async def cron_add(schedule: str, message: str, owner_id: str = "") -> dict:
-    """创建一个定时任务。
+    """Create a scheduled task.
 
     Args:
-        schedule: 调度配置。格式：
-            - every:<秒数>    例如 every:1800 (每30分钟)、every:60m (每60分钟)、every:1h (每小时)
-            - cron:<表达式>   例如 cron:0 9 * * * (每天早上9点)、cron:*/30 * * * * (每30分钟)
-            - at:<ISO时间>    例如 at:2026-05-14T08:00:00+08:00 (一次性)
-        message: 到期时发送给 LLM 的消息。LLM 收到后会执行对应任务。
+        schedule: Schedule configuration. Format:
+            - every:<seconds>    e.g. every:1800 (every 30 min), every:60m, every:1h
+            - cron:<expr>        e.g. cron:0 9 * * * (daily at 9am), cron:*/30 * * * * (every 30 min)
+            - at:<ISO time>      e.g. at:2026-05-14T08:00:00+08:00 (one-shot)
+        message: Message delivered to LLM when triggered. LLM executes the task on receipt.
         owner_id: Notification channel ID. Empty string means deliver to task creator.
     """
     scheduler = get_global("scheduler")
     if not scheduler:
-        return {"error": "定时调度器未初始化"}
+        return {"error": "Scheduler not initialized"}
 
     from lib.scheduler import _parse_schedule  # pylint: disable=import-outside-toplevel
 
@@ -50,14 +50,14 @@ async def cron_add(schedule: str, message: str, owner_id: str = "") -> dict:
 
 @tool()
 async def cron_list() -> dict:
-    """列出所有定时任务。"""
+    """List all scheduled tasks."""
     scheduler = get_global("scheduler")
     if not scheduler:
-        return {"error": "定时调度器未初始化"}
+        return {"error": "Scheduler not initialized"}
 
     jobs = scheduler.list_jobs()
     if not jobs:
-        return {"result": "没有定时任务。"}
+        return {"result": "No scheduled tasks."}
 
     lines = []
     for j in jobs:
@@ -65,43 +65,43 @@ async def cron_list() -> dict:
         rec = "🔄" if j["is_recurring"] else "⏹️"
         sch = json_dumps_short(j["schedule"])
         next_t = format_ts(j["next_run"])
-        lines.append(f"#{j['id']} {status}{rec} {sch} → 下次: {next_t}")
-        lines.append(f"   消息: {j['message'][:60]}")
-    return {"result": "定时任务列表：\n" + "\n".join(lines)}
+        lines.append(f"#{j['id']} {status}{rec} {sch} → next: {next_t}")
+        lines.append(f"   msg: {j['message'][:60]}")
+    return {"result": "Scheduled task list:\n" + "\n".join(lines)}
 
 
 @tool()
 async def cron_remove(job_id: int) -> dict:
-    """删除一个定时任务。
+    """Delete a scheduled task.
 
     Args:
-        job_id: 定时任务 ID（通过 cron_list 查看）。
+        job_id: Scheduled task ID (view via cron_list).
     """
     scheduler = get_global("scheduler")
     if not scheduler:
-        return {"error": "定时调度器未初始化"}
+        return {"error": "Scheduler not initialized"}
     return scheduler.remove_job(job_id)
 
 
 @tool()
 async def cron_toggle(job_id: int, enabled: bool) -> dict:
-    """启用或暂停一个定时任务。
+    """Enable or pause a scheduled task.
 
     Args:
-        job_id: 定时任务 ID。
-        enabled: True=启用, False=暂停。
+        job_id: Scheduled task ID.
+        enabled: True=enable, False=pause.
     """
     scheduler = get_global("scheduler")
     if not scheduler:
-        return {"error": "定时调度器未初始化"}
+        return {"error": "Scheduler not initialized"}
     return scheduler.toggle_job(job_id, enabled)
 
 
 def json_dumps_short(obj) -> str:
-    """将 schedule dict 转为简短字符串。"""
+    """Convert schedule dict to a short string."""
     t = obj.get("type", "")
     if t == "every":
-        return f"每{obj.get('interval', '?')}秒"
+        return f"Every {obj.get('interval', '?')}s"
     elif t == "cron":
         return f"cron: {obj.get('expr', '?')}"
     elif t == "at":
@@ -110,7 +110,7 @@ def json_dumps_short(obj) -> str:
 
 
 def format_ts(ts: float) -> str:
-    """将 UTC 时间戳转为北京时间可读字符串。"""
+    """Convert UTC timestamp to Beijing time (UTC+8) readable string."""
     from datetime import datetime, timedelta
 
     dt = datetime.fromtimestamp(ts, tz=UTC) + timedelta(hours=8)

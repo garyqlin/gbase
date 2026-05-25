@@ -5,9 +5,9 @@ search_bridge.py — ProSearch agent
 Runs locally, provides an HTTP search interface for agents.
 Agents POST /search with query to get results.
 
-用法:
-    python3 search_bridge.py [端口号]
-    默认端口 8430
+Usage:
+    python3 search_bridge.py [port]
+    Default port: 8430
 
 Auto-reports address to agents on startup.
 """
@@ -15,6 +15,7 @@ Auto-reports address to agents on startup.
 import asyncio
 import json
 import logging
+import os
 import subprocess
 import sys
 
@@ -22,7 +23,7 @@ try:
     from aiohttp import web
 except ImportError:
     subprocess.check_call(
-        [sys.executable, "-m", "pip", "install", "aiohttp", "-i", "https://pypi.tuna.tsinghua.edu.cn/simple", "--quiet"]
+        [sys.executable, "-m", "pip", "install", "aiohttp", "--quiet"]
     )
     from aiohttp import web
 
@@ -33,25 +34,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-PROSEARCH = "/Users/gary/Library/Application Support/QClaw/openclaw/config/skills/online-search/scripts/prosearch.cjs"
+PROSEARCH = os.getenv("PROSEARCH_PATH") or ""  # Set PROSEARCH_PATH to enable search bridge
 DEFAULT_PORT = 8430
 
 
 async def handle_search(request: web.Request) -> web.Response:
-    """处理搜索请求。收到 POST /search {"query":"xxx", "count":5}
+    """Handle search requests. Receives POST /search {"query":"xxx", "count":5}
 
     Args:
-        query: 搜索关键词（必填）
-        count: 返回结果数（可选，默认 8）
+        query: Search keyword (required)
+        count: Number of results (optional, default 8)
     """
     try:
         body = await request.json()
     except Exception:
-        return web.json_response({"error": "无效的 JSON"}, status=400)
+        return web.json_response({"error": "Invalid JSON"}, status=400)
 
     query = body.get("query", "").strip()
     if not query:
-        return web.json_response({"error": "缺少 query 参数"}, status=400)
+        return web.json_response({"error": "Missing query parameter"}, status=400)
 
     count = body.get("count", 8)
     try:
@@ -59,7 +60,7 @@ async def handle_search(request: web.Request) -> web.Response:
     except (ValueError, TypeError):
         count = 8
 
-    logger.info("搜索: query=%s count=%d", query, count)
+    logger.info("Search: query=%s count=%d", query, count)
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -78,14 +79,14 @@ async def handle_search(request: web.Request) -> web.Response:
                 {
                     "query": query,
                     "results": [],
-                    "message": "搜索无返回数据",
+                    "message": "Search returned no data",
                 }
             )
 
         try:
             data = json.loads(output)
         except json.JSONDecodeError:
-            logger.warning("prosearch 返回非 JSON: %s", output[:200])
+            logger.warning("ProSearch returned non-JSON: %s", output[:200])
             return web.json_response(
                 {
                     "query": query,
@@ -95,8 +96,8 @@ async def handle_search(request: web.Request) -> web.Response:
             )
 
         if not data.get("success"):
-            msg = data.get("message", "搜索失败")
-            logger.warning("搜索失败: %s", msg)
+            msg = data.get("message", "Search failed")
+            logger.warning("Search failed: %s", msg)
             return web.json_response(
                 {
                     "query": query,
@@ -105,7 +106,7 @@ async def handle_search(request: web.Request) -> web.Response:
                 }
             )
 
-        # 解析 ProSearch 返回的结果
+        # Parse ProSearch results
         inner = data.get("data", {}) or {}
         items = inner.get("docs", data.get("items", [])) or []
         results = []
@@ -120,7 +121,7 @@ async def handle_search(request: web.Request) -> web.Response:
                 }
             )
 
-        logger.info("搜索结果: %d 条", len(results))
+        logger.info("Search results: %d items", len(results))
         return web.json_response(
             {
                 "query": query,
@@ -130,21 +131,21 @@ async def handle_search(request: web.Request) -> web.Response:
         )
 
     except TimeoutError:
-        logger.warning("搜索超时: %s", query)
+        logger.warning("Search timed out: %s", query)
         return web.json_response(
             {
                 "query": query,
                 "results": [],
-                "message": "搜索超时（15秒）",
+                "message": "Search timed out (15s)",
             }
         )
     except Exception as e:
-        logger.error("搜索异常: %s", str(e))
+        logger.error("Search error: %s", str(e))
         return web.json_response(
             {
                 "query": query,
                 "results": [],
-                "message": f"搜索异常: {str(e)[:200]}",
+                "message": f"Search error: {str(e)[:200]}",
             }
         )
 
@@ -161,16 +162,16 @@ async def main():
     app.router.add_get("/health", handle_health)
     app.router.add_get("/", handle_health)
 
-    logger.info("搜索代理启动于端口 %d", port)
+    logger.info("Search agent started on port %d", port)
     logger.info("API: POST http://localhost:%d/search", port)
-    logger.info('     {"query": "搜索关键词", "count": 8}')
+    logger.info('     {"query": "search keyword", "count": 8}')
 
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    # 保持运行
+    # Keep running
     await asyncio.Event().wait()
 
 

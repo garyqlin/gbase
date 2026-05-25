@@ -31,25 +31,25 @@ def _build_skill_path() -> str:
 
 @tool()
 async def check_network(action: str, target: str) -> dict:
-    """检查网络连接状态（端口/HTTP/DNS/Ping）。
+    """Check network connection status (port/HTTP/DNS/Ping).
 
     Args:
-        action: 诊断类型 — port（端口检查）、http（HTTP可达性）、dns（DNS解析）、ping（延迟测试）
-        target: 目标地址（host:port / URL / 域名 / IP）
+        action: Diagnostic type — port (port check), http (HTTP reachability), dns (DNS resolution), ping (latency test)
+        target: Target address (host:port / URL / domain / IP)
 
     Returns:
-        网络诊断结果
+        Network diagnostic result
     """
     script = _build_skill_path()
     cmd = ["python3", script, "--action", action]
 
     if action == "port":
-        # target 格式: "host:port"
+        # target format: "host:port"
         parts = target.split(":")
         if len(parts) == 2:
             cmd.extend(["--host", parts[0], "--port", parts[1]])
         else:
-            return {"error": f"端口检查需要 host:port 格式，收到: {target}"}
+            return {"error": f"Port check requires host:port format, got: {target}"}
     elif action == "http":
         cmd.extend(["--url", target])
     elif action == "dns":
@@ -57,9 +57,9 @@ async def check_network(action: str, target: str) -> dict:
     elif action == "ping":
         cmd.extend(["--host", target])
     else:
-        return {"error": f"不支持的诊断类型: {action}，可选: port/http/dns/ping"}
+        return {"error": f"Unsupported diagnostic type: {action}, supported: port/http/dns/ping"}
 
-    logger.info("执行网络诊断: %s %s %s", script, action, target)
+    logger.info("Running network diagnostics: %s %s %s", script, action, target)
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -68,12 +68,12 @@ async def check_network(action: str, target: str) -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
         if proc.returncode != 0:
-            return {"error": f"诊断失败: {stderr.decode().strip()}"}
+            return {"error": f"Diagnostic failed: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
     except TimeoutError:
-        return {"error": "网络诊断超时（>30秒）"}
+        return {"error": "Network diagnostic timed out (>30s)"}
     except FileNotFoundError:
-        return {"error": f"找不到 skill 脚本: {script}"}
+        return {"error": f"Skill script not found: {script}"}
     except Exception as e:
-        logger.exception("check_network 异常")
+        logger.exception("check_network exception")
         return {"error": str(e)}

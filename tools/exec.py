@@ -3,10 +3,10 @@
 tools/exec.py
 
 Shell command executor for LLM (compile, test, git, etc.).
-安全约束：
-- 自动检测项目根目录（__file__ 所在项目的 parent）
-- 默认 30 秒超时
-- 只允许非交互式命令
+Security constraints:
+- Auto-detect project root (parent of __file__'s project)
+- Default 30-second timeout
+- Only non-interactive commands are allowed
 """
 
 import asyncio
@@ -45,21 +45,21 @@ async def exec_command(command: str, timeout: int = 30, workdir: str = "", **_kw
 
     timeout = min(max(timeout, 1), 120)
 
-    # 解析工作目录
+    # Resolve working directory
     if workdir:
-        # 绝对路径直接使用（多项目支持）
+        # Use absolute path directly (multi-project support)
         target = Path(workdir) if workdir.startswith("/") else _PROJECT_ROOT / workdir
-        # 防止 path traversal
+        # Prevent path traversal
         try:
             target = target.resolve()
             target.relative_to(_PROJECT_ROOT)
         except (ValueError, RuntimeError):
-            return {"error": f"工作目录不在允许范围内: {workdir}"}
+            return {"error": f"Working directory not in allowed scope: {workdir}"}
         workdir = str(target)
     else:
         workdir = str(_PROJECT_ROOT)
 
-    # 创建目录（如果不存在）
+    # Create directory if it doesn't exist
     os.makedirs(workdir, exist_ok=True)
 
     try:
@@ -92,7 +92,7 @@ async def exec_command(command: str, timeout: int = 30, workdir: str = "", **_kw
             "workdir": workdir,
         }
 
-        # 如果输出被截断，标记一下
+        # Mark if output was truncated
         if len(stdout_text) > 6000:
             result["stdout_truncated"] = True
             result["stdout_full_length"] = len(stdout_text)
@@ -102,4 +102,4 @@ async def exec_command(command: str, timeout: int = 30, workdir: str = "", **_kw
         return result
 
     except Exception as e:
-        return {"error": f"执行失败: {e}"}
+        return {"error": f"Execution failed: {e}"}

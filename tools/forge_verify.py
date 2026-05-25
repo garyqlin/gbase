@@ -4,7 +4,7 @@ forge_verify.py
 
 Forge code verification toolset - code quality validator.
 Includes: syntax check, lint, dead code, readability score, formatting.
-被 Forge 的 system prompt 强制要求在每次提交前调用。
+Mandated by Forge's system prompt to be called before every commit.
 """
 
 import ast
@@ -20,11 +20,11 @@ from lib.toolkit import tool
 logger = logging.getLogger(__name__)
 
 
-# ── 辅助函数 ──────────────────────────────────────────
+# ── Helpers ────────────────────────────────────────────
 
 
 def _run_command(cmd: list, cwd: str = None, timeout: int = 30) -> dict:
-    """运行命令行并返回结果。"""
+    """Run a command and return the result."""
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
         return {
@@ -33,30 +33,31 @@ def _run_command(cmd: list, cwd: str = None, timeout: int = 30) -> dict:
             "stderr": result.stderr,
         }
     except subprocess.TimeoutExpired:
-        return {"returncode": -1, "stdout": "", "stderr": "超时"}
+        return {"returncode": -1, "stdout": "", "stderr": "Timeout"}
     except FileNotFoundError:
-        return {"returncode": -1, "stdout": "", "stderr": "命令未找到"}
+        return {"returncode": -1, "stdout": "", "stderr": "Command not found"}
     except Exception as e:
         return {"returncode": -1, "stdout": "", "stderr": str(e)}
 
 
-# ── 验证工具 ──────────────────────────────────────────
+# ── Verification Tools ─────────────────────────────────
 
 
 @tool()
 async def forge_verify(file_path: str) -> dict:
-    """【Forge 核心验证】对提交前的代码文件做完整的六项检查。
+    """[Forge Core Verification] Runs a complete six-check validation on code files before commit.
 
-    包括：语法检查、格式检查、lint检查、死代码检测、命名规范、可读性评分。
+    Includes: syntax check, format check, lint check, dead code detection,
+    naming conventions, readability score.
 
     Args:
-        file_path: 要验证的代码文件路径
+        file_path: Path to the code file to verify
 
     Returns:
-        验证报告，包含各项检查结果和综合评分
+        Verification report with individual check results and overall score
     """
     if not os.path.isfile(file_path):
-        return {"error": f"文件不存在: {file_path}", "score": 0, "passed": False}
+        return {"error": f"File not found: {file_path}", "score": 0, "passed": False}
 
     ext = Path(file_path).suffix
     results = {}
@@ -64,49 +65,49 @@ async def forge_verify(file_path: str) -> dict:
     max_score = 100
     deductions = []
 
-    # 1️⃣ 语法检查（40分）
+    # 1. Syntax check (40 pts)
     syntax_ok, syntax_msg, syntax_points = _check_syntax(file_path, ext)
     results["syntax"] = {"ok": syntax_ok, "message": syntax_msg, "score": syntax_points}
     score += syntax_points
     if not syntax_ok:
-        deductions.append(f"语法错误: {syntax_msg}")
+        deductions.append(f"Syntax error: {syntax_msg}")
 
-    # 2️⃣ 格式检查（15分）
+    # 2. Format check (15 pts)
     if ext in (".py", ".ts", ".tsx", ".js", ".jsx"):
         format_ok, format_msg, format_points = _check_format(file_path, ext)
         results["format"] = {"ok": format_ok, "message": format_msg, "score": format_points}
         score += format_points
         if not format_ok:
-            deductions.append(f"格式问题: {format_msg}")
+            deductions.append(f"Format issue: {format_msg}")
 
-    # 3️⃣ lint 检查（15分）
+    # 3. Lint check (15 pts)
     if ext in (".py", ".ts", ".tsx", ".js", ".jsx"):
         lint_ok, lint_msg, lint_points = _check_lint(file_path, ext)
         results["lint"] = {"ok": lint_ok, "message": lint_msg, "score": lint_points}
         score += lint_points
         if not lint_ok:
-            deductions.append(f"lint 告警: {lint_msg}")
+            deductions.append(f"Lint warning: {lint_msg}")
 
-    # 4️⃣ 死代码检测（10分）
+    # 4. Dead code detection (10 pts)
     dead_ok, dead_msg, dead_points = _check_dead_code(file_path, ext)
     results["dead_code"] = {"ok": dead_ok, "message": dead_msg, "score": dead_points}
     score += dead_points
     if not dead_ok:
-        deductions.append(f"死代码: {dead_msg}")
+        deductions.append(f"Dead code: {dead_msg}")
 
-    # 5️⃣ 命名规范（10分）
+    # 5. Naming conventions (10 pts)
     naming_ok, naming_msg, naming_points = _check_naming(file_path, ext)
     results["naming"] = {"ok": naming_ok, "message": naming_msg, "score": naming_points}
     score += naming_points
     if not naming_ok:
-        deductions.append(f"命名不规范: {naming_msg}")
+        deductions.append(f"Naming violation: {naming_msg}")
 
-    # 6️⃣ 综合可读性（10分）
+    # 6. Readability (10 pts)
     read_ok, read_msg, read_points = _check_readability(file_path, ext)
     results["readability"] = {"ok": read_ok, "message": read_msg, "score": read_points}
     score += read_points
     if not read_ok:
-        deductions.append(f"可读性问题: {read_msg}")
+        deductions.append(f"Readability issue: {read_msg}")
 
     passed = score >= 80
     return {
@@ -114,106 +115,106 @@ async def forge_verify(file_path: str) -> dict:
         "score": score,
         "max_score": max_score,
         "passed": passed,
-        "level": "✨ 完美" if score >= 95 else ("✅ 良好" if score >= 80 else "⚠️  需要修复"),
+        "level": "✨ Perfect" if score >= 95 else ("✅ Good" if score >= 80 else "⚠️  Needs fix"),
         "details": results,
         "deductions": deductions,
         "summary": (
-            f"综合得分 {score}/{max_score}，{'通过 ✅' if passed else '未通过 ❌'}。"
-            + (f" 扣分项: {'; '.join(deductions)}" if deductions else " 无扣分项，代码质量优秀。")
+            f"Overall score {score}/{max_score}, {'Passed ✅' if passed else 'Failed ❌'}."
+            + (f" Deductions: {'; '.join(deductions)}" if deductions else " No deductions, excellent code quality.")
         ),
     }
 
 
-# ── 各项检查 ──────────────────────────────────────────
+# ── Checks ─────────────────────────────────────────────
 
 
 def _check_syntax(file_path: str, ext: str) -> tuple:
-    """语法检查"""
+    """Syntax check"""
     try:
         if ext == ".py":
             with open(file_path) as f:
                 ast.parse(f.read())
-            return (True, "语法正确", 40)
+            return (True, "Syntax OK", 40)
         elif ext in (".ts", ".tsx", ".js", ".jsx"):
             result = _run_command(["npx", "--yes", "tsx", "--eval", "true", file_path])
             if result["returncode"] == 0:
-                return (True, "语法正确", 40)
+                return (True, "Syntax OK", 40)
             return (False, result["stderr"][:200], 0)
         elif ext in (".sh", ".bash"):
             result = _run_command(["bash", "-n", file_path])
             if result["returncode"] == 0:
-                return (True, "语法正确", 40)
+                return (True, "Syntax OK", 40)
             return (False, result["stderr"][:200], 0)
-        return (True, "不需要语法检查", 40)
+        return (True, "No syntax check needed", 40)
     except SyntaxError as e:
-        return (False, f"第{e.lineno}行: {e.msg}", 0)
+        return (False, f"Line {e.lineno}: {e.msg}", 0)
     except Exception as e:
         return (False, str(e)[:200], 0)
 
 
 def _check_format(file_path: str, ext: str) -> tuple:
-    """格式检查"""
+    """Format check"""
     try:
         if ext == ".py":
             result = _run_command([sys.executable or "python3", "-m", "ruff", "format", "--check", file_path])
             if result["returncode"] == 0:
-                return (True, "格式正确", 15)
+                return (True, "Format OK", 15)
             return (False, result["stdout"][:300], 0)
-        return (True, "跳过格式检查", 15)
+        return (True, "Format check skipped", 15)
     except Exception:
-        return (True, "格式检查不可用", 10)
+        return (True, "Format check unavailable", 10)
 
 
 def _check_lint(file_path: str, ext: str) -> tuple:
-    """lint 检查"""
+    """Lint check"""
     try:
         if ext == ".py":
             result = _run_command([sys.executable or "python3", "-m", "ruff", "check", file_path])
             if result["returncode"] == 0:
-                return (True, "无 lint 问题", 15)
+                return (True, "No lint issues", 15)
             issues = [ln for ln in result["stdout"].split("\n") if ln.strip() and "warning" not in ln.lower()]
             if len(issues) <= 3:
-                return (True, f"轻微告警: {len(issues)} 项", 10)
-            return (False, f"{len(issues)} 项 lint 问题:\n" + "\n".join(issues[:6]), 0)
-        return (True, "跳过 lint 检查", 15)
+                return (True, f"Minor warnings: {len(issues)} item(s)", 10)
+            return (False, f"{len(issues)} lint issue(s):\n" + "\n".join(issues[:6]), 0)
+        return (True, "Lint check skipped", 15)
     except Exception:
-        return (True, "lint 检查不可用", 10)
+        return (True, "Lint check unavailable", 10)
 
 
 def _check_dead_code(file_path: str, ext: str) -> tuple:
-    """简单死代码检测"""
+    """Simple dead code detection"""
     try:
         with open(file_path) as f:
             content = f.read()
 
         issues = []
 
-        # 检查注释掉的代码块
+        # Check commented-out code blocks
         commented_lines = re.findall(r"# .*?def\s+\w+|// .*?function\s+\w+", content)
         if commented_lines:
-            issues.append(f"发现 {len(commented_lines)} 处注释掉的代码")
+            issues.append(f"Found {len(commented_lines)} commented-out code block(s)")
 
-        # 检查 print debug 残留
+        # Check leftover debug print statements
         if ext == ".py":
             print_lines = re.findall(r"^\s*print\(.*?\)\s*$", content, re.MULTILINE)
             debug_prints = [ln for ln in print_lines if "TODO" not in ln and "FIXME" not in ln]
             if debug_prints:
-                issues.append(f"发现 {len(debug_prints)} 处 debug print（非 TODO/FIXME）")
+                issues.append(f"Found {len(debug_prints)} debug print(s) (non-TODO/FIXME)")
 
-        # 检查 TODO
+        # Check TODO markers
         todos = re.findall(r"#\s*(TODO|FIXME|HACK|XXX)", content)
         if todos:
-            issues.append(f"发现 {len(todos)} 处 {', '.join(set(todos))}")
+            issues.append(f"Found {len(todos)} {', '.join(set(todos))} marker(s)")
 
         if issues:
             return (False, "; ".join(issues), 0 if len(issues) > 2 else 5)
-        return (True, "无死代码残留", 10)
+        return (True, "No dead code found", 10)
     except Exception:
-        return (True, "死代码检测出错", 5)
+        return (True, "Dead code detection error", 5)
 
 
 def _check_naming(file_path: str, ext: str) -> tuple:
-    """命名规范检查"""
+    """Naming convention check"""
     try:
         with open(file_path) as f:
             content = f.read()
@@ -221,17 +222,17 @@ def _check_naming(file_path: str, ext: str) -> tuple:
         issues = []
 
         if ext == ".py":
-            # 检查非 PEP8 命名
+            # Check non-PEP8 naming (camelCase functions)
             camel_case_functions = re.findall(r"^    def [a-z]+[A-Z]", content, re.MULTILINE)
             if camel_case_functions:
-                issues.append(f"函数名使用驼峰而非蛇形: {len(camel_case_functions)} 处")
+                issues.append(f"Function name uses camelCase instead of snake_case: {len(camel_case_functions)}")
 
-            # 检查单字母变量名（排除临时变量 i, j, k, x, y, z, n, e）
+            # Check single-letter variable names (exclude temp vars i, j, k, x, y, z, n, e)
             single_letter = set(re.findall(r"\b([a-lmo-rt-w])\s*=\s*", content))
             if single_letter:
-                issues.append(f"单字母变量名: {', '.join(sorted(single_letter)[:5])}")
+                issues.append(f"Single-letter variable names: {', '.join(sorted(single_letter)[:5])}")
 
-            # 检查含拼音的命名
+            # Check for pinyin-based naming
             pinyin_names = set(
                 re.findall(r"\b[a-z]*(zhe|xie|zhi|shi|bu|de|wo|ni|ta|hai|zai|yi|mei|ke|yi)\w*\b", content)
             )
@@ -257,17 +258,17 @@ def _check_naming(file_path: str, ext: str) -> tuple:
                 )
             }
             if non_keyword_pinyin:
-                issues.append(f"疑似拼音命名: {', '.join(sorted(non_keyword_pinyin)[:5])}")
+                issues.append(f"Suspected pinyin naming: {', '.join(sorted(non_keyword_pinyin)[:5])}")
 
         if issues:
             return (False, "; ".join(issues), 0 if len(issues) > 2 else 5)
-        return (True, "命名规范", 10)
+        return (True, "Naming OK", 10)
     except Exception:
-        return (True, "命名检查出错", 5)
+        return (True, "Naming check error", 5)
 
 
 def _check_readability(file_path: str, ext: str) -> tuple:
-    """综合可读性检查"""
+    """Comprehensive readability check"""
     try:
         with open(file_path) as f:
             content = f.read()
@@ -275,28 +276,28 @@ def _check_readability(file_path: str, ext: str) -> tuple:
 
         issues = []
 
-        # 检查行数
+        # Check line count
         if len(lines) > 500:
-            issues.append(f"文件过长: {len(lines)} 行（建议 < 500）")
+            issues.append(f"File too long: {len(lines)} lines (recommend < 500)")
 
-        # 检查超长行
+        # Check long lines
         long_lines = sum(1 for ln in lines if len(ln) > 100)
         if long_lines > 3:
-            issues.append(f"{long_lines} 行超过 100 字符")
+            issues.append(f"{long_lines} line(s) exceed 100 characters")
 
-        # 检查空行密度（代码块应有呼吸感）
+        # Check blank line density (code blocks should breathe)
         blanks = sum(1 for ln in lines if not ln.strip())
         if lines and blanks / len(lines) < 0.02 and len(lines) > 50:
-            issues.append("空行过少（缺少呼吸感）")
+            issues.append("Too few blank lines (lacks breathing room)")
 
-        # 检查是否有足够注释
+        # Check if there are enough comments
         if ext == ".py":
             comment_lines = sum(1 for ln in lines if ln.strip().startswith("#"))
             if lines and comment_lines == 0 and len(lines) > 30:
-                issues.append("零注释（>30 行代码建议有注释）")
+                issues.append("Zero comments (>30 lines of code should have comments)")
 
         if issues:
             return (False, "; ".join(issues), 0 if len(issues) > 2 else 5)
-        return (True, "可读性良好", 10)
+        return (True, "Good readability", 10)
     except Exception:
-        return (True, "可读性检查出错", 5)
+        return (True, "Readability check error", 5)

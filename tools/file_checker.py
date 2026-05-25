@@ -31,19 +31,19 @@ def _build_skill_path() -> str:
 
 @tool()
 async def file_hash(path: str, algorithm: str = "sha256") -> dict:
-    """计算文件哈希值。
+    """Calculate file hash.
 
     Args:
-        path: 目标文件路径
-        algorithm: 哈希算法（md5/sha1/sha256/sha512），默认 sha256
+        path: Target file path
+        algorithm: Hash algorithm (md5/sha1/sha256/sha512), default sha256
 
     Returns:
-        文件哈希值和元信息
+        File hash value and metadata
     """
     script = _build_skill_path()
     cmd = ["python3", script, "--action", "hash", "--file", path, "--algorithm", algorithm]
 
-    logger.info("计算文件哈希: %s", path)
+    logger.info("Calculating file hash: %s", path)
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -52,33 +52,33 @@ async def file_hash(path: str, algorithm: str = "sha256") -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
         if proc.returncode != 0:
-            return {"error": f"文件哈希计算失败: {stderr.decode().strip()}"}
+            return {"error": f"File hash calculation failed: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
     except TimeoutError:
-        return {"error": "文件哈希计算超时"}
+        return {"error": "File hash calculation timed out"}
     except FileNotFoundError:
-        return {"error": f"找不到 skill 脚本: {script}"}
+        return {"error": f"Skill script not found: {script}"}
     except Exception as e:
-        logger.exception("file_hash 异常")
+        logger.exception("file_hash exception")
         return {"error": str(e)}
 
 
 @tool()
 async def file_verify(path: str, hash_value: str, algorithm: str = "sha256") -> dict:
-    """验证文件哈希值是否匹配。
+    """Verify if file hash matches.
 
     Args:
-        path: 目标文件路径
-        hash_value: 期望的哈希值
-        algorithm: 哈希算法（md5/sha1/sha256/sha512），默认 sha256
+        path: Target file path
+        hash_value: Expected hash value
+        algorithm: Hash algorithm (md5/sha1/sha256/sha512), default sha256
 
     Returns:
-        验证结果（是否匹配）
+        Verification result (whether it matches)
     """
     script = _build_skill_path()
     cmd = ["python3", script, "--action", "verify", "--file", path, "--hash", hash_value, "--algorithm", algorithm]
 
-    logger.info("文件哈希验证: %s", path)
+    logger.info("Verifying file hash: %s", path)
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -87,12 +87,12 @@ async def file_verify(path: str, hash_value: str, algorithm: str = "sha256") -> 
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
         if proc.returncode != 0:
-            return {"error": f"文件验证失败: {stderr.decode().strip()}"}
+            return {"error": f"File verification failed: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
     except TimeoutError:
-        return {"error": "文件验证超时"}
+        return {"error": "File verification timed out"}
     except FileNotFoundError:
-        return {"error": f"找不到 skill 脚本: {script}"}
+        return {"error": f"Skill script not found: {script}"}
     except Exception as e:
-        logger.exception("file_verify 异常")
+        logger.exception("file_verify exception")
         return {"error": str(e)}

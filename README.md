@@ -26,7 +26,7 @@ This is not a library you call. This is the engine your agent calls home.
 | | |
 |---|---|
 | 🧠 **Mirror Memory** | Long-term memory with active recall — your agent remembers what it learned weeks ago, not just the last 10 turns |
-| 🔄 **Recursive Self-Improvement (RSI)** | The agent introspects its own outputs, detects failure patterns, and rewrites its own prompt to do better next time |
+| 🔄 **Recursive Self-Improvement (RSI)** | A full-evolution engine: stability audit, performance evaluation, rollback decision, and automatic recovery. Call `full_evolution_cycle()` to trigger — your agent analyzes its own outputs, detects failure patterns, and rewrites itself for the next round |
 | 🛑 **Quality Gates** | Multi-armed review pipelines: one agent builds, another audits, a third judges. Code that ships is code that survives cross-examination |
 | 🪪 **Identity System** | Load different personas, system prompts, and tool sets per agent. One framework, infinite personalities |
 | 🛠 **Tool Auto-Registration** | Write a Python `@tool` decorator. That's it. The framework finds, registers, and exposes it to the LLM automatically |
@@ -123,9 +123,9 @@ GBase
 
 ## ✅ What GBase Is
 
-**The engine that turns an LLM into a living, learning, self-improving agent.**
+**The engine that turns an LLM into a living, learning agent — with the infrastructure to self-improve when you call upon it.**
 
-A framework where your agent doesn't just execute tasks — it builds a persistent understanding of what works, what doesn't, and what to try next.
+A framework where your agent doesn't just execute tasks. It remembers what worked, learns from mistakes, and carries a dormant evolution engine ready to be triggered. Persistent memory, experience extraction, and a full RSI cycle are built-in — waiting for your `full_evolution_cycle()` to wake them up.
 
 ---
 

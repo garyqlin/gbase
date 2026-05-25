@@ -7,6 +7,7 @@ Command execution tool.
 
 import asyncio
 import os
+import shlex
 from pathlib import Path
 
 from lib.toolkit import tool
@@ -59,12 +60,12 @@ async def exec_command(command: str, timeout: int = 30, workdir: str = "") -> di
     os.makedirs(workdir, exist_ok=True)
 
     try:
-        proc = await asyncio.create_subprocess_shell(
-            command,
+        cmd_parts = shlex.split(command)
+        proc = await asyncio.create_subprocess_exec(
+            *cmd_parts,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=workdir,
-            shell=True,
         )
 
         try:

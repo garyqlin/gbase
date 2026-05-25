@@ -17,12 +17,7 @@ from lib.toolkit import tool
 # Allowed root directories for writing
 # Prefer environment variable for cross-env deployment without code changes
 _env_roots = os.environ.get("GBASE_ALLOWED_ROOTS")
-if _env_roots:
-    ALLOWED_ROOTS = [r.strip() for r in _env_roots.split(":") if r.strip()]
-else:
-    ALLOWED_ROOTS = [
-        os.path.expanduser("~/"),
-    ]
+ALLOWED_ROOTS = [r.strip() for r in _env_roots.split(":") if r.strip()] if _env_roots else [os.path.expanduser("~/")]
 
 
 def _resolve_path(filepath: str) -> tuple[str, str]:

@@ -119,8 +119,7 @@ class Storage:
 
     # ── 写入 ────────────────────────────────────────────
 
-    def write(self, type_: str, entry: dict, summary: str = "",
-              confidence: str = "low", **kwargs) -> int:
+    def write(self, type_: str, entry: dict, summary: str = "", confidence: str = "low", **_kwargs) -> int:
         """写入一条记录。自动写 SQLite + 追加 JSONL 镜像。
 
         Args:
@@ -141,8 +140,7 @@ class Storage:
 
             # 写入 SQLite
             cursor = self._conn.execute(
-                "INSERT INTO entries (type, content, summary, created_at, confidence) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO entries (type, content, summary, created_at, confidence) VALUES (?, ?, ?, ?, ?)",
                 (type_, content_json, summary, now, confidence),
             )
             row_id = cursor.lastrowid
@@ -192,15 +190,17 @@ class Storage:
             results = []
             for row in rows:
                 row_id, type_, content_json, summary, created_at, hits, conf = row
-                results.append({
-                    "id": row_id,
-                    "type": type_,
-                    "content": json.loads(content_json),
-                    "summary": summary,
-                    "created_at": created_at,
-                    "hits": hits,
-                    "confidence": conf,
-                })
+                results.append(
+                    {
+                        "id": row_id,
+                        "type": type_,
+                        "content": json.loads(content_json),
+                        "summary": summary,
+                        "created_at": created_at,
+                        "hits": hits,
+                        "confidence": conf,
+                    }
+                )
             return results
 
     # ── 命中计数（增加引用权重）──────────────────────────
@@ -230,9 +230,7 @@ class Storage:
         if count > _MAX_RECORDS:
             excess = count - _MAX_RECORDS
             self._conn.execute(
-                "DELETE FROM entries WHERE id IN ("
-                "SELECT id FROM entries WHERE type=? ORDER BY created_at ASC LIMIT ?"
-                ")",
+                "DELETE FROM entries WHERE id IN (SELECT id FROM entries WHERE type=? ORDER BY created_at ASC LIMIT ?)",
                 (type_, excess),
             )
             self._conn.commit()

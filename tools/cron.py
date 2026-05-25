@@ -38,6 +38,7 @@ async def cron_add(schedule: str, message: str, owner_id: str = "") -> dict:
         return {"error": "定时调度器未初始化"}
 
     from lib.scheduler import _parse_schedule  # pylint: disable=import-outside-toplevel
+
     try:
         parsed = _parse_schedule(schedule)
     except ValueError as e:
@@ -100,16 +101,17 @@ def json_dumps_short(obj) -> str:
     """将 schedule dict 转为简短字符串。"""
     t = obj.get("type", "")
     if t == "every":
-        return f"每{obj.get('interval','?')}秒"
+        return f"每{obj.get('interval', '?')}秒"
     elif t == "cron":
-        return f"cron: {obj.get('expr','?')}"
+        return f"cron: {obj.get('expr', '?')}"
     elif t == "at":
-        return f"at: {obj.get('at','?')}"
+        return f"at: {obj.get('at', '?')}"
     return str(obj)
 
 
 def format_ts(ts: float) -> str:
     """将 UTC 时间戳转为北京时间可读字符串。"""
     from datetime import datetime, timedelta
+
     dt = datetime.fromtimestamp(ts, tz=UTC) + timedelta(hours=8)
     return dt.strftime("%m-%d %H:%M")

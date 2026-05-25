@@ -35,12 +35,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # ── 工具级安全钩子 ──
 
+
 def disk_safety_hook(step: dict, context: dict) -> tuple:
     """磁盘安全检查：如果磁盘使用 > 90%，阻止写入类操作。"""
     try:
-        df = subprocess.run(
-            ["df", "-P", "/"], capture_output=True, text=True, timeout=5
-        )
+        df = subprocess.run(["df", "-P", "/"], capture_output=True, text=True, timeout=5)
         for line in df.stdout.strip().split("\n")[1:]:
             parts = line.split()
             if len(parts) >= 5:
@@ -61,13 +60,14 @@ def mem_safety_hook(step: dict, context: dict) -> tuple:
         with open("/proc/meminfo") as f:
             content = f.read()
         import re
+
         avail_match = re.search(r"MemAvailable:\s+(\d+)", content)
         if avail_match:
             avail_kb = int(avail_match.group(1))
             if avail_kb < 200 * 1024:
                 heavy_agents = {"swarm_test", "arch_audit", "cognifold_sync"}
                 if step.get("agent_type") in heavy_agents:
-                    return False, f"可用内存 {avail_kb//1024}MB < 200MB，阻止重量级操作"
+                    return False, f"可用内存 {avail_kb // 1024}MB < 200MB，阻止重量级操作"
     except Exception:
         pass
     return True, "ok"
@@ -77,6 +77,7 @@ def mem_safety_hook(step: dict, context: dict) -> tuple:
 # Agent 函数实现
 # ═══════════════════════════════════════════════════════
 
+
 def agent_health_check(inputs: dict, context: dict) -> dict:
     """执行 cron-health.sh 心跳检测并解析结果。"""
     script = PROJECT_ROOT / "cron" / "cron-health.sh"
@@ -84,10 +85,7 @@ def agent_health_check(inputs: dict, context: dict) -> dict:
         return {"status": "error", "error": "cron-health.sh 不存在"}
 
     try:
-        result = subprocess.run(
-            ["bash", str(script)],
-            capture_output=True, text=True, timeout=15
-        )
+        result = subprocess.run(["bash", str(script)], capture_output=True, text=True, timeout=15)
     except subprocess.TimeoutExpired:
         return {"status": "error", "error": "心跳检测超时"}
 
@@ -118,10 +116,7 @@ def agent_arch_audit(inputs: dict, context: dict) -> dict:
         return {"status": "error", "error": "arch-audit.py 不存在"}
 
     try:
-        result = subprocess.run(
-            [sys.executable, str(script), "--json"],
-            capture_output=True, text=True, timeout=60
-        )
+        result = subprocess.run([sys.executable, str(script), "--json"], capture_output=True, text=True, timeout=60)
         if result.returncode == 0:
             audit_data = json.loads(result.stdout)
             # 汇总统计
@@ -194,13 +189,15 @@ def agent_check_inbox(inputs: dict, context: dict) -> dict:
             for f in sorted(inbox_dir.glob("*.json"), key=os.path.getmtime, reverse=True)[:20]:
                 try:
                     data = json.loads(f.read_text())
-                    mails.append({
-                        "id": f.stem,
-                        "from": data.get("from", ""),
-                        "subject": data.get("subject", ""),
-                        "ts": data.get("ts", ""),
-                        "read": data.get("read", False),
-                    })
+                    mails.append(
+                        {
+                            "id": f.stem,
+                            "from": data.get("from", ""),
+                            "subject": data.get("subject", ""),
+                            "ts": data.get("ts", ""),
+                            "read": data.get("read", False),
+                        }
+                    )
                 except Exception:
                     pass
         return {"status": "ok", "count": len(mails), "mails": mails}
@@ -249,8 +246,11 @@ def agent_whitebox_check(inputs: dict, context: dict) -> dict:
     """白盒检查（代码静态分析）。"""
     # 简化版：检查关键文件是否存在、语法是否正确
     key_files = [
-        "lib/kernel.py", "lib/mirror.py", "lib/pipeline.py",
-        "cron/loop-cache.py", "cron/cron-analyzer.py",
+        "lib/kernel.py",
+        "lib/mirror.py",
+        "lib/pipeline.py",
+        "cron/loop-cache.py",
+        "cron/cron-analyzer.py",
     ]
     results = []
     for fpath in key_files:
@@ -260,11 +260,19 @@ def agent_whitebox_check(inputs: dict, context: dict) -> dict:
         else:
             content = full.read_text()
             lines = len(content.split("\n"))
-            imports = [l.strip() for l in content.split("\n") if l.strip().startswith("import ") or l.strip().startswith("from ")]
-            results.append({
-                "file": fpath, "status": "ok", "lines": lines,
-                "imports_count": len(imports),
-            })
+            imports = [
+                line.strip()
+                for line in content.split("\n")
+                if line.strip().startswith("import ") or line.strip().startswith("from ")
+            ]
+            results.append(
+                {
+                    "file": fpath,
+                    "status": "ok",
+                    "lines": lines,
+                    "imports_count": len(imports),
+                }
+            )
 
     errors = [r for r in results if r["status"] != "ok"]
     return {
@@ -283,6 +291,7 @@ def agent_blackbox_check(inputs: dict, context: dict) -> dict:
         ("localhost", 8432, "agent-2"),
     ]
     import socket
+
     results = []
     for host, port, name in endpoints:
         try:
@@ -301,6 +310,7 @@ def agent_blackbox_check(inputs: dict, context: dict) -> dict:
 def agent_swarm_test(inputs: dict, context: dict) -> dict:
     """蜂群压力测试（简化版：并发 ping 多个端点）。"""
     import concurrent.futures
+
     endpoints = [("localhost", p) for p in [8420, 8431, 8432]]
     import socket
 
@@ -324,13 +334,15 @@ def agent_swarm_test(inputs: dict, context: dict) -> dict:
             round_results = [f.result() for f in concurrent.futures.as_completed(futures)]
         ok = sum(1 for r in round_results if r["ok"])
         latencies = [r["latency_ms"] for r in round_results if r["ok"]]
-        all_results.append({
-            "round": round_num + 1,
-            "total": len(round_results),
-            "ok": ok,
-            "fail": len(round_results) - ok,
-            "avg_latency_ms": round(sum(latencies) / len(latencies), 1) if latencies else 0,
-        })
+        all_results.append(
+            {
+                "round": round_num + 1,
+                "total": len(round_results),
+                "ok": ok,
+                "fail": len(round_results) - ok,
+                "avg_latency_ms": round(sum(latencies) / len(latencies), 1) if latencies else 0,
+            }
+        )
 
     return {"status": "ok", "rounds": all_results, "degradation_detected": False}
 
@@ -361,7 +373,9 @@ def agent_qa_summary(inputs: dict, context: dict) -> dict:
         verdict = "WARN"
 
     report = f"QA 报告 | 白盒: {parts.get('whitebox', {}).get('errors', '?')}错误 | "
-    report += f"黑盒: {parts.get('blackbox', {}).get('reachable', '?')}/{parts.get('blackbox', {}).get('total', '?')}可达 | "
+    report += (
+        f"黑盒: {parts.get('blackbox', {}).get('reachable', '?')}/{parts.get('blackbox', {}).get('total', '?')}可达 | "
+    )
     report += f"蜂群: {len(swarm_rounds)}轮 退化={degradation} | 结论: {verdict}"
 
     return {"status": "ok", "verdict": verdict, "report": report, "errors": errors}
@@ -378,7 +392,13 @@ def agent_weekly_stats(inputs: dict, context: dict) -> dict:
             pass
 
     # 降级：手动统计
-    return {"status": "ok", "analysis": {"note": "无 analysis.json，需先运行 cron-analyzer.py", "generated_at": time.strftime("%Y-%m-%d %H:%M:%S")}}
+    return {
+        "status": "ok",
+        "analysis": {
+            "note": "无 analysis.json，需先运行 cron-analyzer.py",
+            "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        },
+    }
 
 
 def agent_trend_analysis(inputs: dict, context: dict) -> dict:
@@ -401,10 +421,7 @@ def agent_mirror_decay(inputs: dict, context: dict) -> dict:
     if not script.exists():
         return {"status": "error", "error": "mirror-maintain.py 不存在"}
     try:
-        result = subprocess.run(
-            [sys.executable, str(script), "--dry-run"],
-            capture_output=True, text=True, timeout=30
-        )
+        result = subprocess.run([sys.executable, str(script), "--dry-run"], capture_output=True, text=True, timeout=30)
         return {"status": "ok", "output": result.stdout.strip()[-500:], "exit_code": result.returncode}
     except subprocess.TimeoutExpired:
         return {"status": "error", "error": "鉴面维护超时"}
@@ -414,6 +431,7 @@ def agent_mirror_review(inputs: dict, context: dict) -> dict:
     """鉴面回溯审查。"""
     try:
         from lib.mirror import Mirror
+
         mirror = Mirror()
         mirror.setup()
         if mirror._conn is None:
@@ -429,6 +447,7 @@ def agent_cognifold_concepts(inputs: dict, context: dict) -> dict:
     """Cognifold 概念簇自组织。"""
     try:
         from lib.cognifold import Cognifold
+
         cf = Cognifold()
         events = cf.load_recent_events(limit=50)
         if events:
@@ -452,6 +471,7 @@ def agent_intent_emergence(inputs: dict, context: dict) -> dict:
     """意图浮现。"""
     try:
         from lib.cognifold import Cognifold
+
         cf = Cognifold()
         intents = cf.get_intents()
         alerts = [i for i in intents if i.get("level") == "alert"]

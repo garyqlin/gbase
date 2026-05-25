@@ -7,52 +7,61 @@ Each edition is an EditionConfig object defining:
 - default identity
 - resource requirements
 """
-
 from dataclasses import dataclass, field
-from typing import Dict, Set
 
 
 @dataclass
 class EditionConfig:
     """Gbase edition configuration"""
-    name: str                          # edition name: hacker / prime / standard / lite
-    label: str                         # label
-    port: int                          # default port
-    identity: str                      # default identity
-    modules: Set[str] = field(default_factory=set)
+
+    name: str  # edition name: hacker / prime / standard / lite
+    label: str  # label
+    port: int  # default port
+    identity: str  # default identity
+    modules: set[str] = field(default_factory=set)
 
     @property
-    def enabled_modules(self) -> Set[str]:
+    def enabled_modules(self) -> set[str]:
         return self.modules
 
 
 # --- Module name constants ---
 
-MOD_SAFETY_GATEWAY  = "safety_gateway"     # safety gateway (six-layer detection chain)
-MOD_SANDBOX         = "sandbox_safety"     # sandbox simulation firewall
-MOD_MIRROR          = "mirror"             # mirror engine
-MOD_EXPERIENCE      = "experience"         # experience engine
-MOD_TOOLKIT         = "toolkit"            # tool registration and routing
-MOD_LLM             = "llm"                # LLM inference
-MOD_AGENT_BASIC     = "agent_basic"        # basic agent scheduler
-MOD_DAG_ENGINE      = "dag_engine"         # DAG agent engine
-MOD_COGNIFOLD       = "cognifold"          # cognitive fold
-MOD_SEARCH_PREEXEC  = "search_preexec"     # search pre-execution
-MOD_VILLAGE_OS      = "village_os"         # Village OS world interconnect
-MOD_RSI             = "rsi"                # RSI self-evolution
-MOD_IDENTITY_PLUG   = "identity_plug"      # pluggable identity
-MOD_PROJECT_MEMORY  = "project_memory"     # long project memory
-MOD_SCHEDULER       = "scheduler"          # cron scheduler
-MOD_EVOLUTION       = "evolution"          # evolution engine
-MOD_PORTAL          = "portal"             # Portal admin panel
-MOD_LIFELINE        = "lifeline"           # self-rescue system
-MOD_KNOWLEDGE_PACK  = "knowledge_pack"     # preloaded domain knowledge pack
+MOD_SAFETY_GATEWAY = "safety_gateway"  # safety gateway (six-layer detection chain)
+MOD_SANDBOX = "sandbox_safety"  # sandbox simulation firewall
+MOD_MIRROR = "mirror"  # mirror engine
+MOD_EXPERIENCE = "experience"  # experience engine
+MOD_TOOLKIT = "toolkit"  # tool registration and routing
+MOD_LLM = "llm"  # LLM inference
+MOD_AGENT_BASIC = "agent_basic"  # basic agent scheduler
+MOD_DAG_ENGINE = "dag_engine"  # DAG agent engine
+MOD_COGNIFOLD = "cognifold"  # cognitive fold
+MOD_SEARCH_PREEXEC = "search_preexec"  # search pre-execution
+MOD_VILLAGE_OS = "village_os"  # Village OS world interconnect
+MOD_RSI = "rsi"  # RSI self-evolution
+MOD_IDENTITY_PLUG = "identity_plug"  # pluggable identity
+MOD_PROJECT_MEMORY = "project_memory"  # long project memory
+MOD_SCHEDULER = "scheduler"  # cron scheduler
+MOD_EVOLUTION = "evolution"  # evolution engine
+MOD_PORTAL = "portal"  # Portal admin panel
+MOD_LIFELINE = "lifeline"  # self-rescue system
+MOD_KNOWLEDGE_PACK = "knowledge_pack"  # preloaded domain knowledge pack
 
 
 # --- Edition definitions ---
 
 # Core modules (all editions)
-CORE = {MOD_SAFETY_GATEWAY, MOD_SANDBOX, MOD_MIRROR, MOD_EXPERIENCE, MOD_TOOLKIT, MOD_LLM, MOD_AGENT_BASIC, MOD_SCHEDULER, MOD_LIFELINE}
+CORE = {
+    MOD_SAFETY_GATEWAY,
+    MOD_SANDBOX,
+    MOD_MIRROR,
+    MOD_EXPERIENCE,
+    MOD_TOOLKIT,
+    MOD_LLM,
+    MOD_AGENT_BASIC,
+    MOD_SCHEDULER,
+    MOD_LIFELINE,
+}
 
 
 HACKER = EditionConfig(
@@ -60,7 +69,8 @@ HACKER = EditionConfig(
     label="Hacker",
     port=8420,
     identity="standard",
-    modules=CORE | {
+    modules=CORE
+    | {
         MOD_DAG_ENGINE,
         MOD_COGNIFOLD,
         MOD_SEARCH_PREEXEC,
@@ -78,7 +88,8 @@ PRIME = EditionConfig(
     label="Prime",
     port=8425,
     identity="prime",
-    modules=CORE | {
+    modules=CORE
+    | {
         MOD_DAG_ENGINE,
         MOD_SEARCH_PREEXEC,
         MOD_IDENTITY_PLUG,
@@ -93,7 +104,8 @@ STANDARD = EditionConfig(
     label="Standard",
     port=8426,
     identity="standard",
-    modules=CORE | {
+    modules=CORE
+    | {
         MOD_DAG_ENGINE,
         MOD_SEARCH_PREEXEC,
         MOD_IDENTITY_PLUG,
@@ -106,7 +118,8 @@ LITE = EditionConfig(
     label="Lite",
     port=8427,
     identity="lite",
-    modules=CORE | {
+    modules=CORE
+    | {
         MOD_KNOWLEDGE_PACK,
     },
 )
@@ -114,7 +127,7 @@ LITE = EditionConfig(
 
 # --- Lookup table ---
 
-EDITIONS: Dict[str, EditionConfig] = {
+EDITIONS: dict[str, EditionConfig] = {
     "hacker": HACKER,
     "prime": PRIME,
     "standard": STANDARD,

@@ -21,22 +21,26 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-log-analyzer/scripts")
 @tool()
 async def analyze_log_file(file_path: str, log_format: str = "auto", slow_threshold_ms: int = 1000) -> dict:
     """分析日志文件，检测错误模式、慢请求、资源告警。
-    
+
     Args:
         file_path: 日志文件路径
         log_format: 日志格式 auto / text / json
         slow_threshold_ms: 慢请求阈值（毫秒，默认1000）
-    
+
     Returns:
         分析报告（错误统计、慢请求、资源告警）
     """
     cmd = [
         sys.executable or "python3",
         os.path.join(SKILL_DIR, "analyze_logs.py"),
-        "--file", file_path,
-        "--format", log_format,
-        "--slow-threshold", str(slow_threshold_ms),
-        "--output", "/tmp/opprime-log-analysis.json",
+        "--file",
+        file_path,
+        "--format",
+        log_format,
+        "--slow-threshold",
+        str(slow_threshold_ms),
+        "--output",
+        "/tmp/opprime-log-analysis.json",
     ]
 
     try:

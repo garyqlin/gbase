@@ -21,9 +21,7 @@ _PROJECT_ROOTS = [
 
 
 @tool()
-async def exec_command(command: str,
-                       timeout: int = 30,
-                       workdir: str = "") -> dict:
+async def exec_command(command: str, timeout: int = 30, workdir: str = "") -> dict:
     """Execute shell command (non-interactive).
 
     用于运行 Python 脚本、pytest 测试、git 命令等。
@@ -70,9 +68,7 @@ async def exec_command(command: str,
         )
 
         try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout
-            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except TimeoutError:
             proc.kill()
             await proc.wait()

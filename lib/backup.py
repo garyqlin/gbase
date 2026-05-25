@@ -83,10 +83,7 @@ def _make_backup_id(filepath: str, timestamp: datetime) -> str:
 
 def _is_core_file(filepath: str) -> bool:
     """Check if file is core (needs checkpoint-level backup)."""
-    for pattern in CORE_PATTERNS:
-        if pattern in filepath:
-            return True
-    return False
+    return any(pattern in filepath for pattern in CORE_PATTERNS)
 
 
 def backup_file(filepath: str, backup_type: str = "auto") -> str | None:
@@ -108,14 +105,16 @@ def backup_file(filepath: str, backup_type: str = "auto") -> str | None:
     shutil.copy2(filepath, backup_path)
 
     index = _load_index()
-    index["backups"].append({
-        "id": backup_id,
-        "original_path": filepath,
-        "backup_file": backup_id,
-        "timestamp": now.isoformat(),
-        "size": os.path.getsize(filepath),
-        "type": backup_type,
-    })
+    index["backups"].append(
+        {
+            "id": backup_id,
+            "original_path": filepath,
+            "backup_file": backup_id,
+            "timestamp": now.isoformat(),
+            "size": os.path.getsize(filepath),
+            "type": backup_type,
+        }
+    )
     _save_index(index)
 
     return backup_id
@@ -152,7 +151,7 @@ def restore_backup(backup_id: str) -> dict:
                 "restored": b["original_path"],
                 "from_backup": backup_id,
                 "timestamp": b["timestamp"],
-                "note": "Current file auto-backed up to .backups/ before restore"
+                "note": "Current file auto-backed up to .backups/ before restore",
             }
 
     return {"error": f"Backup not found: {backup_id}"}

@@ -2,13 +2,13 @@
 name = "gbase"
 version = "0.1.0"
 description = "Universal AI Agent framework with identity separation, tool auto-registration, and multi-agent orchestration"
+readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
 keywords = ["ai", "agent", "framework", "workflow", "orchestration"]
 authors = [{ name = "Gary Lin" }]
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
@@ -31,6 +31,7 @@ ignore = [
     "PLR0911",
     "PLR0912",
 ]
+per-file-ignores = {"lib/dag_agents.py" = ["ARG001", "ARG002"]}
 
 [tool.ruff.format]
 quote-style = "double"
@@ -40,3 +41,8 @@ line-ending = "lf"
 [tool.isort]
 profile = "black"
 line_length = 120
+
+
+[tool.setuptools.packages.find]
+include = ["lib*", "tools*", "editions*", "gbase*"]
+exclude = ["data*", "identities*", "training_data*"]

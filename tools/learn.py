@@ -20,10 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 @tool()
-async def add_learn_topic(topic: str, rss_sources: str = "",
-                          search_queries: str = "",
-                          category: str = "general",
-                          description: str = "") -> dict:
+async def add_learn_topic(
+    topic: str, rss_sources: str = "", search_queries: str = "", category: str = "general", description: str = ""
+) -> dict:
     """添加一个自主学习方向。
 
     用户让你设定学习方向时调用。

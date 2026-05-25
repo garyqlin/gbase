@@ -45,8 +45,7 @@ def _ensure_config():
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     if not TOPICS_PATH.exists():
         with open(TOPICS_PATH, "w", encoding="utf-8") as f:
-            json.dump({"topics": DEFAULT_LEARN_TOPICS, "version": "1.0"}, f,
-                      ensure_ascii=False, indent=2)
+            json.dump({"topics": DEFAULT_LEARN_TOPICS, "version": "1.0"}, f, ensure_ascii=False, indent=2)
         logger.info("Created default learning topic config: %s", TOPICS_PATH)
 
 
@@ -62,16 +61,22 @@ def save_topics(topics: list[dict]):
     """Save search-mode learning topic config."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     with open(TOPICS_PATH, "w", encoding="utf-8") as f:
-        json.dump({"topics": topics, "version": "1.0"}, f,
-                  ensure_ascii=False, indent=2)
+        json.dump({"topics": topics, "version": "1.0"}, f, ensure_ascii=False, indent=2)
     logger.info("Search learning topic config updated: %d topics", len(topics))
 
 
 # ── Learning result formatting ──────────────────────────────────────────
 
-def format_learn_result(topic_name: str, total: int, saved: int, errors: int,
-                        elapsed: float, highlights: list[str],
-                        analysis_comment: str = "") -> str:
+
+def format_learn_result(
+    topic_name: str,
+    total: int,
+    saved: int,
+    errors: int,
+    elapsed: float,
+    highlights: list[str],
+    analysis_comment: str = "",
+) -> str:
     """Generate learning task report text for delivery."""
     lines = [
         f"📚 Auto-learning complete: {topic_name}",
@@ -98,6 +103,7 @@ def format_learn_result(topic_name: str, total: int, saved: int, errors: int,
 
 
 # ── Learning task executor ───────────────────────────────────────
+
 
 class AutoLearner:
     """Autonomous learning executor.
@@ -161,7 +167,11 @@ class AutoLearner:
             }
             if self._owner_id and self._sender:
                 report = format_learn_result(
-                    topic_name, 0, 0, error_count, elapsed,
+                    topic_name,
+                    0,
+                    0,
+                    error_count,
+                    elapsed,
                     [f"No new articles ({', '.join(errors[:2])} etc.)"],
                 )
                 try:
@@ -186,7 +196,7 @@ class AutoLearner:
             f"- Ask yourself: Which articles have causal, progressive, or conflicting relationships?\n\n"
             f"### Step 3: Analyst mode — Logic chain analysis\n"
             f"- Organize the connections into **logic chains**: A => B => C => Conclusion\n"
-                    "- Example: Tech X emerges -> solves problem Y -> enables Z -> industry trend is...\n"
+            "- Example: Tech X emerges -> solves problem Y -> enables Z -> industry trend is...\n"
             f"- Logic chains must have causal progression, not just parallel enumeration\n\n"
             f"### Step 4: Analyst mode — Opinion output + persistence\n"
             f"- Based on the analysis, output an **opinionated analysis comment**\n"
@@ -250,8 +260,13 @@ class AutoLearner:
         # Report
         if self._owner_id and self._sender:
             report = format_learn_result(
-                topic_name, article_count, saved, error_count, elapsed,
-                highlights, analysis_comment,
+                topic_name,
+                article_count,
+                saved,
+                error_count,
+                elapsed,
+                highlights,
+                analysis_comment,
             )
             try:
                 await self._sender(self._owner_id, report)
@@ -346,8 +361,13 @@ class AutoLearner:
         # Report
         if self._owner_id and self._sender:
             report = format_learn_result(
-                topic_name, total, saved, errors, elapsed,
-                highlights, analysis_comment,
+                topic_name,
+                total,
+                saved,
+                errors,
+                elapsed,
+                highlights,
+                analysis_comment,
             )
             try:
                 await self._sender(self._owner_id, report)
@@ -403,14 +423,16 @@ class AutoLearner:
                 results.append(result)
             except Exception as e:
                 logger.error("Learning topic %s exception: %s", topic_name, e)
-                results.append({
-                    "topic": topic_name,
-                    "total": 0,
-                    "saved": 0,
-                    "errors": 1,
-                    "elapsed": 0,
-                    "highlights": [f"Exception: {str(e)[:80]}"],
-                    "analysis_comment": "",
-                })
+                results.append(
+                    {
+                        "topic": topic_name,
+                        "total": 0,
+                        "saved": 0,
+                        "errors": 1,
+                        "elapsed": 0,
+                        "highlights": [f"Exception: {str(e)[:80]}"],
+                        "analysis_comment": "",
+                    }
+                )
 
         return results

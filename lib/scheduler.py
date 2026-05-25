@@ -25,6 +25,7 @@ HEARTBEAT_PATH = "/tmp/opprime_heartbeat"
 
 # ── Schedule 解析 ────────────────────────────────────────
 
+
 def _parse_schedule(schedule: str) -> dict:
     s = schedule.strip()
     if s.startswith("every:"):
@@ -75,7 +76,8 @@ def _cron_match(expr: str, dt: datetime) -> bool:
     fields = expr.strip().split()
     if len(fields) != 5:
         return False
-    def _field_match(field: str, value: int, max_val: int) -> bool:
+
+    def _field_match(field: str, value: int, _max_val: int) -> bool:
         if field == "*":
             return True
         for part in field.split(","):
@@ -93,6 +95,7 @@ def _cron_match(expr: str, dt: datetime) -> bool:
             if part.isdigit() and int(part) == value:
                 return True
         return False
+
     minute, hour, day, month, weekday = fields
     if not _field_match(minute, dt.minute, 59):
         return False
@@ -139,7 +142,7 @@ _MIGRATIONS = [
 
 class CronScheduler:
     """定时任务调度器 — 支持三种 action 类型。
-    
+
     - "send": deliver notification to owner
     - "learn": 调用 AutoLearner.learn_all_topics()
     - "custom": 把 message 作为 LLM 任务提交给 Kernel 处理
@@ -147,9 +150,9 @@ class CronScheduler:
 
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
-        self._sender = None       # async def send_text(open_id, text)
-        self._learner = None      # AutoLearner 实例
-        self._kernel = None       # OpprimeKernel 实例（供 custom action 使用）
+        self._sender = None  # async def send_text(open_id, text)
+        self._learner = None  # AutoLearner 实例
+        self._kernel = None  # OpprimeKernel 实例（供 custom action 使用）
         self._learning = False
         self._running = False
         self._task: asyncio.Task | None = None
@@ -198,14 +201,13 @@ class CronScheduler:
 
     def set_kernel(self, kernel):
         """设置 Kernel 实例，供 action='custom' 使用。
-        
+
         custom action 会把 message 内容作为 LLM 消息提交给 kernel 处理，
         Silent execution (no notification)."""
         self._kernel = kernel
         logger.info("定时调度器已绑定 Kernel 引擎")
 
-    def add_job(self, schedule: dict, message: str, owner_id: str = "",
-                action: str = "send") -> dict:
+    def add_job(self, schedule: dict, message: str, owner_id: str = "", action: str = "send") -> dict:
         next_ts = _next_run(schedule)
         if next_ts is None:
             return {"error": "已过期或无法计算下次执行时间"}
@@ -219,8 +221,7 @@ class CronScheduler:
             conn.commit()
             job_id = cur.lastrowid
             logger.info("定时任务已创建: id=%d action=%s", job_id, action)
-            return {"result": f"定时任务已创建 (id={job_id})", "id": job_id,
-                    "action": action, "next_run": next_ts}
+            return {"result": f"定时任务已创建 (id={job_id})", "id": job_id, "action": action, "next_run": next_ts}
         finally:
             conn.close()
 
@@ -232,17 +233,19 @@ class CronScheduler:
             ).fetchall()
             jobs = []
             for r in rows:
-                jobs.append({
-                    "id": r[0],
-                    "schedule": json.loads(r[1]) if isinstance(r[1], str) else r[1],
-                    "next_run": r[2],
-                    "message": r[3],
-                    "owner_id": r[4],
-                    "action": r[5] if len(r) > 5 else "send",
-                    "enabled": bool(r[6]),
-                    "is_recurring": bool(r[7]),
-                    "created_at": r[8] if len(r) > 8 else 0,
-                })
+                jobs.append(
+                    {
+                        "id": r[0],
+                        "schedule": json.loads(r[1]) if isinstance(r[1], str) else r[1],
+                        "next_run": r[2],
+                        "message": r[3],
+                        "owner_id": r[4],
+                        "action": r[5] if len(r) > 5 else "send",
+                        "enabled": bool(r[6]),
+                        "is_recurring": bool(r[7]),
+                        "created_at": r[8] if len(r) > 8 else 0,
+                    }
+                )
             return jobs
         finally:
             conn.close()
@@ -282,7 +285,6 @@ class CronScheduler:
         self._running = True
         logger.info("定时调度器已启动 (每 10 秒轮询)")
 
-        heartbeat_interval = 5  # 每 5 秒写一次心跳
         tick_count = 0
 
         while self._running:
@@ -318,10 +320,14 @@ class CronScheduler:
             return
 
         for row in rows:
-            job_id, schedule_json, message, owner_id, action, enabled, is_rec = (
-                row[0], row[1], row[2], row[3],
+            job_id, schedule_json, message, owner_id, action, _enabled, is_rec = (
+                row[0],
+                row[1],
+                row[2],
+                row[3],
                 row[4] if len(row) > 4 else "send",
-                row[5], row[6] if len(row) > 6 else row[5]
+                row[5],
+                row[6] if len(row) > 6 else row[5],
             )
 
             schedule = json.loads(schedule_json) if isinstance(schedule_json, str) else schedule_json
@@ -384,9 +390,9 @@ class CronScheduler:
         finally:
             self._learning = False
 
-    async def _dispatch_custom(self, job_id: int, message: str, owner_id: str):
+    async def _dispatch_custom(self, job_id: int, message: str, _owner_id: str):  # noqa: ARG002
         """把 message 内容作为 LLM 任务提交给 kernel 处理。
-        
+
         自动合成一条 user 消息，静默执行，不通知主人。
         如果 kernel 出错，写日志但不打断调度循环。
         """
@@ -396,20 +402,14 @@ class CronScheduler:
 
         try:
             # 合成一条带时间戳的任务消息，让 kernel 处理时知道是定时触发
-            enriched = f"[定时触发 #{job_id}] {message}"
 
             # Build minimal context: system prompt + task message
             # No notification, no session, fully isolated
-            from lib.toolkit import set_global as tk_set_global
-            if owner_id:
+            if _owner_id:
                 pass  # notification channel removed for release
 
+            result = None
             # Call kernel.run() to process a single message
-
-
-
-
-
 
             logger.info("custom task complete (job=%d): output %d chars", job_id, len(str(result) if result else ""))
         except Exception as e:

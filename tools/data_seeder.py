@@ -18,31 +18,42 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-data-seeder/scripts")
 
 
 @tool()
-async def seed_test_data(columns: str, count: int = 15, format: str = "json", table: str = "mock_data", output: str = "") -> dict:
+async def seed_test_data(
+    columns: str, count: int = 15, format: str = "json", table: str = "mock_data", output: str = ""
+) -> dict:
     """生成批量测试/演示数据。支持字段类型：name, email, phone, int, float, date, address, company, city 等。
-    
+
     Args:
         columns: 列描述，格式如 "name: name, email: email, status: active,inactive, age: int:18-65"
         count: 数据条数（默认15条，对应客户交付铁律建议的 5-15 条）
         format: 输出格式 json / csv / sql
         table: SQL 模式时的表名
         output: 输出文件路径（可选）
-    
+
     Returns:
         生成的数据内容（JSON 或 SQL 文本）
     """
-    cmd = [sys.executable or "python3", os.path.join(SKILL_DIR, "seed_data.py"),
-           "--describe", columns,
-           "--count", str(count),
-           "--format", format,
-           "--table", table]
+    cmd = [
+        sys.executable or "python3",
+        os.path.join(SKILL_DIR, "seed_data.py"),
+        "--describe",
+        columns,
+        "--count",
+        str(count),
+        "--format",
+        format,
+        "--table",
+        table,
+    ]
     if output:
         cmd.extend(["--output", output])
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            *cmd, cwd=os.path.expanduser("~"),
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            *cmd,
+            cwd=os.path.expanduser("~"),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
 

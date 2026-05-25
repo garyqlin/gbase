@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
 """Word document generator"""
+
 import json
 import logging
 import os
@@ -9,11 +10,12 @@ from lib.toolkit import tool
 
 logger = logging.getLogger(__name__)
 
+
 @tool()
 async def gen_docx(title: str = "文档", content: list = None, output_path: str = "") -> dict:
     """
     生成 Word (.docx) 文档。
-    
+
     Args:
         title: 文档标题
         content: 内容结构，每项为 {"type": "h1|h2|h3|p|table|image", "text": "...", ...}
@@ -22,7 +24,7 @@ async def gen_docx(title: str = "文档", content: list = None, output_path: str
                   - table: {"type": "table", "headers": ["列1","列2"], "rows": [["a","b"]]}
                   - image: {"type": "image", "path": "/path/to/img.png"}
         output_path: 输出路径，为空则自动生成在 ~/Downloads/
-    
+
     Returns:
         {"path": "...", "size": 12345}
     """
@@ -32,7 +34,7 @@ async def gen_docx(title: str = "文档", content: list = None, output_path: str
     if not output_path:
         output_path = os.path.expanduser(f"~/Downloads/{title}.docx")
 
-    script = f'''import docx
+    script = f"""import docx
 from docx.shared import Pt, Inches, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import json
@@ -76,12 +78,9 @@ for item in content:
 
 doc.save({json.dumps(output_path)})
 print("OK:" + {json.dumps(output_path)})
-'''
+"""
 
-    result = subprocess.run(
-        ["python3", "-c", script],
-        capture_output=True, text=True, timeout=30
-    )
+    result = subprocess.run(["python3", "-c", script], capture_output=True, text=True, timeout=30)
 
     if result.returncode != 0:
         return {"error": result.stderr.strip() or result.stdout.strip()}

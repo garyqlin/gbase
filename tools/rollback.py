@@ -31,11 +31,7 @@ async def rollback_list(filepath: str = "", limit: int = 20) -> dict:
         {backups: [...], total: N}
     """
     backups = list_backups(filepath, limit)
-    return {
-        "backups": backups,
-        "total": len(backups),
-        "note": "用 rollback_restore(backup_id) 恢复某个备份"
-    }
+    return {"backups": backups, "total": len(backups), "note": "用 rollback_restore(backup_id) 恢复某个备份"}
 
 
 @tool()

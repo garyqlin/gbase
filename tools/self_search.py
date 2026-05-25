@@ -11,6 +11,7 @@ Self-search: retrieve relevant records from experience/knowledge base.
 3. 返回匹配的经验（最多 5 条）
 """
 
+import contextlib
 import logging
 
 from lib.toolkit import get_global, tool
@@ -23,13 +24,13 @@ _SEARCH_LIMIT = 50  # 保留最近 50 条经验用于搜索
 @tool()
 async def search_self(question: str) -> dict:
     """从你自己的经验/知识库中搜索相关信息。
-    
+
     当你需要回忆过去对话中出现的知识点、技巧、配置或决策时，
     调用此工具来搜索自己的记忆。特别适合：
     - 用户问到与技术配置、历史决策、常用设置相关的问题
     - 用户问了但你感觉答案好像在之前对话里出现过
     - 用户用了自然语言描述（不是精确关键词）
-    
+
     Args:
         question: 用户的问题或关键词
     """
@@ -99,10 +100,8 @@ async def search_self(question: str) -> dict:
     for m in matched:
         rid = m.get("id") or m.get("rowid")
         if rid:
-            try:
+            with contextlib.suppress(Exception):
                 exp_engine.storage.record_hit(rid)
-            except Exception:
-                pass
 
     results = []
     for m in matched[:3]:

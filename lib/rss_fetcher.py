@@ -23,9 +23,11 @@ logger = logging.getLogger(__name__)
 # 数据模型
 # ═══════════════════════════════════════════════════
 
+
 @dataclass
 class RssItem:
     """一条 RSS 文章。"""
+
     title: str
     link: str
     description: str = ""
@@ -39,6 +41,7 @@ class RssItem:
 @dataclass
 class RssFeed:
     """一个 RSS 源的一次抓取结果。"""
+
     source_name: str
     rss_url: str
     items: list = field(default_factory=list)
@@ -106,9 +109,17 @@ DEFAULT_RSS_TOPICS = [
         "category": "engineering",
         "description": "材料科学、工程检测、铸造技术",
         "rss_sources": [
-            {"name": "Acta Materialia", "url": "https://rss.sciencedirect.com/publication/science/13596454", "lang": "en"},
+            {
+                "name": "Acta Materialia",
+                "url": "https://rss.sciencedirect.com/publication/science/13596454",
+                "lang": "en",
+            },
             {"name": "Nature Materials", "url": "https://www.nature.com/nmat.rss", "lang": "en"},
-            {"name": "Engineering Failure Analysis", "url": "https://rss.sciencedirect.com/publication/science/13506307", "lang": "en"},
+            {
+                "name": "Engineering Failure Analysis",
+                "url": "https://rss.sciencedirect.com/publication/science/13506307",
+                "lang": "en",
+            },
         ],
     },
 ]
@@ -127,8 +138,7 @@ def _ensure_rss_config():
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     if not RSS_TOPICS_PATH.exists():
         with open(RSS_TOPICS_PATH, "w", encoding="utf-8") as f:
-            json.dump({"topics": DEFAULT_RSS_TOPICS, "version": "1.0"}, f,
-                      ensure_ascii=False, indent=2)
+            json.dump({"topics": DEFAULT_RSS_TOPICS, "version": "1.0"}, f, ensure_ascii=False, indent=2)
         logger.info("已创建默认 RSS 学习方向配置: %s", RSS_TOPICS_PATH)
 
 
@@ -144,8 +154,7 @@ def save_rss_topics(topics: list[dict]):
     """保存 RSS 学习方向配置。"""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     with open(RSS_TOPICS_PATH, "w", encoding="utf-8") as f:
-        json.dump({"topics": topics, "version": "1.0"}, f,
-                  ensure_ascii=False, indent=2)
+        json.dump({"topics": topics, "version": "1.0"}, f, ensure_ascii=False, indent=2)
     logger.info("RSS 学习方向配置已更新: %d 个方向", len(topics))
 
 
@@ -177,7 +186,7 @@ def _fetch_feed(url: str, timeout: int = 15) -> str:
 
 def _parse_rss(xml_text: str, source_name: str = "") -> list[RssItem]:
     """解析 RSS XML，提取文章列表。
-    
+
     同时支持 RSS 2.0 (<item>) 和 Atom (<entry>) 格式。
     """
     items = []
@@ -195,8 +204,6 @@ def _parse_rss(xml_text: str, source_name: str = "") -> list[RssItem]:
         return items
 
     # 命名空间处理
-    ns = {"": "", "atom": "http://www.w3.org/2005/Atom",
-          "content": "http://purl.org/rss/1.0/modules/content/"}
 
     # 尝试标准 RSS 2.0
     for item_elem in root.iter("item"):
@@ -222,12 +229,15 @@ def _parse_rss(xml_text: str, source_name: str = "") -> list[RssItem]:
             pub_date = date_elem.text.strip()
 
         if title or link:
-            items.append(RssItem(
-                title=title, link=link,
-                description=description[:500],  # 截断长摘要
-                pub_date=pub_date,
-                source_name=source_name,
-            ))
+            items.append(
+                RssItem(
+                    title=title,
+                    link=link,
+                    description=description[:500],  # 截断长摘要
+                    pub_date=pub_date,
+                    source_name=source_name,
+                )
+            )
 
     # 如果不是 RSS 2.0 且没找到 item，尝试 Atom
     if not items:
@@ -254,12 +264,15 @@ def _parse_rss(xml_text: str, source_name: str = "") -> list[RssItem]:
                 pub_date = updated_elem.text.strip()
 
             if title or link:
-                items.append(RssItem(
-                    title=title, link=link,
-                    description=description[:500],
-                    pub_date=pub_date,
-                    source_name=source_name,
-                ))
+                items.append(
+                    RssItem(
+                        title=title,
+                        link=link,
+                        description=description[:500],
+                        pub_date=pub_date,
+                        source_name=source_name,
+                    )
+                )
 
     return items
 
@@ -278,9 +291,7 @@ async def fetch_source(source: dict) -> RssFeed:
     # urllib 同步调用包装到线程池
     text = ""
     try:
-        text = await asyncio.get_event_loop().run_in_executor(
-            None, _fetch_feed, url, 15
-        )
+        text = await asyncio.get_event_loop().run_in_executor(None, _fetch_feed, url, 15)
     except urllib.error.HTTPError as e:
         feed.error = f"HTTP {e.code}"
         logger.warning("RSS %s HTTP %d: %s", name, e.code, url)

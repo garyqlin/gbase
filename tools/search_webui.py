@@ -14,12 +14,10 @@ Or via main.py routing (auto-mounted).
 import asyncio
 import json
 import logging
-import os
 import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
 
 # Add project root
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -28,7 +26,7 @@ import uvicorn
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+
 from lib.fetcher import Fetcher
 
 logger = logging.getLogger("search-webui")
@@ -108,10 +106,11 @@ ENGINE_CHANNELS = {
 
 # ── Imports (lazy) ─────────────────────────────────────
 
+
 def _get_search_tools():
     """Lazy import search modules (avoid startup loading)."""
-    from tools import search as search_mod
     from tools import honeycomb_search as honeycomb_mod
+    from tools import search as search_mod
 
     return search_mod, honeycomb_mod
 
@@ -147,8 +146,16 @@ async def _run_parallel_search(query: str, engines: list[str]) -> dict:
     # Sort by engine weight
     def weight_key(r):
         eng = r.get("_engine", "")
-        cfg = ENGINES_CONFIG.get(eng, {})
-        return {"google": 2.0, "prosearch": 1.8, "bing": 1.5, "duckduckgo": 1.0, "qwant": 0.9, "startpage": 0.8, "swisscows": 0.7}.get(eng, 0.5)
+        ENGINES_CONFIG.get(eng, {})
+        return {
+            "google": 2.0,
+            "prosearch": 1.8,
+            "bing": 1.5,
+            "duckduckgo": 1.0,
+            "qwant": 0.9,
+            "startpage": 0.8,
+            "swisscows": 0.7,
+        }.get(eng, 0.5)
 
     results.sort(key=weight_key, reverse=True)
 
@@ -646,6 +653,7 @@ init();
 
 # ── Routes ──────────────────────────────────────────────
 
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     """Serve the search dashboard."""
@@ -708,6 +716,7 @@ async def health():
 
 
 # ── Standalone runner ──────────────────────────────────
+
 
 def run(port: int = DEFAULT_PORT):
     """Run the Web UI server."""

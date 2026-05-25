@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
 """PDF document generator"""
+
 import json
 import logging
 import os
@@ -9,11 +10,12 @@ from lib.toolkit import tool
 
 logger = logging.getLogger(__name__)
 
+
 @tool()
 async def gen_pdf(title: str = "文档", content: list = None, output_path: str = "") -> dict:
     """
     生成 PDF 文件（使用 reportlab）。
-    
+
     Args:
         title: 文档标题
         content: 内容结构，每项为 {"type": "h1|h2|p|table|image|pagebreak", "text": "...", ...}
@@ -23,7 +25,7 @@ async def gen_pdf(title: str = "文档", content: list = None, output_path: str 
                   - image: {"type": "image", "path": "/path/to/img.png", "width": 400}
                   - pagebreak: 分页
         output_path: 输出路径
-    
+
     Returns:
         {"path": "...", "size": 12345}
     """
@@ -33,7 +35,7 @@ async def gen_pdf(title: str = "文档", content: list = None, output_path: str 
     if not output_path:
         output_path = os.path.expanduser(f"~/Downloads/{title}.pdf")
 
-    script = f'''import json
+    script = f"""import json
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm, cm
@@ -54,7 +56,7 @@ for font_path in [
         pdfmetrics.registerFont(TTFont("CJK", font_path))
         font_registered = True
         break
-    except:
+    except Exception:
         pass
 
 doc = SimpleDocTemplate(
@@ -110,12 +112,9 @@ for item in content:
 
 doc.build(story)
 print("OK:" + {json.dumps(output_path)})
-'''
+"""
 
-    result = subprocess.run(
-        ["python3", "-c", script],
-        capture_output=True, text=True, timeout=30
-    )
+    result = subprocess.run(["python3", "-c", script], capture_output=True, text=True, timeout=30)
 
     if result.returncode != 0:
         return {"error": result.stderr.strip() or result.stdout.strip()}

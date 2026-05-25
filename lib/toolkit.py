@@ -44,9 +44,11 @@ _globals: dict = {}
 由 main.py 在初始化时设置。
 """
 
+
 def set_global(key: str, value):
     """设置一个全局值供工具读取。"""
     _globals[key] = value
+
 
 def get_global(key: str, default=None):
     """读取一个全局值。"""
@@ -55,17 +57,19 @@ def get_global(key: str, default=None):
 
 # ── @tool 装饰器 ────────────────────────────────────────
 
+
 def tool(name: str = "", description: str = "", parameters: dict | None = None):
     """工具注册装饰器。
-    
+
     用法：
         @tool()
         async def get_weather(city: str):
             '''查天气'''
             ...
-    
+
     自动从函数签名推导 parameters（OpenAI tool format）。
     """
+
     def decorator(func):
         nonlocal name, description, parameters
         tool_name = name or func.__name__
@@ -110,10 +114,12 @@ def tool(name: str = "", description: str = "", parameters: dict | None = None):
 
         logger.debug("工具注册: %s", tool_name)
         return func
+
     return decorator
 
 
 # ── 工具集注册 ──────────────────────────────────────────
+
 
 def register_toolset(name: str, keywords: list[str], tools: list[str]):
     """注册一个工具集（Intent-based routing 的 Intent/能力组）。"""
@@ -129,6 +135,7 @@ def register_platform_map(platform: str, toolsets: list[str]):
 
 
 # ── 工具执行 ────────────────────────────────────────────
+
 
 async def execute(tool_name: str, args: dict) -> dict:
     """执行工具。"""
@@ -149,9 +156,10 @@ async def execute(tool_name: str, args: dict) -> dict:
 
 # ── 工具路由 ────────────────────────────────────────────
 
+
 def resolve_tools(platform: str, user_message: str) -> list[dict]:
     """根据平台和用户消息关键词，解析可用的工具定义列表（OpenAI format）。
-    
+
     流程：
     1. 根据 platform 从 platform_map 获取允许的工具集名
     2. 遍历工具集，检查用户消息中的关键词
@@ -194,14 +202,16 @@ def resolve_tools(platform: str, user_message: str) -> list[dict]:
     for name in matched_tools:
         meta = _tool_metadata.get(name)
         if meta:
-            defs.append({
-                "type": "function",
-                "function": {
-                    "name": meta["name"],
-                    "description": meta["description"],
-                    "parameters": meta["parameters"],
+            defs.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": meta["name"],
+                        "description": meta["description"],
+                        "parameters": meta["parameters"],
+                    },
                 }
-            })
+            )
 
     return defs
 
@@ -214,19 +224,22 @@ def get_platform_toolsets(platform: str) -> list[dict]:
 
 def _all_tool_defs() -> list[dict]:
     defs = []
-    for name, meta in _tool_metadata.items():
-        defs.append({
-            "type": "function",
-            "function": {
-                "name": meta["name"],
-                "description": meta["description"],
-                "parameters": meta["parameters"],
+    for _name, meta in _tool_metadata.items():
+        defs.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": meta["name"],
+                    "description": meta["description"],
+                    "parameters": meta["parameters"],
+                },
             }
-        })
+        )
     return defs
 
 
 # ── 工具文件自动扫描 ────────────────────────────────────
+
 
 def auto_scan(path: str = "tools"):
     """自动扫描 tools/ 目录下的所有 .py 文件并 import（触发 @tool 延迟注册）。"""
@@ -242,8 +255,7 @@ def auto_scan(path: str = "tools"):
     for fname in sorted(os.listdir(tools_dir)):
         if fname.endswith(".py") and not fname.startswith("_"):
             mod_name = fname[:-3]
-            spec = importlib.util.spec_from_file_location(mod_name,
-                                                          os.path.join(tools_dir, fname))
+            spec = importlib.util.spec_from_file_location(mod_name, os.path.join(tools_dir, fname))
             if spec and spec.loader:
                 try:
                     spec.loader.exec_module(importlib.util.module_from_spec(spec))
@@ -253,6 +265,7 @@ def auto_scan(path: str = "tools"):
 
 
 # ── 工具定义查询 ────────────────────────────────────────
+
 
 def available_tools() -> list[str]:
     return list(_tool_registry.keys())

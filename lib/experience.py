@@ -75,11 +75,7 @@ def _is_duplicate_rule(storage: "store_module.Storage", rule_name: str) -> bool:
         recent = storage.read_recent("experience", limit=_RECENT_DEDUP_WINDOW)
         if not recent:
             return False
-        count = sum(
-            1 for r in recent
-            if r.get("rule") == rule_name
-            or (rule_name in r.get("summary", ""))
-        )
+        count = sum(1 for r in recent if r.get("rule") == rule_name or (rule_name in r.get("summary", "")))
         return count >= _RECENT_DEDUP_MIN_COUNT
     except Exception as e:
         logger.debug("去重检查异常: %s", e)
@@ -87,6 +83,7 @@ def _is_duplicate_rule(storage: "store_module.Storage", rule_name: str) -> bool:
 
 
 # ── 经验提取器 ──────────────────────────────────────────
+
 
 class ExperienceEngine:
     """经验引擎。绑定到一个 Storage 实例上运作。"""
@@ -96,12 +93,9 @@ class ExperienceEngine:
         self._pending_extract: list[dict] = []
         self._skip_count: dict[str, int] = {}
 
-    async def extract(self,
-                      user_message: str,
-                      reply: str,
-                      tool_calls_count: int = 0,
-                      has_api_error: bool = False,
-                      llm_client=None):
+    async def extract(
+        self, user_message: str, reply: str, tool_calls_count: int = 0, has_api_error: bool = False, llm_client=None
+    ):
         """从一次对话中提取经验。先跑规则 → 去重 → 写库。"""
         context = {
             "user_message": user_message,
@@ -131,16 +125,25 @@ class ExperienceEngine:
                 "rule": rule_name,
                 "confidence": rule_result["confidence"],
             }
-            self.storage.write("experience", entry,
-                               summary=rule_result["summary"],
-                               confidence=rule_result["confidence"],
-                               rule=rule_name)
+            self.storage.write(
+                "experience",
+                entry,
+                summary=rule_result["summary"],
+                confidence=rule_result["confidence"],
+                rule=rule_name,
+            )
             # --- 同步写入鉴面 ---
             try:
                 from tools.mirror_tool import get_mirror_instance
+
                 m = get_mirror_instance()
                 if m:
-                    m.record(content=rule_result["summary"][:200], mtype="lesson", tags=["experience", rule_name], source="experience:rule")
+                    m.record(
+                        content=rule_result["summary"][:200],
+                        mtype="lesson",
+                        tags=["experience", rule_name],
+                        source="experience:rule",
+                    )
             except Exception:
                 pass
 
@@ -182,26 +185,31 @@ class ExperienceEngine:
                     "context": result.get("context", context["user_message"][:200]),
                     "confidence": "low",
                 }
-                self.storage.write("experience", entry,
-                                   summary=result["summary"][:200],
-                                   confidence="low")
+                self.storage.write("experience", entry, summary=result["summary"][:200], confidence="low")
                 # --- 同步写入鉴面 ---
                 try:
                     from tools.mirror_tool import get_mirror_instance
+
                     m = get_mirror_instance()
                     if m:
-                        m.record(content=result["summary"][:200], mtype="lesson", tags=["experience", "llm"], source="experience:llm")
+                        m.record(
+                            content=result["summary"][:200],
+                            mtype="lesson",
+                            tags=["experience", "llm"],
+                            source="experience:llm",
+                        )
                 except Exception:
                     pass
 
                 logger.info("经验提取（LLM）: %s", result["summary"][:60])
 
                 # --- 自动刻入 insight（成功任务不留空洞） ---
-                if tool_calls_count > 0 and not has_api_error:
-                    _record_success_insight(self, user_message, tool_calls_count)
+                tc = context.get("tool_calls_count", 0)
+                he = context.get("has_api_error", True)
+                if tc > 0 and not he:
+                    _record_success_insight(self, context.get("user_message", ""), tc)
         except Exception as e:
             logger.debug("经验提取（LLM） 异常: %s", e)
-
 
     def search(self, query: str, limit: int = 5) -> list[dict]:
         """搜索经验库。按 summary 模糊匹配。"""
@@ -209,6 +217,7 @@ class ExperienceEngine:
             conn = None
             if hasattr(self.storage, "db_path") and self.storage.db_path:
                 import sqlite3
+
                 conn = sqlite3.connect(self.storage.db_path)
             elif hasattr(self.storage, "_conn") and self.storage._conn:
                 conn = self.storage._conn
@@ -219,19 +228,26 @@ class ExperienceEngine:
                 "SELECT id, summary, content, confidence, hits, created_at FROM entries "
                 "WHERE type='experience' AND (summary LIKE ? OR content LIKE ?) "
                 "ORDER BY hits DESC, created_at DESC LIMIT ?",
-                [f"%{query}%", f"%{query}%", limit]
+                [f"%{query}%", f"%{query}%", limit],
             ).fetchall()
             results = []
             for r in rows:
-                results.append({
-                    "id": r[0], "summary": r[1], "content": r[2],
-                    "confidence": r[3], "hits": r[4], "created_at": r[5],
-                })
+                results.append(
+                    {
+                        "id": r[0],
+                        "summary": r[1],
+                        "content": r[2],
+                        "confidence": r[3],
+                        "hits": r[4],
+                        "created_at": r[5],
+                    }
+                )
             if conn and conn != getattr(self.storage, "_conn", None):
                 conn.close()
             return results
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).warning("experience.search 失败: %s", e)
             return []
 
@@ -243,6 +259,7 @@ class ExperienceEngine:
             conn = None
             if hasattr(self.storage, "db_path") and self.storage.db_path:
                 import sqlite3
+
                 conn = sqlite3.connect(self.storage.db_path)
             elif hasattr(self.storage, "_conn") and self.storage._conn:
                 conn = self.storage._conn
@@ -250,23 +267,27 @@ class ExperienceEngine:
                 return 0
 
             deleted = conn.execute(
-                "DELETE FROM entries WHERE type='experience' AND summary LIKE ?",
-                [tags_pattern]
+                "DELETE FROM entries WHERE type='experience' AND summary LIKE ?", [tags_pattern]
             ).rowcount
             conn.commit()
             if deleted > 0:
                 try:
                     from tools.mirror_tool import get_mirror_instance
+
                     m = get_mirror_instance()
                     if m:
                         m.forget(tags_pattern)
                 except Exception:
                     pass
             import logging
-            logging.getLogger(__name__).info("experience.forget_by_tags: 删除 %d 条 (pattern=%s)", deleted, tags_pattern)
+
+            logging.getLogger(__name__).info(
+                "experience.forget_by_tags: 删除 %d 条 (pattern=%s)", deleted, tags_pattern
+            )
             return deleted
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).warning("experience.forget 失败: %s", e)
             return 0
 
@@ -279,20 +300,17 @@ class ExperienceEngine:
             lines.append(f"- [{r['confidence']}] {r['summary']}")
             if r.get("hits", 0) > 0:
                 self.storage.record_hit(r["id"])
-        return (
-            "\n\n## 📝 经验提醒\n"
-            "以下是你从之前对话中学到的经验（可能不适用于当前场景）：\n"
-            + "\n".join(lines)
-        )
+        return "\n\n## 📝 经验提醒\n以下是你从之前对话中学到的经验（可能不适用于当前场景）：\n" + "\n".join(lines)
 
     def get_skip_stats(self) -> dict:
         return dict(self._skip_count)
 
 
-def _record_success_insight(engine, user_message: str, tool_calls_count: int):
+def _record_success_insight(_engine, user_message: str, tool_calls_count: int):
     """成功完成任务后自动刻入 insight，平衡 lesson 与 insight 比例。"""
     try:
         from tools.mirror_tool import get_mirror_instance
+
         m = get_mirror_instance()
         if m is None:
             return

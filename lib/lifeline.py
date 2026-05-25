@@ -35,6 +35,7 @@ MAX_BACKUPS = 10
 
 # ── 快照系统 ──
 
+
 def git_available() -> bool:
     return GIT_DIR.exists()
 
@@ -43,8 +44,7 @@ def get_current_commit() -> str:
     if not git_available():
         return "NO_GIT"
     try:
-        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
-                           cwd=ROOT, capture_output=True, text=True, timeout=5)
+        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=5)
         return r.stdout.strip() if r.returncode == 0 else "UNKNOWN"
     except Exception:
         return "UNKNOWN"
@@ -54,8 +54,9 @@ def get_current_branch() -> str:
     if not git_available():
         return "NO_GIT"
     try:
-        r = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                           cwd=ROOT, capture_output=True, text=True, timeout=5)
+        r = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=5
+        )
         return r.stdout.strip() if r.returncode == 0 else "UNKNOWN"
     except Exception:
         return "UNKNOWN"
@@ -77,15 +78,21 @@ def take_snapshot(reason: str = "") -> dict:
     # 1. Git 快照
     if git_available():
         try:
-            status = subprocess.run(["git", "status", "--porcelain"],
-                                    cwd=ROOT, capture_output=True, text=True, timeout=5)
+            status = subprocess.run(
+                ["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True, timeout=5
+            )
             has_changes = bool(status.stdout.strip())
             if has_changes:
                 subprocess.run(["git", "add", "-A"], cwd=ROOT, capture_output=True, timeout=10)
-                subprocess.run(["git", "commit", "-m", f"snapshot: {reason or '自动快照'}", "--allow-empty"],
-                               cwd=ROOT, capture_output=True, timeout=10)
-            subprocess.run(["git", "tag", "-f", tag, "-m", reason or "自动快照"],
-                           cwd=ROOT, capture_output=True, timeout=5)
+                subprocess.run(
+                    ["git", "commit", "-m", f"snapshot: {reason or '自动快照'}", "--allow-empty"],
+                    cwd=ROOT,
+                    capture_output=True,
+                    timeout=10,
+                )
+            subprocess.run(
+                ["git", "tag", "-f", tag, "-m", reason or "自动快照"], cwd=ROOT, capture_output=True, timeout=5
+            )
             results["commit"] = get_current_commit()
             results["git_ok"] = True
             logger.info("✅ Git 快照 %s (commit: %s)", tag, results["commit"])
@@ -96,13 +103,20 @@ def take_snapshot(reason: str = "") -> dict:
     try:
         BACKUP_DIR.mkdir(parents=True, exist_ok=True)
         backup_path = BACKUP_DIR / f"{tag}.tar.gz"
-        excludes = ["--exclude=.git", "--exclude=__pycache__", "--exclude=*.pyc",
-                    "--exclude=data/dat.db*", "--exclude=data/sessions",
-                    "--exclude=data/traces", "--exclude=.backups",
-                    "--exclude=*.log", "--exclude=nohup.out"]
-        subprocess.run(["tar", "czf", str(backup_path)] + excludes +
-                       ["-C", str(ROOT), "."],
-                       capture_output=True, timeout=30)
+        excludes = [
+            "--exclude=.git",
+            "--exclude=__pycache__",
+            "--exclude=*.pyc",
+            "--exclude=data/dat.db*",
+            "--exclude=data/sessions",
+            "--exclude=data/traces",
+            "--exclude=.backups",
+            "--exclude=*.log",
+            "--exclude=nohup.out",
+        ]
+        subprocess.run(
+            ["tar", "czf", str(backup_path)] + excludes + ["-C", str(ROOT), "."], capture_output=True, timeout=30
+        )
         results["backup_ok"] = True
         results["backup_path"] = str(backup_path)
         logger.info("✅ 目录备份 %s", tag)
@@ -138,6 +152,7 @@ def _cleanup_old_backups():
 
 # ── 快照列表 ──
 
+
 def list_snapshots(limit: int = 20) -> list:
     if not SNAPSHOT_LOG.exists():
         return []
@@ -152,14 +167,16 @@ def list_git_tags() -> list:
     if not git_available():
         return []
     try:
-        r = subprocess.run(["git", "tag", "-l", "snap-*", "--sort=-creatordate"],
-                           cwd=ROOT, capture_output=True, text=True, timeout=5)
+        r = subprocess.run(
+            ["git", "tag", "-l", "snap-*", "--sort=-creatordate"], cwd=ROOT, capture_output=True, text=True, timeout=5
+        )
         return r.stdout.strip().split("\n") if r.stdout.strip() else []
     except Exception:
         return []
 
 
 # ── 回滚系统 ──
+
 
 def rollback_to(tag: str) -> dict:
     """回滚到指定快照。优先 Git，其次目录备份。"""
@@ -168,12 +185,10 @@ def rollback_to(tag: str) -> dict:
     # 方式一：Git 回滚
     if git_available():
         try:
-            r = subprocess.run(["git", "tag", "-l", tag],
-                               cwd=ROOT, capture_output=True, text=True, timeout=5)
+            r = subprocess.run(["git", "tag", "-l", tag], cwd=ROOT, capture_output=True, text=True, timeout=5)
             if tag in r.stdout:
                 pre = take_snapshot(reason=f"pre-rollback-to-{tag}")
-                subprocess.run(["git", "checkout", "--force", tag],
-                               cwd=ROOT, capture_output=True, timeout=10)
+                subprocess.run(["git", "checkout", "--force", tag], cwd=ROOT, capture_output=True, timeout=10)
                 result["success"] = True
                 result["method"] = "git"
                 result["message"] = f"已回滚到 Git 标签 {tag}"
@@ -187,8 +202,7 @@ def rollback_to(tag: str) -> dict:
     if backup_file.exists():
         try:
             pre = take_snapshot(reason=f"pre-rollback-to-{tag}")
-            subprocess.run(["tar", "xzf", str(backup_file), "-C", str(ROOT)],
-                           capture_output=True, timeout=30)
+            subprocess.run(["tar", "xzf", str(backup_file), "-C", str(ROOT)], capture_output=True, timeout=30)
             result["success"] = True
             result["method"] = "backup"
             result["message"] = f"已从目录备份 {tag}.tar.gz 恢复"
@@ -210,14 +224,14 @@ def rollback_latest() -> dict:
 
 # ── 健康检查 ──
 
+
 def health_check() -> dict:
     issues, suggestions = [], []
 
     # Git 状态
     if git_available():
         try:
-            r = subprocess.run(["git", "status", "--porcelain"],
-                               cwd=ROOT, capture_output=True, text=True, timeout=5)
+            r = subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True, timeout=5)
             uncommitted = r.stdout.strip()
             if uncommitted:
                 n = len(uncommitted.split("\n"))
@@ -233,8 +247,9 @@ def health_check() -> dict:
     main_py = ROOT / "main.py"
     if main_py.exists():
         try:
-            r = subprocess.run([sys.executable, "-m", "py_compile", str(main_py)],
-                               capture_output=True, text=True, timeout=5)
+            r = subprocess.run(
+                [sys.executable, "-m", "py_compile", str(main_py)], capture_output=True, text=True, timeout=5
+            )
             if r.returncode != 0:
                 issues.append(f"main.py 语法错误: {r.stderr.strip()[:100]}")
                 suggestions.append("立即回滚: 'python3 -m lib.lifeline rollback_latest'")
@@ -277,6 +292,7 @@ def health_check() -> dict:
 
 # ── 进化前检查 ──
 
+
 def pre_evolution_check() -> dict:
     warnings = []
     snapshots = list_snapshots(limit=1)
@@ -289,24 +305,29 @@ def pre_evolution_check() -> dict:
     health = health_check()
     if not health["healthy"]:
         warnings.extend(health["issues"])
-    return {"pass": len(warnings) == 0, "warnings": warnings,
-            "should_snapshot_first": len(snapshots) == 0}
+    return {"pass": len(warnings) == 0, "warnings": warnings, "should_snapshot_first": len(snapshots) == 0}
 
 
 # ── 改代码前自动打快照 ──
 
 CODE_PATTERNS = [
-    "main.py", "lib/", "skills/", "tools/",
-    ".py", ".sh", ".yaml", ".yml", ".json", ".md",
+    "main.py",
+    "lib/",
+    "skills/",
+    "tools/",
+    ".py",
+    ".sh",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".md",
 ]
+
 
 def is_code_file(filepath: str) -> bool:
     """判断一个文件路径是否属于代码/配置类文件"""
     fp = filepath.replace("\\", "/")
-    for pat in CODE_PATTERNS:
-        if pat in fp:
-            return True
-    return False
+    return any(pat in fp for pat in CODE_PATTERNS)
 
 
 def snapshot_before_edit(filepath: str, reason: str = "") -> dict:
@@ -342,9 +363,9 @@ def snapshot_before_edit(filepath: str, reason: str = "") -> dict:
 
 # ── CLI 入口 ──
 
+
 def main():
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s [%(levelname)s] %(message)s")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     if len(sys.argv) < 2:
         print("用法: python3 -m lib.lifeline <命令>")
         print("命令:")
@@ -370,10 +391,12 @@ def main():
             print(f"{'标签':<25} {'时间':<25} {'原因':<30} {'Git':<10} {'备份':<10}")
             print("-" * 100)
             for s in reversed(snapshots):
-                print(f"{s['tag']:<25} {s.get('timestamp','')[:19]:<25} "
-                      f"{s.get('reason','')[:28]:<30} "
-                      f"{'✅' if s.get('git_ok') else '❌':<10} "
-                      f"{'✅' if s.get('backup_ok') else '❌':<10}")
+                print(
+                    f"{s['tag']:<25} {s.get('timestamp', '')[:19]:<25} "
+                    f"{s.get('reason', '')[:28]:<30} "
+                    f"{'✅' if s.get('git_ok') else '❌':<10} "
+                    f"{'✅' if s.get('backup_ok') else '❌':<10}"
+                )
     elif cmd == "rollback":
         if len(sys.argv) < 3:
             print("请指定要回滚到的标签")

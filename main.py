@@ -29,7 +29,7 @@ logger = logging.getLogger("gbase")
 # ── .env loading ──────────────────────────
 
 
-def _load_env():
+def _load_env() -> None:
     """Load .env file if it exists."""
     env_path = Path(__file__).parent / ".env"
     if not env_path.exists():
@@ -64,11 +64,10 @@ from lib.toolkit import auto_scan, set_global
 from tools import register_default
 from tools.mirror_tool import set_mirror_instance
 
-
 # ── Initialization ───────────────────────
 
 
-def _check_lifeline():
+def _check_lifeline() -> None:
     """Startup self-check: snapshot status."""
     if not git_available():
         logger.warning("LIFELINE WARN: git not available, snapshot limited")
@@ -85,7 +84,7 @@ def _check_lifeline():
         logger.info("LIFELINE: HEAD=%s, no snapshots yet", commit)
 
 
-def _init_cognifold_and_evolution():
+def _init_cognifold_and_evolution() -> tuple:
     """Initialize cognifold engine + evolution rule engine.
 
     Loaded once at startup, not inserted into the request path.
@@ -111,7 +110,7 @@ def _init_cognifold_and_evolution():
         logger.info("Failure patterns: %s ready", fp_path)
 
 
-def _setup():
+def _setup() -> None:
     """Startup initialization (tool scan + registration + safety checks)."""
     auto_scan("tools")
     register_default()
@@ -126,7 +125,7 @@ def _setup():
 # ── CLI mode ──────────────────────────────
 
 
-async def cli_mode(identity_name: str = "default"):
+async def cli_mode(identity_name: str = "default") -> None:
     """Run in CLI interactive mode."""
     _data_dir = None
     storage = Storage(data_dir=_data_dir)
@@ -293,7 +292,7 @@ You are Ink — the frontend and visual arm agent.
 }
 
 
-async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: str = None):
+async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: str | None = None) -> None:
     """Run as an HTTP server with OpenAI-compatible API."""
     import time as _time
 
@@ -339,7 +338,12 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
     skill_loader = SkillLoader(skills_dir)
     skill_loader.load()
     skill_names = skill_loader.get_skill_names()
-    logger.info("Skills: dir=%s, %d loaded (%s)", skills_dir, len(skill_names), ", ".join(skill_names) if skill_names else "none")
+    logger.info(
+        "Skills: dir=%s, %d loaded (%s)",
+        skills_dir,
+        len(skill_names),
+        ", ".join(skill_names) if skill_names else "none",
+    )
 
     # Load identity
     identity = load_identity(identity_name, root_dir="identities", experience_engine=exp, skill_loader=skill_loader)
@@ -366,7 +370,7 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
     @app.post("/ask")
-    async def ask_direct(request: Request):
+    async def ask_direct(request: Request) -> dict:
         """Direct ask endpoint for Agent-to-Agent communication."""
         body = await request.json()
         user_message = body.get("message", "")
@@ -380,11 +384,11 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
         return {"reply": reply, "identity": identity_name}
 
     @app.get("/health")
-    async def health():
+    async def health() -> dict:
         return {"status": "ok", "identity": identity_name}
 
     @app.post("/lifeline/snapshot-before-edit")
-    async def lifeline_snapshot_before_edit(request: Request):
+    async def lifeline_snapshot_before_edit(request: Request) -> dict:
         """Take a snapshot before editing code."""
         from lib.lifeline import take_snapshot
 
@@ -423,7 +427,7 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
         }
 
     @app.post("/pipeline/run")
-    async def pipeline_run(request: Request):
+    async def pipeline_run(request: Request) -> dict:
         """Trigger a quality gate pipeline."""
         body = await request.json()
         task = body.get("task", "")
@@ -436,12 +440,12 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
         return result
 
     @app.get("/pipeline/status")
-    async def pipeline_list():
+    async def pipeline_list() -> dict:
         """List all pipeline records."""
         return {"pipelines": list_pipelines()}
 
     @app.get("/pipeline/status/{pipeline_id}")
-    async def pipeline_detail(pipeline_id: str):
+    async def pipeline_detail(pipeline_id: str) -> dict:
         """Query a single pipeline's status."""
         from pathlib import Path
 
@@ -457,14 +461,14 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
             return {"error": str(e)}
 
     @app.post("/pipeline/rerun/{pipeline_id}/{step}")
-    async def pipeline_rerun(pipeline_id: str, step: str):
+    async def pipeline_rerun(pipeline_id: str, step: str) -> dict:
         """Rerun a specific step in a pipeline."""
         result = await rerun_step(pipeline_id, step)
         return result
 
     # ── Audit router ──
     @app.post("/audit")
-    async def audit_handler(request: Request):
+    async def audit_handler(request: Request) -> dict:
         """Generic audit route for agent protocol requests."""
         from lib.battle_protocol import (
             build_task_message,
@@ -536,14 +540,14 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
             return {"task_id": body.get("task_id", ""), "status": "failed", "error": str(e)}
 
     @app.post("/hammer/audit")
-    async def hammer_audit(request: Request):
+    async def hammer_audit(request: Request) -> dict:
         """Hammer-specific route."""
         if "hammer" not in str(identity_name).lower():
             return {"error": f"This route is for hammer identity, current: {identity_name}"}
         return await audit_handler(request)
 
     @app.post("/ink/evaluate")
-    async def ink_evaluate(request: Request):
+    async def ink_evaluate(request: Request) -> dict:
         """Ink-specific route."""
         if "ink" not in str(identity_name).lower():
             return {"error": f"This route is for ink identity, current: {identity_name}"}
@@ -564,7 +568,7 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
             set_global("scheduler", scheduler)
 
     # ── Auto learner ──
-    async def _auto_learn_run(msg: str, platform: str = "auto_learn", session=None):
+    async def _auto_learn_run(msg: str, platform: str = "auto_learn", session = None) -> str:
         return await kernel.run(
             user_message=msg,
             platform=platform,
@@ -574,7 +578,7 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
     learn_owner = os.environ.get("LEARN_OWNER", "")
     auto_learner = None
     if scheduler:
-        auto_learner = AutoLearner(lambda text, target_id="": None, _auto_learn_run)
+        auto_learner = AutoLearner(lambda *_: None, _auto_learn_run)
         if learn_owner:
             auto_learner.set_owner(learn_owner)
         set_global("auto_learner", auto_learner)
@@ -592,7 +596,7 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
 # ── Entry point ──────────────────────────
 
 
-def main():
+def main() -> None:
     _setup()
 
     # ── Edition mode ──

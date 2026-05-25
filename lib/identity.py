@@ -36,8 +36,7 @@ class Identity:
         if os.path.exists(system_prompt_path):
             with open(system_prompt_path, encoding="utf-8") as f:
                 self.system_prompt = f.read().strip()
-            logger.info("身份 %s: 加载 system_prompt (%d chars)",
-                       self.name, len(self.system_prompt))
+            logger.info("身份 %s: 加载 system_prompt (%d chars)", self.name, len(self.system_prompt))
 
         soul_path = os.path.join(self.root, "SOUL.md")
         if os.path.exists(soul_path):
@@ -87,8 +86,8 @@ class Identity:
 
 
 @functools.cache
-def _identity_cache_key(name: str, root_dir: str) -> bool:
-    """内部缓存哨兵：标记给定身份的配置文件是否已缓存。
+def _identity_cache_key(_name: str, _root_dir: str) -> bool:  # noqa: ARG001
+    """Internal cache sentinel.
     返回 True 表示缓存可用（实际不用于 Identity 对象缓存）。
     """
     return True
@@ -99,7 +98,7 @@ _identity_store: dict = {}
 
 def load_identity(name: str, root_dir: str = "identities", experience_engine=None, skill_loader=None) -> Identity:
     """快捷：加载一个身份（带缓存）。
-    
+
     相同 name+root_dir 的 Identity 对象会被缓存复用（proces 级缓存），
     但 experience_engine 和 skill_loader 每次都会重新注入，
     因为它们可能在运行时变化。
@@ -120,8 +119,6 @@ def list_identities(root_dir: str = "identities") -> list[str]:
     """列出所有可用身份。"""
     if not os.path.isdir(root_dir):
         return []
-    return sorted([
-        d for d in os.listdir(root_dir)
-        if os.path.isdir(os.path.join(root_dir, d))
-        and not d.startswith("_")
-    ])
+    return sorted(
+        [d for d in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, d)) and not d.startswith("_")]
+    )

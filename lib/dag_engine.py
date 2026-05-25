@@ -42,9 +42,9 @@ import yaml
 
 # === 配置 ===
 DAG_DIR = Path("/home/opprime-v2/data/dag-workflows")
-MAX_DEPTH = 50          # 最大 DAG 深度
+MAX_DEPTH = 50  # 最大 DAG 深度
 MAX_STEP_TIMEOUT = 300  # 单步超时（秒）
-MAX_RETRY = 2           # 单步最大重试
+MAX_RETRY = 2  # 单步最大重试
 
 
 class StepStatus(Enum):
@@ -66,26 +66,28 @@ class WorkflowStatus(Enum):
 @dataclass
 class DAGStep:
     """DAG 中的一个步骤节点。"""
-    id: str                          # 唯一标识
-    name: str                        # 人类可读名称
-    agent: str                       # 执行的 Agent 类型函数
-    inputs: dict[str, str] = field(default_factory=dict)    # 输入映射: {参数名: 来源路径}
-    outputs: list[str] = field(default_factory=list)        # 输出列表
-    depends_on: list[str] = field(default_factory=list)     # 前置步骤 ID
+
+    id: str  # 唯一标识
+    name: str  # 人类可读名称
+    agent: str  # 执行的 Agent 类型函数
+    inputs: dict[str, str] = field(default_factory=dict)  # 输入映射: {参数名: 来源路径}
+    outputs: list[str] = field(default_factory=list)  # 输出列表
+    depends_on: list[str] = field(default_factory=list)  # 前置步骤 ID
     condition: str | None = None  # 条件表达式（可选）
-    retry: int = 0                   # 重试次数
-    timeout: int = 60                # 超时（秒）
+    retry: int = 0  # 重试次数
+    timeout: int = 60  # 超时（秒）
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class DAGWorkflow:
     """一个完整的 DAG 工作流定义。"""
+
     name: str
     version: str = "1.0"
     description: str = ""
     steps: list[DAGStep] = field(default_factory=list)
-    start_step: str = ""             # 入口步骤 ID
+    start_step: str = ""  # 入口步骤 ID
     safety_checks: list[str] = field(default_factory=list)  # 安全检查列表
     max_depth: int = MAX_DEPTH
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -100,8 +102,8 @@ class ThreeLayerMemory:
     """
 
     def __init__(self, external_connectors: dict[str, Any] = None):
-        self.l1_transient: dict[str, Any] = {}       # 临时暂存
-        self.l2_structured: dict[str, Any] = {}       # 结构化状态
+        self.l1_transient: dict[str, Any] = {}  # 临时暂存
+        self.l2_structured: dict[str, Any] = {}  # 结构化状态
         self.l3_external: dict[str, Any] = external_connectors or {}  # 外部连接器
 
     def set_l1(self, key: str, value: Any):
@@ -201,18 +203,20 @@ class DAGEngine:
         """解析工作流定义。"""
         steps = []
         for step_data in data.get("steps", []):
-            steps.append(DAGStep(
-                id=step_data["id"],
-                name=step_data.get("name", step_data["id"]),
-                agent=step_data["agent"],
-                inputs=step_data.get("inputs", {}),
-                outputs=step_data.get("outputs", []),
-                depends_on=step_data.get("depends_on", []),
-                condition=step_data.get("condition"),
-                retry=step_data.get("retry", 0),
-                timeout=step_data.get("timeout", 60),
-                metadata=step_data.get("metadata", {}),
-            ))
+            steps.append(
+                DAGStep(
+                    id=step_data["id"],
+                    name=step_data.get("name", step_data["id"]),
+                    agent=step_data["agent"],
+                    inputs=step_data.get("inputs", {}),
+                    outputs=step_data.get("outputs", []),
+                    depends_on=step_data.get("depends_on", []),
+                    condition=step_data.get("condition"),
+                    retry=step_data.get("retry", 0),
+                    timeout=step_data.get("timeout", 60),
+                    metadata=step_data.get("metadata", {}),
+                )
+            )
 
         return DAGWorkflow(
             name=data["name"],
@@ -292,8 +296,7 @@ class DAGEngine:
 
         return len(errors) == 0, errors
 
-    def _topological_sort(self, workflow: DAGWorkflow
-                          ) -> tuple[list[str], bool]:
+    def _topological_sort(self, workflow: DAGWorkflow) -> tuple[list[str], bool]:
         """拓扑排序，返回 (排序后的步骤ID列表, 是否有环)。"""
         adj: dict[str, list[str]] = {s.id: [] for s in workflow.steps}
         in_degree: dict[str, int] = {s.id: 0 for s in workflow.steps}
@@ -321,10 +324,9 @@ class DAGEngine:
 
     # ─── 执行引擎 ───────────────────────────────────────
 
-    def execute(self, workflow: DAGWorkflow,
-                initial_context: dict[str, Any] = None,
-                external_connectors: dict[str, Any] = None
-                ) -> dict[str, Any]:
+    def execute(
+        self, workflow: DAGWorkflow, initial_context: dict[str, Any] = None, external_connectors: dict[str, Any] = None
+    ) -> dict[str, Any]:
         """执行 DAG 工作流。
 
         Args:
@@ -404,17 +406,16 @@ class DAGEngine:
                 continue
 
             # 条件检查
-            if step.condition:
-                if not self._evaluate_condition(step.condition, memory):
-                    step_results[step_id] = {
-                        "status": StepStatus.SKIPPED.value,
-                        "reason": f"条件不满足: {step.condition}",
-                        "output": None,
-                        "error": None,
-                        "duration_ms": 0,
-                    }
-                    skipped_count += 1
-                    continue
+            if step.condition and not self._evaluate_condition(step.condition, memory):
+                step_results[step_id] = {
+                    "status": StepStatus.SKIPPED.value,
+                    "reason": f"条件不满足: {step.condition}",
+                    "output": None,
+                    "error": None,
+                    "duration_ms": 0,
+                }
+                skipped_count += 1
+                continue
 
             # 解析输入
             resolved_inputs = {}
@@ -424,7 +425,7 @@ class DAGEngine:
             # 执行步骤（带重试）
             step_result = None
             last_error = None
-            for attempt in range(step.retry + 1):
+            for _attempt in range(step.retry + 1):
                 step_result = self._execute_step(step, resolved_inputs, memory)
                 if step_result["status"] == StepStatus.COMPLETED.value:
                     break
@@ -436,8 +437,7 @@ class DAGEngine:
                 # 将输出写入 L2
                 for output_key in step.outputs:
                     if output_key in step_result["output"]:
-                        memory.set_l2(f"{step_id}.{output_key}",
-                                      step_result["output"][output_key])
+                        memory.set_l2(f"{step_id}.{output_key}", step_result["output"][output_key])
                 # 也写入一个聚合键
                 memory.set_l2(f"{step_id}._result", step_result["output"])
             else:
@@ -457,16 +457,18 @@ class DAGEngine:
             overall_status = WorkflowStatus.PARTIAL
 
         # 记录执行历史
-        self._execution_history.append({
-            "workflow": workflow.name,
-            "version": workflow.version,
-            "status": overall_status.value,
-            "completed": completed_count,
-            "failed": failed_count,
-            "skipped": skipped_count,
-            "duration_ms": total_duration,
-            "timestamp": time.time(),
-        })
+        self._execution_history.append(
+            {
+                "workflow": workflow.name,
+                "version": workflow.version,
+                "status": overall_status.value,
+                "completed": completed_count,
+                "failed": failed_count,
+                "skipped": skipped_count,
+                "duration_ms": total_duration,
+                "timestamp": time.time(),
+            }
+        )
 
         # 保留最近 100 条
         if len(self._execution_history) > 100:
@@ -486,8 +488,7 @@ class DAGEngine:
             },
         }
 
-    def _execute_step(self, step: DAGStep, inputs: dict[str, Any],
-                      memory: ThreeLayerMemory) -> dict[str, Any]:
+    def _execute_step(self, step: DAGStep, inputs: dict[str, Any], memory: ThreeLayerMemory) -> dict[str, Any]:
         """执行单个步骤。"""
         agent_func = self._agent_registry.get(step.agent)
         if not agent_func:
@@ -521,8 +522,7 @@ class DAGEngine:
                 "duration_ms": round(duration, 1),
             }
 
-    def _evaluate_condition(self, condition: str,
-                            memory: ThreeLayerMemory) -> bool:
+    def _evaluate_condition(self, condition: str, memory: ThreeLayerMemory) -> bool:
         """评估条件表达式。
 
         支持: l2.xxx == 'value' / l2.xxx >= 1 等简单表达式。
@@ -530,8 +530,9 @@ class DAGEngine:
         try:
             # 替换变量引用
             import re
+
             expr = condition
-            for match in re.finditer(r'(l[123]\.\w+|input\.\w+)', condition):
+            for match in re.finditer(r"(l[123]\.\w+|input\.\w+)", condition):
                 ref = match.group(0)
                 value = memory.resolve(ref)
                 if isinstance(value, str):
@@ -710,7 +711,7 @@ def get_engine() -> DAGEngine:
     return _engine_instance
 
 
-def _init_pilot_workflows(engine: DAGEngine):
+def _init_pilot_workflows(_engine: DAGEngine):
     """初始化 Pilot 工作流定义。"""
     for name, wf_data in PILOT_WORKFLOWS.items():
         wf_path = DAG_DIR / f"{name}.yaml"
@@ -721,6 +722,7 @@ def _init_pilot_workflows(engine: DAGEngine):
 
 if __name__ == "__main__":
     import sys
+
     engine = get_engine()
     if "--stats" in sys.argv:
         print(json.dumps(engine.stats(), ensure_ascii=False, indent=2))

@@ -27,7 +27,7 @@ class SkillLoader:
 
     def _parse_frontmatter(self, content: str) -> dict:
         """从 yaml frontmatter（--- 块）解析 tags/description。
-        
+
         注意：不依赖 yaml 库，只用逐行解析常见的 key: value 格式。
         """
         result = {"tags": [], "description": ""}
@@ -152,9 +152,11 @@ class SkillLoader:
         if not self._index:
             return ""
 
-        lines = ["## 🧠 可用技能",
-                 "以下是你可用的技能包（从 skills/ 目录加载）。",
-                 "当用户的问题涉及对应领域时，先阅读该 SKILL.md 的指引，再调用工具。"]
+        lines = [
+            "## 🧠 可用技能",
+            "以下是你可用的技能包（从 skills/ 目录加载）。",
+            "当用户的问题涉及对应领域时，先阅读该 SKILL.md 的指引，再调用工具。",
+        ]
         for s in self._index:
             triggers_str = ", ".join(s["triggers"][:5]) if s["triggers"] else ""
             if triggers_str:

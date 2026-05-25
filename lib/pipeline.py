@@ -31,6 +31,7 @@ PIPELINE_DIR = Path(__file__).parent.parent / "data" / "pipelines"
 
 # ── 工具函数 ──
 
+
 def _pipeline_path(pipeline_id: str) -> Path:
     return PIPELINE_DIR / pipeline_id
 
@@ -52,12 +53,16 @@ def _ensure_dir(path: Path):
 async def _call_arm(url: str, message: str, max_seconds: int = 120) -> dict:
     """HTTP POST 到Agent的 /ask 或 /ink/evaluate 端口，返回解析后的 JSON。"""
     import aiohttp
+
     try:
-        async with aiohttp.ClientSession() as session, session.post(
-            url,
-            json={"message": message, "platform": "pipeline"},
-            timeout=aiohttp.ClientTimeout(total=max_seconds + 10),
-        ) as resp:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
+                url,
+                json={"message": message, "platform": "pipeline"},
+                timeout=aiohttp.ClientTimeout(total=max_seconds + 10),
+            ) as resp,
+        ):
             if resp.status != 200:
                 text = await resp.text()
                 return {"status": "error", "error": f"HTTP {resp.status}: {text[:200]}"}
@@ -70,6 +75,7 @@ async def _call_arm(url: str, message: str, max_seconds: int = 120) -> dict:
 
 
 # ── 管道执行 ──
+
 
 async def run_gate(
     task_description: str,
@@ -218,6 +224,7 @@ async def run_gate(
 
 # ── 辅助函数 ──
 
+
 async def _read_json_midfile(path: str, default: str = "") -> str:
     """尝试读一个 JSON 中间文件的 summary 字段。"""
     p = Path(path)
@@ -250,11 +257,11 @@ def _auto_verdict(hammer_summary, ink_summary) -> dict:
     }
 
 
-def _llm_verdict(pipeline_id: str, hammer_summary: str, ink_reply: str) -> dict:
+def _llm_verdict(_pipeline_id: str, hammer_summary: str, ink_reply: str) -> dict:
     """基于agent-2完整回复做语义裁决（关键词+规则混合）。"""
     import re
 
-    reply_lower = ink_reply.lower()
+    ink_reply.lower()
     combined_lower = (hammer_summary + ink_reply).lower()
 
     # 失败信号（严格版）
@@ -265,7 +272,11 @@ def _llm_verdict(pipeline_id: str, hammer_summary: str, ink_reply: str) -> dict:
     soft_count = sum(1 for s in soft_fails if s in combined_lower)
 
     # 是否明确写了 "通过" 或 "pass" 且没有 hard_fail
-    has_pass_signal = bool(re.search(r'(?:^|[\n。])[^。]*?(?:通过|完全?正确|all\s*pass|test\s*ok)', combined_lower[:2000])) if False else False
+    (
+        bool(re.search(r"(?:^|[\n。])[^。]*?(?:通过|完全?正确|all\s*pass|test\s*ok)", combined_lower[:2000]))
+        if False
+        else False
+    )
     # 简化：检查前 500 字是否有明确的正面结论
     first_500 = ink_reply[:500].lower()
     has_positive = any(w in first_500 for w in ["通过", "正常", "正确", "ok", "no issue", "good"])
@@ -337,23 +348,21 @@ async def rerun_step(pipeline_id: str, step: str) -> dict:
 
     return result
 
+
 # ── 鉴面记录 ──
+
 
 def _record_gate_to_mirror(pid: str, status: str, task: str, project: str, detail: str = ""):
     """将管道结果记录到鉴面引擎。"""
     try:
         from tools.mirror_tool import get_mirror_instance
+
         mirror = get_mirror_instance()
         if mirror is None:
             return
         content = f"Gate [{status.upper()}] {project}: {task[:80]}"
         if detail:
             content += f" — {detail[:100]}"
-        mirror.record(
-            content=content,
-            mtype="insight",
-            tags=["pipeline", project, status],
-            source=f"gate:{pid}"
-        )
+        mirror.record(content=content, mtype="insight", tags=["pipeline", project, status], source=f"gate:{pid}")
     except Exception:
         pass  # 鉴面记录失败不影响主流程

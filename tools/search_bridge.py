@@ -22,8 +22,7 @@ try:
     from aiohttp import web
 except ImportError:
     subprocess.check_call(
-        [sys.executable, "-m", "pip", "install", "aiohttp", "-i",
-         "https://pypi.tuna.tsinghua.edu.cn/simple", "--quiet"]
+        [sys.executable, "-m", "pip", "install", "aiohttp", "-i", "https://pypi.tuna.tsinghua.edu.cn/simple", "--quiet"]
     )
     from aiohttp import web
 
@@ -64,7 +63,8 @@ async def handle_search(request: web.Request) -> web.Response:
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            "node", PROSEARCH,
+            "node",
+            PROSEARCH,
             f"--keyword={query}",
             f"--cnt={count}",
             stdout=asyncio.subprocess.PIPE,
@@ -74,68 +74,82 @@ async def handle_search(request: web.Request) -> web.Response:
         output = stdout.decode("utf-8", errors="replace").strip()
 
         if not output:
-            return web.json_response({
-                "query": query,
-                "results": [],
-                "message": "搜索无返回数据",
-            })
+            return web.json_response(
+                {
+                    "query": query,
+                    "results": [],
+                    "message": "搜索无返回数据",
+                }
+            )
 
         try:
             data = json.loads(output)
         except json.JSONDecodeError:
             logger.warning("prosearch 返回非 JSON: %s", output[:200])
-            return web.json_response({
-                "query": query,
-                "results": [],
-                "raw": output[:1000],
-            })
+            return web.json_response(
+                {
+                    "query": query,
+                    "results": [],
+                    "raw": output[:1000],
+                }
+            )
 
         if not data.get("success"):
             msg = data.get("message", "搜索失败")
             logger.warning("搜索失败: %s", msg)
-            return web.json_response({
-                "query": query,
-                "results": [],
-                "message": msg,
-            })
+            return web.json_response(
+                {
+                    "query": query,
+                    "results": [],
+                    "message": msg,
+                }
+            )
 
         # 解析 ProSearch 返回的结果
         inner = data.get("data", {}) or {}
         items = inner.get("docs", data.get("items", [])) or []
         results = []
         for item in items:
-            results.append({
-                "title": item.get("title", ""),
-                "url": item.get("link", item.get("url", "")),
-                "snippet": item.get("snippet", ""),
-                "source": item.get("source", ""),
-                "time": item.get("time", ""),
-            })
+            results.append(
+                {
+                    "title": item.get("title", ""),
+                    "url": item.get("link", item.get("url", "")),
+                    "snippet": item.get("snippet", ""),
+                    "source": item.get("source", ""),
+                    "time": item.get("time", ""),
+                }
+            )
 
         logger.info("搜索结果: %d 条", len(results))
-        return web.json_response({
-            "query": query,
-            "results": results,
-            "result_count": len(results),
-        })
+        return web.json_response(
+            {
+                "query": query,
+                "results": results,
+                "result_count": len(results),
+            }
+        )
 
     except TimeoutError:
         logger.warning("搜索超时: %s", query)
-        return web.json_response({
-            "query": query,
-            "results": [],
-            "message": "搜索超时（15秒）",
-        })
+        return web.json_response(
+            {
+                "query": query,
+                "results": [],
+                "message": "搜索超时（15秒）",
+            }
+        )
     except Exception as e:
         logger.error("搜索异常: %s", str(e))
-        return web.json_response({
-            "query": query,
-            "results": [],
-            "message": f"搜索异常: {str(e)[:200]}",
-        })
+        return web.json_response(
+            {
+                "query": query,
+                "results": [],
+                "message": f"搜索异常: {str(e)[:200]}",
+            }
+        )
 
 
-async def handle_health(request: web.Request) -> web.Response:
+async def handle_health(_request: web.Request) -> web.Response:
     return web.json_response({"status": "ok"})
 
 
@@ -149,7 +163,7 @@ async def main():
 
     logger.info("搜索代理启动于端口 %d", port)
     logger.info("API: POST http://localhost:%d/search", port)
-    logger.info("     {\"query\": \"搜索关键词\", \"count\": 8}")
+    logger.info('     {"query": "搜索关键词", "count": 8}')
 
     runner = web.AppRunner(app)
     await runner.setup()

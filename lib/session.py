@@ -8,6 +8,7 @@ Session management: append-only JSONL.
 来自 V0，保留不动。
 """
 
+import contextlib
 import json
 import logging
 import time
@@ -32,12 +33,12 @@ class JsonlSessionManager:
         """打开或创建 JSONL 文件。"""
         if self.fh:
             try:
-                if hasattr(self.fh, 'close'):
+                if hasattr(self.fh, "close"):
                     self.fh.close()
             except Exception:
                 pass
         # 追加模式，不做 truncate
-        self.fh = open(self.filepath, 'a+', encoding='utf-8')
+        self.fh = open(self.filepath, "a+", encoding="utf-8")
         self._rebuild_stats()
 
     def _rebuild_stats(self):
@@ -80,7 +81,7 @@ class JsonlSessionManager:
                 entry["type"] = "tool_call"
         else:
             entry["type"] = role
-        self.fh.write(json.dumps(entry, ensure_ascii=False) + '\n')
+        self.fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
         self.fh.flush()
         self._stats["messages"] += 1
         return entry["_id"]
@@ -97,7 +98,7 @@ class JsonlSessionManager:
             entry.update(extra)
         return self.append(entry)
 
-    def get_or_create(self, session_key: str) -> "JsonlSessionManager":
+    def get_or_create(self, _session_key: str) -> "JsonlSessionManager":
         """按 session key 获取或创建一个 session 文件。"""
         # 这个方法的实际效果是返回 self（每个 instance 是一个文件）
         # 外部用 session_key 生成 filepath 后调用 open()
@@ -105,12 +106,12 @@ class JsonlSessionManager:
 
     def build_context(self, max_messages: int | None = None) -> list[dict]:
         """构建 LLM messages 上下文。
-        
+
         过滤策略：
         - 只保留 user 和 assistant（纯文本回复）
         - 去掉 tool_call 和 tool_result
         - 跳过压缩标记之前的内容
-        
+
         Returns:
             LLM 可用的 messages 列表（不含 system prompt）
         """
@@ -132,7 +133,7 @@ class JsonlSessionManager:
                     continue
 
                 entry_type = entry.get("type", "")
-                entry_id = entry.get("_id", 0)
+                entry.get("_id", 0)
 
                 # 压缩标记：跳过之前所有内容
                 if entry_type == "compaction":
@@ -202,24 +203,21 @@ class JsonlSessionManager:
                 "type": "compaction",
                 "summary": summary,
                 "first_kept_entry_id": first_kept_id,
-                "_ts": time.time()
+                "_ts": time.time(),
             }
-            self.fh.write(json.dumps(compaction_entry, ensure_ascii=False) + '\n')
+            self.fh.write(json.dumps(compaction_entry, ensure_ascii=False) + "\n")
             self.fh.flush()
             self._compacted_up_to = first_kept_id
             self._stats["compactions"] += 1
-            logger.info("压缩完成: %d 条 → 摘要 %d chars",
-                       self._stats["messages"], len(summary))
+            logger.info("压缩完成: %d 条 → 摘要 %d chars", self._stats["messages"], len(summary))
 
         except Exception as e:
             logger.warning("压缩失败: %s", e)
 
     def close(self):
         if self.fh:
-            try:
+            with contextlib.suppress(Exception):
                 self.fh.close()
-            except Exception:
-                pass
 
     def __del__(self):
         self.close()

@@ -36,9 +36,10 @@ PROXY_URLS = [
 
 # ── 抓取器 ──
 
+
 class Fetcher:
     """统一的 HTTP 抓取器。
-    
+
     会自动配置 headers、代理、超时、重试。
     """
 
@@ -60,7 +61,7 @@ class Fetcher:
 
     async def fetch(self, url: str, timeout: int | None = None) -> str | None:
         """抓取一个 URL，返回文本内容。
-        
+
         自动处理：
         - User-Agent 随机
         - 重试（最多 max_retries 次）
@@ -89,26 +90,27 @@ class Fetcher:
                 if resp.status_code == 200:
                     # 检测编码：优先用响应头中的 charset，其次自动检测
                     import re as _re
+
                     raw = resp.content
                     # 从 Content-Type 提取 charset
-                    ct = resp.headers.get('content-type', '')
+                    ct = resp.headers.get("content-type", "")
                     charset = None
-                    m = _re.search(r'charset=([\w-]+)', ct, _re.I)
+                    m = _re.search(r"charset=([\w-]+)", ct, _re.I)
                     if m:
                         charset = m.group(1).lower()
                     # 从 HTML meta 提取 charset
                     if not charset:
-                        head = raw[:4096].decode('utf-8', errors='ignore')
+                        head = raw[:4096].decode("utf-8", errors="ignore")
                         m = _re.search(r'<meta[^>]+charset=["\']?([\w-]+)', head, _re.I)
                         if m:
                             charset = m.group(1).lower()
                     # 按检测到的编码解码，默认 utf-8
                     try:
-                        if charset and charset not in ('utf-8', 'utf8'):
-                            return raw.decode(charset, errors='replace')
-                        return raw.decode('utf-8', errors='replace')
+                        if charset and charset not in ("utf-8", "utf8"):
+                            return raw.decode(charset, errors="replace")
+                        return raw.decode("utf-8", errors="replace")
                     except (LookupError, ValueError):
-                        return raw.decode('utf-8', errors='replace')
+                        return raw.decode("utf-8", errors="replace")
                 elif resp.status_code in (429, 503):
                     # 被限流，等一秒重试
                     await asyncio.sleep(1)
@@ -137,6 +139,7 @@ class Fetcher:
             return None
         try:
             import json
+
             return json.loads(text)
         except json.JSONDecodeError:
             return None
@@ -149,6 +152,7 @@ class Fetcher:
     def __del__(self):
         try:
             import asyncio
+
             if self._session and not self._session.is_closed:
                 asyncio.create_task(self._session.aclose())
         except Exception:

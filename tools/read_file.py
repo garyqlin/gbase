@@ -36,10 +36,7 @@ async def read_file(filepath: str, offset: int = 0, max_chars: int = 0) -> dict:
 
         file_size = os.path.getsize(abs_path)
 
-        if max_chars == 0:
-            read_limit = None
-        else:
-            read_limit = min(max_chars, 800000)
+        read_limit = None if max_chars == 0 else min(max_chars, 800000)
 
         with open(abs_path, encoding="utf-8", errors="replace") as f:
             if offset > 0:
@@ -47,7 +44,6 @@ async def read_file(filepath: str, offset: int = 0, max_chars: int = 0) -> dict:
             content = f.read(read_limit)
 
         truncated = read_limit is not None and len(content) >= read_limit
-        actual_limit = read_limit if read_limit is not None else file_size
 
         # 判断是否到文件结尾: 当前偏移+已读 >= 文件大小
         current_pos = (offset if offset > 0 else 0) + len(content)
@@ -59,8 +55,7 @@ async def read_file(filepath: str, offset: int = 0, max_chars: int = 0) -> dict:
             "content": content,
             "truncated": truncated,
             "end_of_file": end_of_file,
-            "note": (f"[全文] {file_size} 字节" if end_of_file
-                     else f"截断: 已读 {current_pos}/{file_size} 字节"),
+            "note": (f"[全文] {file_size} 字节" if end_of_file else f"截断: 已读 {current_pos}/{file_size} 字节"),
         }
     except PermissionError:
         return {"error": "无权限读取文件", "path": filepath}

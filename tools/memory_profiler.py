@@ -19,6 +19,7 @@ SCRIPT = "scripts/profile_memory.py"
 def _build_skill_path() -> str:
     """根据运行环境推测 skill 脚本路径。"""
     import os
+
     # 优先相对路径（与 tools/ 同级的 skills/）
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     path = os.path.join(base, SKILL_DIR, SCRIPT)

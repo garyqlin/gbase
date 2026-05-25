@@ -18,15 +18,17 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-ai-commit-gen/scripts")
 
 
 @tool()
-async def suggest_commit_message(project_dir: str = "", commit_type: str = "", scope: str = "", message: str = "") -> dict:
+async def suggest_commit_message(
+    project_dir: str = "", commit_type: str = "", scope: str = "", message: str = ""
+) -> dict:
     """根据当前 git diff 生成建议的 commit message。
-    
+
     Args:
         project_dir: Project directory (default: current working directory)
         commit_type: 强制指定类型 feat/fix/docs/refactor/test/chore
         scope: 强制指定范围
         message: 自定义描述文本，不传则从 diff 自动推断
-    
+
     Returns:
         建议的 commit message
     """
@@ -55,9 +57,7 @@ async def suggest_commit_message(project_dir: str = "", commit_type: str = "", s
         )
 
         # 输入 "n" 取消提交（只生成建议）
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(input=b"n\n"), timeout=15
-        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(input=b"n\n"), timeout=15)
 
         stdout_text = stdout.decode("utf-8", errors="replace")
         stderr_text = stderr.decode("utf-8", errors="replace")

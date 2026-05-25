@@ -12,6 +12,7 @@ Registers 7 tools for the opprime-core-v2 tool system:
  7. yf_create_ppt         — PPT generation (WIP delegates)
 """
 
+import importlib
 import json
 import os
 import subprocess
@@ -22,9 +23,7 @@ from lib.toolkit import tool
 
 # ── Path Resolution ──────────────────────────────────────────────────────────
 
-SKILL_DIR = os.environ.get("YF_IMAGE_BASE_DIR") or os.path.expanduser(
-    "~/.qclaw/skills/YF-image-base"
-)
+SKILL_DIR = os.environ.get("YF_IMAGE_BASE_DIR") or os.path.expanduser("~/.qclaw/skills/YF-image-base")
 RUNNER = str(Path(SKILL_DIR) / "scripts" / "yf_agent_runner.py")
 
 INF_DIR = os.path.expanduser("~/.qclaw/skills/YF-infographic")
@@ -53,9 +52,7 @@ def _run_runner(tool_name: str, *args, timeout: int = 120) -> dict:
 
 
 @tool("yf_generate_image")
-def yf_generate_image(prompt: str, aspect_ratio: str = "16:9",
-                       image_size: str = "2k",
-                       save_path: str = "") -> str:
+def yf_generate_image(prompt: str, aspect_ratio: str = "16:9", image_size: str = "2k", save_path: str = "") -> str:
     """
     Generate an image from text description using SiliconFlow T2I.
 
@@ -77,8 +74,9 @@ def yf_generate_image(prompt: str, aspect_ratio: str = "16:9",
 
 
 @tool("yf_recognize_image")
-def yf_recognize_image(image_path: str, system_prompt: str = "",
-                        user_prompt: str = "Describe this image in detail.") -> str:
+def yf_recognize_image(
+    image_path: str, system_prompt: str = "", user_prompt: str = "Describe this image in detail."
+) -> str:
     """
     Analyze an image using VLM (Qwen3-VL).
 
@@ -119,9 +117,9 @@ def yf_optimize_text(user_prompt: str, system_prompt: str = "") -> str:
 
 
 @tool("yf_create_infographic")
-def yf_create_infographic(content: str, layout: str = "auto",
-                           style: str = "professional",
-                           orientation: str = "landscape") -> str:
+def yf_create_infographic(
+    content: str, layout: str = "auto", style: str = "professional", orientation: str = "landscape"
+) -> str:
     """
     Create an infographic from content using the YF-infographic pipeline.
 
@@ -144,14 +142,14 @@ def yf_create_infographic(content: str, layout: str = "auto",
             f"data_dashboard, split_horizontal\n"
             f"Return ONLY the template name."
         )
-        analysis = _run_runner("yf-text-optimize",
-                               "--user-prompt", analysis_prompt,
-                               "--system-prompt",
-                               "You are an infographic layout expert. Return only the template name.")
-        if analysis.get("status") == "ok":
-            layout = analysis["result"].strip().lower()
-        else:
-            layout = "comparison_side_by_side"
+        analysis = _run_runner(
+            "yf-text-optimize",
+            "--user-prompt",
+            analysis_prompt,
+            "--system-prompt",
+            "You are an infographic layout expert. Return only the template name.",
+        )
+        layout = analysis["result"].strip().lower() if analysis.get("status") == "ok" else "comparison_side_by_side"
 
     # Stage 2: Build the T2I prompt
     prompt_text = (
@@ -162,10 +160,15 @@ def yf_create_infographic(content: str, layout: str = "auto",
     )
 
     # Stage 3: Generate
-    result = _run_runner("yf-image-generate",
-                         "--prompt", prompt_text,
-                         "--aspect-ratio", "16:9" if orientation == "landscape" else "9:16",
-                         "--image-size", "2k")
+    result = _run_runner(
+        "yf-image-generate",
+        "--prompt",
+        prompt_text,
+        "--aspect-ratio",
+        "16:9" if orientation == "landscape" else "9:16",
+        "--image-size",
+        "2k",
+    )
     return json.dumps(result, ensure_ascii=False)
 
 
@@ -185,14 +188,18 @@ def yf_imitate_style(reference_image: str, target_content: str) -> str:
     # Stage 1: Annotate reference image
     annotate_result = _run_runner(
         "yf-image-recognize",
-        "--images", reference_image,
-        "--system-prompt-path", str(Path(IMIT_DIR) / "prompts" / "image_annotate.md"),
-        "--user-prompt", "Please annotate this reference image with long caption and layout blueprint."
+        "--images",
+        reference_image,
+        "--system-prompt-path",
+        str(Path(IMIT_DIR) / "prompts" / "image_annotate.md"),
+        "--user-prompt",
+        "Please annotate this reference image with long caption and layout blueprint.",
     )
     if annotate_result.get("status") != "ok":
-        return json.dumps({"status": "error",
-                           "error": f"Annotation failed: {annotate_result.get('error', 'unknown')}"},
-                          ensure_ascii=False)
+        return json.dumps(
+            {"status": "error", "error": f"Annotation failed: {annotate_result.get('error', 'unknown')}"},
+            ensure_ascii=False,
+        )
 
     # Stage 2: Rewrite caption
     annotation = annotate_result["result"]
@@ -203,21 +210,26 @@ def yf_imitate_style(reference_image: str, target_content: str) -> str:
     )
     rewrite_result = _run_runner(
         "yf-text-optimize",
-        "--system-prompt-path", str(Path(IMIT_DIR) / "prompts" / "caption_rewrite.md"),
-        "--user-prompt", rewrite_prompt,
+        "--system-prompt-path",
+        str(Path(IMIT_DIR) / "prompts" / "caption_rewrite.md"),
+        "--user-prompt",
+        rewrite_prompt,
     )
     if rewrite_result.get("status") != "ok":
-        return json.dumps({"status": "error",
-                           "error": f"Caption rewrite failed: {rewrite_result.get('error', 'unknown')}"},
-                          ensure_ascii=False)
+        return json.dumps(
+            {"status": "error", "error": f"Caption rewrite failed: {rewrite_result.get('error', 'unknown')}"},
+            ensure_ascii=False,
+        )
 
     # Stage 3: Generate image with rewritten caption
     new_caption = rewrite_result["result"]
     output_path = f"/tmp/yf-imitate-{int(__import__('time').time())}.png"
     gen_result = _run_runner(
         "yf-image-generate",
-        "--prompt", new_caption,
-        "--save-path", output_path,
+        "--prompt",
+        new_caption,
+        "--save-path",
+        output_path,
     )
     if gen_result.get("status") == "ok":
         gen_result["imitated_from"] = reference_image
@@ -227,8 +239,7 @@ def yf_imitate_style(reference_image: str, target_content: str) -> str:
 
 
 @tool("yf_create_resume_image")
-def yf_create_resume_image(resume_content: str, style: str = "",
-                            aspect_ratio: str = "9:16") -> str:
+def yf_create_resume_image(resume_content: str, style: str = "", aspect_ratio: str = "9:16") -> str:
     """
     Generate a designed portfolio-resume image from resume content.
 
@@ -248,27 +259,34 @@ def yf_create_resume_image(resume_content: str, style: str = "",
 
     prompt_result = _run_runner(
         "yf-text-optimize",
-        "--system-prompt-path", sys_prompt_path,
-        "--user-prompt", user_prompt,
+        "--system-prompt-path",
+        sys_prompt_path,
+        "--user-prompt",
+        user_prompt,
     )
     if prompt_result.get("status") != "ok":
-        return json.dumps({"status": "error",
-                           "error": f"Prompt generation failed: {prompt_result.get('error', 'unknown')}"},
-                          ensure_ascii=False)
+        return json.dumps(
+            {"status": "error", "error": f"Prompt generation failed: {prompt_result.get('error', 'unknown')}"},
+            ensure_ascii=False,
+        )
 
     generation_prompt = prompt_result["result"]
     result = _run_runner(
         "yf-image-generate",
-        "--prompt", generation_prompt,
-        "--aspect-ratio", aspect_ratio,
-        "--image-size", "2k",
+        "--prompt",
+        generation_prompt,
+        "--aspect-ratio",
+        aspect_ratio,
+        "--image-size",
+        "2k",
     )
     return json.dumps(result, ensure_ascii=False)
 
 
 @tool("yf_create_ppt")
-def yf_create_ppt(topic: str, slides: int = 8, mode: str = "standard",
-                   audience: str = "general", tone: str = "professional") -> str:
+def yf_create_ppt(
+    topic: str, slides: int = 8, mode: str = "standard", audience: str = "general", tone: str = "professional"
+) -> str:
     """
     Generate a PPT presentation on a given topic.
 
@@ -289,35 +307,41 @@ def yf_create_ppt(topic: str, slides: int = 8, mode: str = "standard",
             f"for {audience} audience with a {tone} tone. "
             f"Format: one line per slide, starting with 'Slide N: Title | Description'"
         )
-        outline_result = _run_runner("yf-text-optimize",
-                                     "--user-prompt", outline_prompt)
+        outline_result = _run_runner("yf-text-optimize", "--user-prompt", outline_prompt)
         if outline_result.get("status") != "ok":
-            return json.dumps({"status": "error",
-                               "error": f"Outline failed: {outline_result.get('error')}"},
-                              ensure_ascii=False)
+            return json.dumps(
+                {"status": "error", "error": f"Outline failed: {outline_result.get('error')}"}, ensure_ascii=False
+            )
 
-        return json.dumps({
-            "status": "ok",
-            "mode": "creative",
-            "outline": outline_result["result"],
-            "message": "Outline generated. Send each slide topic to yf_generate_image for per-slide images."
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "status": "ok",
+                "mode": "creative",
+                "outline": outline_result["result"],
+                "message": "Outline generated. Send each slide topic to yf_generate_image for per-slide images.",
+            },
+            ensure_ascii=False,
+        )
 
     else:
         # Standard mode: PPTX via docx skill
         try:
-            from . import docx_gen
-            output_path = f"/tmp/yf-ppt-{int(__import__('time').time())}.pptx"
+            importlib.util.find_spec(".docx_gen", package=__package__)
+
+            f"/tmp/yf-ppt-{int(__import__('time').time())}.pptx"
             # docx_gen handles the actual PPTX generation
-            return json.dumps({
-                "status": "ok",
-                "mode": "standard",
-                "message": "Standard PPT mode ready. Use the docx skill to generate the PPTX.",
-                "topic": topic,
-                "slides": slides,
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "status": "ok",
+                    "mode": "standard",
+                    "message": "Standard PPT mode ready. Use the docx skill to generate the PPTX.",
+                    "topic": topic,
+                    "slides": slides,
+                },
+                ensure_ascii=False,
+            )
         except ImportError:
-            return json.dumps({
-                "status": "error",
-                "error": "docx skill not available for PPTX export. Use creative mode instead."
-            }, ensure_ascii=False)
+            return json.dumps(
+                {"status": "error", "error": "docx skill not available for PPTX export. Use creative mode instead."},
+                ensure_ascii=False,
+            )

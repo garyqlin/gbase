@@ -35,21 +35,71 @@ DATA_DIR = Path("/home/opprime-v2/data")
 COGNIFOLD_DB = DATA_DIR / "cognifold.db"
 
 # 概念簇参数
-CLUSTER_WINDOW_DAYS = 7         # 概念簇时间窗口
-CLUSTER_DENSITY_THRESHOLD = 5   # 同一概念 7 天内 ≥5 条触发意图浮现
-MIN_CLUSTER_SIZE = 3            # 最小聚类大小
-SIMILARITY_JACCARD = 0.35       # Jaccard 相似度阈值（合并阈值）
+CLUSTER_WINDOW_DAYS = 7  # 概念簇时间窗口
+CLUSTER_DENSITY_THRESHOLD = 5  # 同一概念 7 天内 ≥5 条触发意图浮现
+MIN_CLUSTER_SIZE = 3  # 最小聚类大小
+SIMILARITY_JACCARD = 0.35  # Jaccard 相似度阈值（合并阈值）
 
 # 意图浮现
 INTENT_LEVELS = ["notice", "suggestion", "alert"]
-MAX_INTENTS_PER_CHECK = 3       # 每次检查最多浮现 3 个意图
+MAX_INTENTS_PER_CHECK = 3  # 每次检查最多浮现 3 个意图
 
 # 停用词（中文）
-STOP_WORDS = {"的","了","在","是","我","有","和","就","不","人","都","一",
-              "一个","上","也","很","到","说","要","去","你","会","着","没有",
-              "看","好","自己","这","他","她","它","们","那","什么","怎么",
-              "可以","就是","不是","这个","那个","因为","所以","但是","如果",
-              "虽然","而且","或者","不过","已经","还是","只是","然后","可能"}
+STOP_WORDS = {
+    "的",
+    "了",
+    "在",
+    "是",
+    "我",
+    "有",
+    "和",
+    "就",
+    "不",
+    "人",
+    "都",
+    "一",
+    "一个",
+    "上",
+    "也",
+    "很",
+    "到",
+    "说",
+    "要",
+    "去",
+    "你",
+    "会",
+    "着",
+    "没有",
+    "看",
+    "好",
+    "自己",
+    "这",
+    "他",
+    "她",
+    "它",
+    "们",
+    "那",
+    "什么",
+    "怎么",
+    "可以",
+    "就是",
+    "不是",
+    "这个",
+    "那个",
+    "因为",
+    "所以",
+    "但是",
+    "如果",
+    "虽然",
+    "而且",
+    "或者",
+    "不过",
+    "已经",
+    "还是",
+    "只是",
+    "然后",
+    "可能",
+}
 
 
 class Cognifold:
@@ -141,8 +191,7 @@ class Cognifold:
 
     # ─── Layer 1: 事件接入 ────────────────────────────────
 
-    def on_record(self, content: str, mtype: str = "",
-                  tags: list[str] = None, source: str = ""):
+    def on_record(self, content: str, _mtype: str = "", tags: list[str] = None, _source: str = ""):
         """接收到新记忆事件时的处理入口。
 
         这是 Cognifold 连接 mirror.record() 的钩子。
@@ -184,17 +233,17 @@ class Cognifold:
         concepts = set()
 
         # 从内容提取
-        cleaned = re.sub(r'[^\u4e00-\u9fff\w]', ' ', content)
+        cleaned = re.sub(r"[^\u4e00-\u9fff\w]", " ", content)
         words = cleaned.split()
 
         for word in words:
             word = word.strip()
             # 中文词：2-4 字
-            if re.match(r'^[\u4e00-\u9fff]{2,4}$', word):
+            if re.match(r"^[\u4e00-\u9fff]{2,4}$", word):
                 if word not in STOP_WORDS:
                     concepts.add(word)
             # 英文技术词
-            elif re.match(r'^[A-Z][a-zA-Z]+$', word) and len(word) >= 3:
+            elif re.match(r"^[A-Z][a-zA-Z]+$", word) and len(word) >= 3:
                 concepts.add(word.lower())
 
         # 从 tags 合并
@@ -211,50 +260,43 @@ class Cognifold:
         """更新或创建概念。"""
         if name in self._concept_cache:
             cid = self._concept_cache[name]
-            self._conn.execute(
-                "UPDATE concepts SET last_seen=?, total_events=total_events+1 WHERE id=?",
-                (now, cid))
+            self._conn.execute("UPDATE concepts SET last_seen=?, total_events=total_events+1 WHERE id=?", (now, cid))
             return cid
 
-        cursor = self._conn.execute(
-            "SELECT id FROM concepts WHERE name=?", (name,))
+        cursor = self._conn.execute("SELECT id FROM concepts WHERE name=?", (name,))
         row = cursor.fetchone()
         if row:
             cid = row[0]
-            self._conn.execute(
-                "UPDATE concepts SET last_seen=?, total_events=total_events+1 WHERE id=?",
-                (now, cid))
+            self._conn.execute("UPDATE concepts SET last_seen=?, total_events=total_events+1 WHERE id=?", (now, cid))
             self._concept_cache[name] = cid
             return cid
 
         cursor = self._conn.execute(
-            "INSERT INTO concepts (name, first_seen, last_seen) VALUES (?, ?, ?)",
-            (name, now, now))
+            "INSERT INTO concepts (name, first_seen, last_seen) VALUES (?, ?, ?)", (name, now, now)
+        )
         cid = cursor.lastrowid
         self._concept_cache[name] = cid
         self._conn.commit()
         return cid
 
-    def _update_co_occurrence(self, concept_ids: list[int], now: float):
+    def _update_co_occurrence(self, concept_ids: list[int], _now: float):
         """更新概念共现矩阵。"""
         for i in range(len(concept_ids)):
             for j in range(i + 1, len(concept_ids)):
                 a, b = sorted([concept_ids[i], concept_ids[j]])
                 cursor = self._conn.execute(
-                    "SELECT id, co_occurrence, strength FROM concept_links "
-                    "WHERE concept_a_id=? AND concept_b_id=?",
-                    (a, b))
+                    "SELECT id, co_occurrence, strength FROM concept_links WHERE concept_a_id=? AND concept_b_id=?",
+                    (a, b),
+                )
                 row = cursor.fetchone()
                 if row:
                     new_strength = min(1.0, row[2] + 0.1)
                     self._conn.execute(
-                        "UPDATE concept_links SET co_occurrence=co_occurrence+1, "
-                        "strength=? WHERE id=?",
-                        (new_strength, row[0]))
+                        "UPDATE concept_links SET co_occurrence=co_occurrence+1, strength=? WHERE id=?",
+                        (new_strength, row[0]),
+                    )
                 else:
-                    self._conn.execute(
-                        "INSERT INTO concept_links (concept_a_id, concept_b_id) "
-                        "VALUES (?, ?)", (a, b))
+                    self._conn.execute("INSERT INTO concept_links (concept_a_id, concept_b_id) VALUES (?, ?)", (a, b))
         self._conn.commit()
 
     def _recluster(self, triggered_concept_ids: list[int], now: float):
@@ -272,10 +314,9 @@ class Cognifold:
         # 加载所有活跃概念（7 天窗口内）
         cutoff = now - (CLUSTER_WINDOW_DAYS * 86400)
         cursor = self._conn.execute(
-            "SELECT id, name, cluster_id, total_events FROM concepts "
-            "WHERE last_seen >= ?", (cutoff,))
-        all_concepts = {row[0]: {"name": row[1], "cluster_id": row[2],
-                                  "events": row[3]} for row in cursor.fetchall()}
+            "SELECT id, name, cluster_id, total_events FROM concepts WHERE last_seen >= ?", (cutoff,)
+        )
+        all_concepts = {row[0]: {"name": row[1], "cluster_id": row[2], "events": row[3]} for row in cursor.fetchall()}
 
         if not all_concepts:
             return
@@ -293,7 +334,8 @@ class Cognifold:
                 cursor = self._conn.execute(
                     "SELECT concept_a_id, concept_b_id, strength FROM concept_links "
                     "WHERE (concept_a_id=? OR concept_b_id=?) AND strength >= ?",
-                    (cid, cid, SIMILARITY_JACCARD))
+                    (cid, cid, SIMILARITY_JACCARD),
+                )
                 for row in cursor.fetchall():
                     neighbor = row[0] if row[0] != cid else row[1]
                     if neighbor in all_concepts and neighbor not in cluster_members:
@@ -316,21 +358,20 @@ class Cognifold:
             if existing_cluster_id:
                 cluster_id = existing_cluster_id
                 self._conn.execute(
-                    "UPDATE clusters SET concept_count=?, event_count=?, "
-                    "density=?, last_seen=? WHERE id=?",
-                    (len(cluster_members), event_count, density, now, cluster_id))
+                    "UPDATE clusters SET concept_count=?, event_count=?, density=?, last_seen=? WHERE id=?",
+                    (len(cluster_members), event_count, density, now, cluster_id),
+                )
             else:
                 cursor = self._conn.execute(
                     "INSERT INTO clusters (label, concept_count, event_count, "
                     "density, first_seen, last_seen) VALUES (?, ?, ?, ?, ?, ?)",
-                    (label, len(cluster_members), event_count, density, now, now))
+                    (label, len(cluster_members), event_count, density, now, now),
+                )
                 cluster_id = cursor.lastrowid
 
             # 更新概念的簇归属
             for cid in cluster_members:
-                self._conn.execute(
-                    "UPDATE concepts SET cluster_id=? WHERE id=?",
-                    (cluster_id, cid))
+                self._conn.execute("UPDATE concepts SET cluster_id=? WHERE id=?", (cluster_id, cid))
                 all_concepts[cid]["cluster_id"] = cluster_id
 
         self._conn.commit()
@@ -340,11 +381,9 @@ class Cognifold:
             if info["cluster_id"]:
                 self._concept_cache[info["name"]] = cid
 
-    def _pick_cluster_label(self, member_ids: set[int],
-                            all_concepts: dict) -> str:
+    def _pick_cluster_label(self, member_ids: set[int], all_concepts: dict) -> str:
         """选最具代表性的概念名作为簇标签。"""
-        candidates = [(all_concepts[c]["events"], all_concepts[c]["name"])
-                      for c in member_ids if c in all_concepts]
+        candidates = [(all_concepts[c]["events"], all_concepts[c]["name"]) for c in member_ids if c in all_concepts]
         candidates.sort(reverse=True)
         if not candidates:
             return "unknown"
@@ -354,8 +393,7 @@ class Cognifold:
             return f"{top}/{candidates[1][1]}"
         return top
 
-    def _find_merge_target(self, member_ids: set[int],
-                           all_concepts: dict) -> int | None:
+    def _find_merge_target(self, member_ids: set[int], all_concepts: dict) -> int | None:
         """找可以合并的现有簇。"""
         cluster_ids = set()
         for cid in member_ids:
@@ -372,12 +410,8 @@ class Cognifold:
             return
 
         cutoff = now - (CLUSTER_WINDOW_DAYS * 2 * 86400)
-        self._conn.execute(
-            "UPDATE concepts SET weight=weight*decay_rate WHERE last_seen < ?",
-            (cutoff,))
-        self._conn.execute(
-            "UPDATE clusters SET is_active=0 WHERE last_seen < ?",
-            (cutoff,))
+        self._conn.execute("UPDATE concepts SET weight=weight*decay_rate WHERE last_seen < ?", (cutoff,))
+        self._conn.execute("UPDATE clusters SET is_active=0 WHERE last_seen < ?", (cutoff,))
         self._conn.commit()
         self._last_intent_check = now
 
@@ -401,7 +435,8 @@ class Cognifold:
             "FROM clusters c "
             "WHERE c.is_active=1 AND c.density >= ? AND c.last_seen >= ? "
             "ORDER BY c.density DESC LIMIT ?",
-            (CLUSTER_DENSITY_THRESHOLD, cutoff, MAX_INTENTS_PER_CHECK))
+            (CLUSTER_DENSITY_THRESHOLD, cutoff, MAX_INTENTS_PER_CHECK),
+        )
 
         clusters = cursor.fetchall()
         if not clusters:
@@ -413,25 +448,31 @@ class Cognifold:
 
             # 检查是否已浮现过相同意图（去重）
             existing = self._conn.execute(
-                "SELECT id FROM intents WHERE cluster_id=? AND emerged_at > ?",
-                (cluster_id, now - 86400 * 3)).fetchone()
+                "SELECT id FROM intents WHERE cluster_id=? AND emerged_at > ?", (cluster_id, now - 86400 * 3)
+            ).fetchone()
             if existing:
                 continue
 
             # 生成意图
             intent = self._generate_intent(
-                cluster_id, label, concept_count, event_count, density,
-                first_seen, last_seen)
+                cluster_id, label, concept_count, event_count, density, first_seen, last_seen
+            )
             if intent:
                 intents.append(intent)
 
         self._conn.commit()
         return intents
 
-    def _generate_intent(self, cluster_id: int, label: str,
-                         concept_count: int, event_count: int,
-                         density: float, first_seen: float,
-                         last_seen: float) -> dict[str, Any] | None:
+    def _generate_intent(
+        self,
+        cluster_id: int,
+        label: str,
+        concept_count: int,
+        event_count: int,
+        density: float,
+        first_seen: float,
+        last_seen: float,
+    ) -> dict[str, Any] | None:
         """基于簇密度生成意图。
 
         意图级别:
@@ -454,31 +495,37 @@ class Cognifold:
 
         if level == "alert":
             title = f"🚨 高密度概念簇: {label}"
-            body = (f"过去 {days_span} 天内，'{label}' 相关事件密度达到 {density:.1f}/天 "
-                    f"（共 {event_count} 条，{concept_count} 个关联概念）。"
-                    f"建议立即审查并制定应对策略。")
+            body = (
+                f"过去 {days_span} 天内，'{label}' 相关事件密度达到 {density:.1f}/天 "
+                f"（共 {event_count} 条，{concept_count} 个关联概念）。"
+                f"建议立即审查并制定应对策略。"
+            )
         elif level == "suggestion":
             title = f"💡 浮现模式: {label}"
-            body = (f"'{label}' 相关事件在 {days_span} 天内出现了 {event_count} 次 "
-                    f"（{concept_count} 个关联概念），密度 {density:.1f}/天。"
-                    f"建议考虑将此模式纳入正式规则或流程。")
+            body = (
+                f"'{label}' 相关事件在 {days_span} 天内出现了 {event_count} 次 "
+                f"（{concept_count} 个关联概念），密度 {density:.1f}/天。"
+                f"建议考虑将此模式纳入正式规则或流程。"
+            )
         else:
             title = f"📌 注意: {label}"
-            body = (f"'{label}' 概念簇在 {days_span} 天内累积了 {event_count} 条事件 "
-                    f"（密度 {density:.1f}/天）。值得关注其发展趋势。")
+            body = (
+                f"'{label}' 概念簇在 {days_span} 天内累积了 {event_count} 条事件 "
+                f"（密度 {density:.1f}/天）。值得关注其发展趋势。"
+            )
 
         # 收集证据（关联的概念）
         cursor = self._conn.execute(
-            "SELECT name FROM concepts WHERE cluster_id=? ORDER BY total_events DESC LIMIT 5",
-            (cluster_id,))
+            "SELECT name FROM concepts WHERE cluster_id=? ORDER BY total_events DESC LIMIT 5", (cluster_id,)
+        )
         evidence_concepts = [row[0] for row in cursor.fetchall()]
         evidence = f"关联概念: {', '.join(evidence_concepts)}"
 
         # 存储意图
         cursor = self._conn.execute(
-            "INSERT INTO intents (cluster_id, level, title, body, evidence, emerged_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (cluster_id, level, title, body, evidence, now))
+            "INSERT INTO intents (cluster_id, level, title, body, evidence, emerged_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (cluster_id, level, title, body, evidence, now),
+        )
         intent_id = cursor.lastrowid
 
         return {
@@ -493,15 +540,13 @@ class Cognifold:
 
     def acknowledge_intent(self, intent_id: int) -> bool:
         """标记意图为已确认。"""
-        self._conn.execute(
-            "UPDATE intents SET acknowledged=1 WHERE id=?", (intent_id,))
+        self._conn.execute("UPDATE intents SET acknowledged=1 WHERE id=?", (intent_id,))
         self._conn.commit()
         return True
 
     def act_on_intent(self, intent_id: int) -> bool:
         """标记意图为已处理。"""
-        self._conn.execute(
-            "UPDATE intents SET acted_upon=1 WHERE id=?", (intent_id,))
+        self._conn.execute("UPDATE intents SET acted_upon=1 WHERE id=?", (intent_id,))
         self._conn.commit()
         return True
 
@@ -509,22 +554,18 @@ class Cognifold:
 
     def stats(self) -> dict[str, Any]:
         """返回 Cognifold 统计信息。"""
-        concept_count = self._conn.execute(
-            "SELECT COUNT(*) FROM concepts").fetchone()[0]
-        active_concepts = self._conn.execute(
-            "SELECT COUNT(*) FROM concepts WHERE weight > 0.1").fetchone()[0]
-        cluster_count = self._conn.execute(
-            "SELECT COUNT(*) FROM clusters WHERE is_active=1").fetchone()[0]
-        intent_count = self._conn.execute(
-            "SELECT COUNT(*) FROM intents").fetchone()[0]
-        unacknowledged = self._conn.execute(
-            "SELECT COUNT(*) FROM intents WHERE acknowledged=0").fetchone()[0]
+        concept_count = self._conn.execute("SELECT COUNT(*) FROM concepts").fetchone()[0]
+        active_concepts = self._conn.execute("SELECT COUNT(*) FROM concepts WHERE weight > 0.1").fetchone()[0]
+        cluster_count = self._conn.execute("SELECT COUNT(*) FROM clusters WHERE is_active=1").fetchone()[0]
+        intent_count = self._conn.execute("SELECT COUNT(*) FROM intents").fetchone()[0]
+        unacknowledged = self._conn.execute("SELECT COUNT(*) FROM intents WHERE acknowledged=0").fetchone()[0]
 
         # 当前高密度簇
         cursor = self._conn.execute(
             "SELECT label, round(density,1) FROM clusters "
             "WHERE is_active=1 AND density >= ? ORDER BY density DESC LIMIT 5",
-            (CLUSTER_DENSITY_THRESHOLD,))
+            (CLUSTER_DENSITY_THRESHOLD,),
+        )
         top_clusters = [{"label": r[0], "density": r[1]} for r in cursor.fetchall()]
 
         return {
@@ -555,6 +596,7 @@ def get_cognifold(mirror_instance=None) -> Cognifold:
 
 if __name__ == "__main__":
     import sys
+
     cf = Cognifold()
     if "--stats" in sys.argv:
         print(json.dumps(cf.stats(), ensure_ascii=False, indent=2))

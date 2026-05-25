@@ -34,5 +34,5 @@ async def my_project_roots() -> dict:
         "getcwd": os.getcwd(),
         "exec_allowed": str(_PROJECT_ROOT),
         "data_dir": str(_PROJECT_ROOT / "data"),
-        "sessions_dir": str(_PROJECT_ROOT / "data"/ "sessions"),
+        "sessions_dir": str(_PROJECT_ROOT / "data" / "sessions"),
     }

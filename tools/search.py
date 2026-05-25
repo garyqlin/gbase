@@ -22,10 +22,11 @@ logger = logging.getLogger(__name__)
 
 class SearchEngine:
     """Search engine description."""
+
     def __init__(self, name: str, lang: str, weight: float = 1.0):
         self.name = name
-        self.lang = lang          # "zh" | "en" | "all"
-        self.weight = weight      # Result sort weight
+        self.lang = lang  # "zh" | "en" | "all"
+        self.weight = weight  # Result sort weight
 
 
 ENGINES = {
@@ -55,26 +56,29 @@ _cache: dict[str, dict] = {}
 
 def _is_chinese(query: str) -> bool:
     """Check if query is primarily Chinese."""
-    cn = sum(1 for c in query if '\u4e00' <= c <= '\u9fff')
+    cn = sum(1 for c in query if "\u4e00" <= c <= "\u9fff")
     return cn > len(query) * 0.3
 
 
 def _query_key(query: str) -> str:
     q = query.lower().strip()
-    for ch in "，。！？；：、""''（）【】《》?.,!;:'\"()[]":
+    for ch in "，。！？；：、''（）【】《》?.,!;:'\"()[]":
         q = q.replace(ch, " ")
     return " ".join(q.split())
 
 
 # Generic HTML parsing helper
 
-def _parse_common(soup: BeautifulSoup,
-                  result_selector: str,
-                  title_selector: str,
-                  url_attr: str = "href",
-                  title_attr: str | None = None,
-                  snippet_selector: str | None = None,
-                  max_results: int = 5) -> list[dict]:
+
+def _parse_common(
+    soup: BeautifulSoup,
+    result_selector: str,
+    title_selector: str,
+    url_attr: str = "href",
+    _title_attr: str | None = None,
+    snippet_selector: str | None = None,
+    max_results: int = 5,
+) -> list[dict]:
     """Generic search result parser.
 
     Extract result listings using BeautifulSoup CSS selectors.
@@ -107,6 +111,7 @@ def _parse_common(soup: BeautifulSoup,
 
 # Engine implementations
 
+
 async def _bing(query: str, fetcher: Fetcher, market: str = "en-US") -> list[dict]:
     """Bing search."""
     url = f"https://www.bing.com/search?q={urllib.parse.quote(query)}&setlang={market[:2].lower()}&cc={market[:2].lower()}"
@@ -137,27 +142,33 @@ async def _ddg(query: str, fetcher: Fetcher) -> list[dict]:
     results = []
     abstract = data.get("AbstractText", "")
     if abstract:
-        results.append({
-            "title": (data.get("AbstractSource", "") + " - " + abstract[:50])[:120],
-            "url": data.get("AbstractURL", ""),
-            "snippet": abstract[:400],
-        })
+        results.append(
+            {
+                "title": (data.get("AbstractSource", "") + " - " + abstract[:50])[:120],
+                "url": data.get("AbstractURL", ""),
+                "snippet": abstract[:400],
+            }
+        )
 
     for topic in data.get("RelatedTopics", [])[:5]:
         if isinstance(topic, dict) and "Text" in topic:
-            results.append({
-                "title": topic["Text"][:120],
-                "url": topic.get("FirstURL", "") or "",
-                "snippet": topic["Text"][:400],
-            })
+            results.append(
+                {
+                    "title": topic["Text"][:120],
+                    "url": topic.get("FirstURL", "") or "",
+                    "snippet": topic["Text"][:400],
+                }
+            )
         elif isinstance(topic, dict) and "Topics" in topic:
             for sub in topic["Topics"][:2]:
                 if isinstance(sub, dict) and "Text" in sub:
-                    results.append({
-                        "title": sub["Text"][:120],
-                        "url": sub.get("FirstURL", "") or "",
-                        "snippet": sub["Text"][:400],
-                    })
+                    results.append(
+                        {
+                            "title": sub["Text"][:120],
+                            "url": sub.get("FirstURL", "") or "",
+                            "snippet": sub["Text"][:400],
+                        }
+                    )
     return results[:5]
 
 
@@ -269,6 +280,7 @@ ENGINE_MAP["startpage"] = _startpage
 
 # Parallel search
 
+
 async def _parallel_search(engines: list[str], query: str, fetcher: Fetcher) -> list[dict]:
     """Call multiple search engines in parallel, return merged deduplicated results."""
     tasks = {}
@@ -308,24 +320,24 @@ def _get_expansion_queries(query: str) -> list[str]:
     expansions = []
     # Homophone substitution for common surnames
     homophones = {
-        'Zhou': ['Zhou', 'Zou', 'Zhong'],
-        'Zhang': ['Zhang', 'Zang'],
-        'Li': ['Li', 'Lee', 'Lei'],
-        'Wang': ['Wang', 'Wong'],
-        'Chen': ['Chen', 'Cheng'],
-        'Lin': ['Lin', 'Ling'],
-        'Wu': ['Wu', 'Woo'],
-        'Liu': ['Liu', 'Liew'],
-        'Huang': ['Huang', 'Wong'],
-        'Zhao': ['Zhao', 'Zau'],
-        'Yang': ['Yang', 'Yeung'],
-        'Zhu': ['Zhu', 'Chu'],
+        "Zhou": ["Zhou", "Zou", "Zhong"],
+        "Zhang": ["Zhang", "Zang"],
+        "Li": ["Li", "Lee", "Lei"],
+        "Wang": ["Wang", "Wong"],
+        "Chen": ["Chen", "Cheng"],
+        "Lin": ["Lin", "Ling"],
+        "Wu": ["Wu", "Woo"],
+        "Liu": ["Liu", "Liew"],
+        "Huang": ["Huang", "Wong"],
+        "Zhao": ["Zhao", "Zau"],
+        "Yang": ["Yang", "Yeung"],
+        "Zhu": ["Zhu", "Chu"],
     }
     for i, ch in enumerate(query):
         if ch in homophones:
             for alt in homophones[ch]:
                 if alt != ch:
-                    expansions.append(query[:i] + alt + query[i+1:])
+                    expansions.append(query[:i] + alt + query[i + 1 :])
     return expansions
 
 
@@ -333,25 +345,25 @@ async def _fetch_body(url: str, fetcher, max_chars: int = 2000) -> str:
     """Generic body fetcher: fetch page HTML, strip tags, return plain text.
     Skip encyclopedia/dictionary pages (snippet is sufficient).
     """
-    if not url or not url.startswith('http'):
-        return ''
-    skip_domains = ['baike.baidu.com', 'zdic.net', 'hanyuguoxue.com', 'hancibao.com', 'wenku.so.com']
+    if not url or not url.startswith("http"):
+        return ""
+    skip_domains = ["baike.baidu.com", "zdic.net", "hanyuguoxue.com", "hancibao.com", "wenku.so.com"]
     if any(d in url for d in skip_domains):
-        return ''
+        return ""
     try:
         text = await fetcher.fetch(url, timeout=10)
         if not text or len(text.strip()) < 300:
-            return ''
-        soup = BeautifulSoup(text, 'lxml')
-        for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'noscript']):
+            return ""
+        soup = BeautifulSoup(text, "lxml")
+        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
             tag.decompose()
-        body = soup.get_text(separator=' ', strip=True)
-        body = re.sub(r'\s+', ' ', body)
+        body = soup.get_text(separator=" ", strip=True)
+        body = re.sub(r"\s+", " ", body)
         if len(body) > 100:
             return body[:max_chars]
     except Exception:
         pass
-    return ''
+    return ""
 
 
 @tool()
@@ -367,6 +379,7 @@ async def search_web(query: str, engines: list[str] | None = None) -> dict:
     # Tunnel first: try SSH reverse tunnel to local ProSearch
     try:
         from tools.search_tunnel import search_via_tunnel
+
         tunnel_results = await search_via_tunnel(query, 8)
         if tunnel_results:
             logger.info("Tunnel search hit: %s (%d results)", query, len(tunnel_results))
@@ -398,7 +411,7 @@ async def search_web(query: str, engines: list[str] | None = None) -> dict:
 
     # Handle engine list (string -> list)
     if isinstance(engines, str):
-        engines = [e.strip() for e in re.split(r'[,\s]+', engines) if e.strip()]
+        engines = [e.strip() for e in re.split(r"[,\s]+", engines) if e.strip()]
 
     engine_list = engines
     valid_names = set(ENGINES.keys())
@@ -449,10 +462,12 @@ async def search_web(query: str, engines: list[str] | None = None) -> dict:
         for r in results[:3]:
             body = await _fetch_body(r.get("url", ""), fetcher, max_chars=2000)
             if body:
-                pages.append({
-                    "title": r.get("title", "")[:80],
-                    "content": body[:2000],
-                })
+                pages.append(
+                    {
+                        "title": r.get("title", "")[:80],
+                        "content": body[:2000],
+                    }
+                )
                 if len(pages) >= 2:
                     break
 
@@ -491,7 +506,7 @@ async def fetch_page(url: str) -> dict:
             tag.decompose()
         body = soup.get_text(separator="\n", strip=True)
 
-        lines = [l.strip() for l in body.split("\n") if l.strip()]
+        lines = [line.strip() for line in body.split("\n") if line.strip()]
         text = "\n".join(lines)[:4000]
 
         return {"url": url, "content": text[:3000]}
@@ -509,6 +524,7 @@ async def search_self(question: str) -> dict:
         question: Experience question to search for
     """
     from lib import toolkit as tk
+
     ee = tk.get_global("experience_engine")
     if not ee:
         return {"found": False, "results": [], "note": "Experience engine not ready"}
@@ -525,6 +541,7 @@ async def search_self(question: str) -> dict:
 
 # Single-pass search (for kernel internal use)
 
+
 async def search_main(query: str) -> dict:
     """Kernel internal: one-shot search across engines + auto body extraction, no LLM involvement.
 
@@ -536,7 +553,7 @@ async def search_main(query: str) -> dict:
     }
     """
     logger.info("search_main: %s", query)
-    is_cn = _is_chinese(query)
+    _is_chinese(query)
 
     cn_engines = ZH_ENGINES
     en_engines = ["bing"]
@@ -551,6 +568,7 @@ async def search_main(query: str) -> dict:
 
         # Collect snippets (top 3 per engine)
         from collections import OrderedDict
+
         extra_parts = []
         by_engine = OrderedDict()
         for r in results:
@@ -559,11 +577,11 @@ async def search_main(query: str) -> dict:
                 by_engine[eng] = []
             if len(by_engine[eng]) < 3:
                 by_engine[eng].append(r)
-        for eng, items in by_engine.items():
+        for eng, items in by_engine.items():  # noqa: B007
             for r in items:
                 s = r.get("snippet", "") or ""
                 if s and len(s) > 10:
-                    extra_parts.append(f"• {r.get('title','?')} — {s[:300]}")
+                    extra_parts.append(f"• {r.get('title', '?')} — {s[:300]}")
 
         # Body content
         content_parts = []
@@ -577,7 +595,7 @@ async def search_main(query: str) -> dict:
                 continue
             body = await _fetch_body(url, fetcher)
             if body:
-                content_parts.append(f"• {r.get('title','?')}\n{body}")
+                content_parts.append(f"• {r.get('title', '?')}\n{body}")
                 break
 
         # Build digest

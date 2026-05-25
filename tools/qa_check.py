@@ -24,9 +24,9 @@ async def qa_double_check(
     target: str,
     check_type: str = "both",
     code_file: str = "",
-    white_params: str = "",
-    black_params: str = "",
-    criteria: str = "",
+    _white_params: str = "",
+    _black_params: str = "",
+    _criteria: str = "",
 ) -> dict:
     """Dual-agent QA: whitebox (agent-1) + blackbox (agent-3) cross-verify.
 
@@ -74,48 +74,47 @@ async def qa_double_check(
             source = f"<无法读取: {e}>"
 
         lines = source.split("\n")
-        white_findings.append({
-            "item": "文件结构",
-            "finding": f"{len(lines)} 行, {len(source)} 字节",
-            "status": "info"
-        })
+        white_findings.append({"item": "文件结构", "finding": f"{len(lines)} 行, {len(source)} 字节", "status": "info"})
 
         # 统计函数/类
         import re
+
         funcs = re.findall(r"^async def (\w+)|^def (\w+)", source, re.M)
         func_names = [f[0] or f[1] for f in funcs]
         classes = re.findall(r"^class (\w+)", source, re.M)
-        white_findings.append({
-            "item": "符号统计",
-            "finding": f"{len(func_names)} 函数, {len(classes)} 类",
-            "status": f"{'✅' if func_names else '⚠️'}"
-        })
+        white_findings.append(
+            {
+                "item": "符号统计",
+                "finding": f"{len(func_names)} 函数, {len(classes)} 类",
+                "status": f"{'✅' if func_names else '⚠️'}",
+            }
+        )
 
         # 检查工具函数
         tool_funcs = re.findall(r"@tool\(\)\s*\n(async )?def (\w+)", source)
-        white_findings.append({
-            "item": "工具函数",
-            "finding": f"{len(tool_funcs)} 个 @tool 装饰器" if tool_funcs else "无 @tool",
-            "status": f"{'✅' if tool_funcs else '⚠️'}"
-        })
+        white_findings.append(
+            {
+                "item": "工具函数",
+                "finding": f"{len(tool_funcs)} 个 @tool 装饰器" if tool_funcs else "无 @tool",
+                "status": f"{'✅' if tool_funcs else '⚠️'}",
+            }
+        )
 
         # 检查异常处理
         has_try = source.count("try:") > 0
         has_except = source.count("except") > 0
         has_logger = "logger." in source
-        white_findings.append({
-            "item": "错误处理",
-            "finding": f"try={has_try}, except={has_except}, logger={has_logger}",
-            "status": "✅" if (has_except or has_logger) else "⚠️"
-        })
+        white_findings.append(
+            {
+                "item": "错误处理",
+                "finding": f"try={has_try}, except={has_except}, logger={has_logger}",
+                "status": "✅" if (has_except or has_logger) else "⚠️",
+            }
+        )
 
         # 检查类型注解
         typed_funcs = sum(1 for f in func_names if "def " + f in source)
-        white_findings.append({
-            "item": "类型注解",
-            "finding": f"{typed_funcs}/{len(func_names)} 函数",
-            "status": "..."
-        })
+        white_findings.append({"item": "类型注解", "finding": f"{typed_funcs}/{len(func_names)} 函数", "status": "..."})
 
         report["white_box"] = {
             "code_file": code_file,
@@ -127,29 +126,21 @@ async def qa_double_check(
         # Blackbox checks (agent-3 perspective)
         black_findings = []
 
-        black_findings.append({
-            "item": "API可达性",
-            "finding": f"目标: {target[:60]}",
-            "status": "pending (agent-3 external probe)"
-        })
+        black_findings.append(
+            {"item": "API可达性", "finding": f"目标: {target[:60]}", "status": "pending (agent-3 external probe)"}
+        )
 
-        black_findings.append({
-            "item": "输入多样性",
-            "finding": "正常输入 | 空输入 | 超长输入 | 非法类型",
-            "status": "待测试"
-        })
+        black_findings.append(
+            {"item": "输入多样性", "finding": "正常输入 | 空输入 | 超长输入 | 非法类型", "status": "待测试"}
+        )
 
-        black_findings.append({
-            "item": "输出稳定性",
-            "finding": "错误码一致性 | 返回格式 | 异常不崩溃",
-            "status": "待验证"
-        })
+        black_findings.append(
+            {"item": "输出稳定性", "finding": "错误码一致性 | 返回格式 | 异常不崩溃", "status": "待验证"}
+        )
 
-        black_findings.append({
-            "item": "副作用检查",
-            "finding": "是否有写文件/网络请求/系统调用",
-            "status": "需执行后检查"
-        })
+        black_findings.append(
+            {"item": "副作用检查", "finding": "是否有写文件/网络请求/系统调用", "status": "需执行后检查"}
+        )
 
         report["black_box"] = {
             "method": "外部探测 - 不读源码",
@@ -168,7 +159,11 @@ async def qa_double_check(
 
     report["verdict"] = (
         "🟢 白盒无异常, 黑盒待执行"
-        if report.get("white_box") and all(f["status"].startswith("✅") or f["status"] == "info" or f["status"] == "..." for f in report["white_box"]["findings"])
+        if report.get("white_box")
+        and all(
+            f["status"].startswith("✅") or f["status"] == "info" or f["status"] == "..."
+            for f in report["white_box"]["findings"]
+        )
         else "🟡 有检查项需关注"
     )
 
@@ -231,11 +226,13 @@ async def qa_execute_blackbox(
                     failed += 1
                 results.append(result)
         except Exception as e:
-            results.append({
-                "name": tc["name"],
-                "error": str(e)[:200],
-                "passed": False,
-            })
+            results.append(
+                {
+                    "name": tc["name"],
+                    "error": str(e)[:200],
+                    "passed": False,
+                }
+            )
             failed += 1
 
     return {
@@ -279,11 +276,20 @@ async def qa_swarm_test(
 
     if not test_cases:
         test_cases = [
-            {"name": "权威信源", "input": {"url": "https://www.gov.cn/test", "title": "官方新闻", "snippet": "数据来源"}},
-            {"name": "自媒体", "input": {"url": "https://toutiao.com/test", "title": "标题", "snippet": "据传内部消息"}},
-            {"name": "AI生成", "input": {"url": "https://medium.com/test", "title": "AI文章", "snippet": "Based on my training data"}},
+            {
+                "name": "权威信源",
+                "input": {"url": "https://www.gov.cn/test", "title": "官方新闻", "snippet": "数据来源"},
+            },
+            {
+                "name": "自媒体",
+                "input": {"url": "https://toutiao.com/test", "title": "标题", "snippet": "据传内部消息"},
+            },
+            {
+                "name": "AI生成",
+                "input": {"url": "https://medium.com/test", "title": "AI文章", "snippet": "Based on my training data"},
+            },
             {"name": "空输入", "input": {"url": "", "title": "", "snippet": ""}},
-            {"name": "垃圾文本", "input": {"url": "a"*1000, "title": "x"*500, "snippet": "!"*2000}},
+            {"name": "垃圾文本", "input": {"url": "a" * 1000, "title": "x" * 500, "snippet": "!" * 2000}},
         ]
 
     all_latencies = []
@@ -296,21 +302,20 @@ async def qa_swarm_test(
         round_errors = 0
 
         # 模拟工蜂 ID
-        bee_ids = [f"bee-{chr(65+i)}" for i in range(concurrent)]
+        bee_ids = [f"bee-{chr(65 + i)}" for i in range(concurrent)]
         bee_label = "+".join(bee_ids)
 
         # 并行测试
-        for bee in bee_ids:
+        for _bee in bee_ids:
             for tc in test_cases:
                 total_requests += 1
                 start = time.time()
                 try:
                     # 实际调 verify_intelligence 的 internal 逻辑
                     from tools.verify import _assess_content, _rate_source
-                    rating = _rate_source(tc["input"].get("url", ""))
-                    quality = _assess_content(
-                        tc["input"].get("title", "") + " " + tc["input"].get("snippet", "")
-                    )
+
+                    _rate_source(tc["input"].get("url", ""))
+                    _assess_content(tc["input"].get("title", "") + " " + tc["input"].get("snippet", ""))
                     elapsed = (time.time() - start) * 1000  # ms
                     all_latencies.append(elapsed)
                     round_latencies.append(elapsed)
@@ -323,15 +328,17 @@ async def qa_swarm_test(
         # 本轮统计
         sorted_lat = sorted(round_latencies)
         n = len(sorted_lat)
-        round_results.append({
-            "round": r + 1,
-            "bees": bee_label,
-            "requests": len(round_latencies) + round_errors,
-            "errors": round_errors,
-            "p50_ms": round(sorted_lat[n // 2], 1) if n > 0 else 0,
-            "p95_ms": round(sorted_lat[int(n * 0.95)], 1) if n > 0 else 0,
-            "p99_ms": round(sorted_lat[int(n * 0.99)], 1) if n > 0 else 0,
-        })
+        round_results.append(
+            {
+                "round": r + 1,
+                "bees": bee_label,
+                "requests": len(round_latencies) + round_errors,
+                "errors": round_errors,
+                "p50_ms": round(sorted_lat[n // 2], 1) if n > 0 else 0,
+                "p95_ms": round(sorted_lat[int(n * 0.95)], 1) if n > 0 else 0,
+                "p99_ms": round(sorted_lat[int(n * 0.99)], 1) if n > 0 else 0,
+            }
+        )
 
     # 全局统计
     global_sorted = sorted(all_latencies)
@@ -374,8 +381,10 @@ async def qa_swarm_test(
         "degradation_detected": has_degradation,
         "verdict": " | ".join(verdict_parts),
         "recommendation": (
-            "✅ 可上线" if error_rate < 1 and not has_degradation
-            else "⚠️ 需关注边缘用例" if error_rate < 5
+            "✅ 可上线"
+            if error_rate < 1 and not has_degradation
+            else "⚠️ 需关注边缘用例"
+            if error_rate < 5
             else "🔴 有问题，修复后再上线"
         ),
     }
@@ -409,8 +418,6 @@ async def qa_multi_round(
     """
     # 实际调用 qa_swarm_test 每轮
     from tools.qa_check import qa_swarm_test  # noqa
-    final_report = await qa_swarm_test(
-        target=target, concurrent=bee_count,
-        rounds=rounds, test_cases=test_cases
-    )
+
+    final_report = await qa_swarm_test(target=target, concurrent=bee_count, rounds=rounds, test_cases=test_cases)
     return final_report

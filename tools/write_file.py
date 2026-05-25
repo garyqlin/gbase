@@ -23,8 +23,8 @@ else:
     ALLOWED_ROOTS = [
         os.path.expanduser("~/opprime/opprime-core-v2"),
         os.path.expanduser("~/opprime"),
-        "/home/opprime-v2",                # 云端运行目录
-        "/var/spool/cron/crontabs",        # 允许写系统 crontab (macOS 无此目录)
+        "/home/opprime-v2",  # 云端运行目录
+        "/var/spool/cron/crontabs",  # 允许写系统 crontab (macOS 无此目录)
     ]
 
 
@@ -43,8 +43,7 @@ def _resolve_path(filepath: str) -> tuple[str, str]:
     if not allowed:
         return "", (
             f"写入被拒绝：路径 {expanded} 不在允许范围内。\n"
-            f"允许的根目录：\n"
-            + "\n".join(f"  - {r}" for r in ALLOWED_ROOTS)
+            f"允许的根目录：\n" + "\n".join(f"  - {r}" for r in ALLOWED_ROOTS)
         )
 
     parent = os.path.dirname(expanded)
@@ -116,7 +115,7 @@ async def write_file(filepath: str, content: str, mode: str = "w") -> dict:
             "mode": mode,
             "context": context,
             "backup": backup_note.strip() if backup_note else None,
-            "note": "如需继续编辑此文件，再次调用 write_file 即可（mode='w' 覆盖）。"
+            "note": "如需继续编辑此文件，再次调用 write_file 即可（mode='w' 覆盖）。",
         }
         if backup_id:
             result["backup_id"] = backup_id

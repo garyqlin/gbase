@@ -28,6 +28,7 @@ _current_trace: dict | None = None
 
 # ── 初始化 ──
 
+
 def init_trace(task_id: str, task_description: str = ""):
     """开始一个新的 trace 追踪记录"""
     global _current_trace
@@ -39,11 +40,14 @@ def init_trace(task_id: str, task_description: str = ""):
         "description": task_description,
         "status": "running",
     }
-    _write_entry("init", {
-        "task_id": task_id,
-        "description": task_description[:200],
-        "timestamp": time.time(),
-    })
+    _write_entry(
+        "init",
+        {
+            "task_id": task_id,
+            "description": task_description[:200],
+            "timestamp": time.time(),
+        },
+    )
     logger.info("[trace %s] 初始化", task_id)
     return task_id
 
@@ -57,16 +61,20 @@ def close_trace(status: str = "completed", error: str = ""):
     _current_trace["end_time"] = time.time()
     if error:
         _current_trace["error"] = error
-    _write_entry("close", {
-        "status": status,
-        "error": error[:500] if error else "",
-        "elapsed": time.time() - _current_trace["start_time"],
-    })
+    _write_entry(
+        "close",
+        {
+            "status": status,
+            "error": error[:500] if error else "",
+            "elapsed": time.time() - _current_trace["start_time"],
+        },
+    )
     logger.info("[trace %s] 关闭: status=%s", _current_trace.get("task_id", "?"), status)
     _current_trace = None
 
 
 # ── 工具调用记录 ──
+
 
 def record_tool_call(
     step: int,
@@ -106,11 +114,13 @@ def record_tool_call(
     _write_entry("tool_call", entry)
 
     if status == "error":
-        logger.warning("[trace %s] 步骤%d 工具 %s 失败: %s",
-                       _current_trace.get("task_id", "?"), step, tool_name, error[:100])
+        logger.warning(
+            "[trace %s] 步骤%d 工具 %s 失败: %s", _current_trace.get("task_id", "?"), step, tool_name, error[:100]
+        )
 
 
 # ── 失败分析 ──
+
 
 def get_failure_analysis() -> dict:
     """分析当前 trace，返回失败信息。
@@ -186,6 +196,7 @@ def get_failure_analysis() -> dict:
 
 # ── 文件写入 ──
 
+
 def _write_entry(entry_type: str, data: dict):
     """异步写入一条 JSONL trace 记录。"""
     if _current_trace is None:
@@ -206,6 +217,7 @@ def _write_entry(entry_type: str, data: dict):
 
 
 # ── 读取已有 trace ──
+
 
 def read_trace(task_id: str) -> list[dict]:
     """读取已完成的 trace 文件。"""
@@ -244,6 +256,7 @@ def analyze_task(trace_entries: list[dict]) -> dict:
 
 
 # ── 列表 ──
+
 
 def list_traces() -> list[str]:
     """列出所有 trace 文件。"""

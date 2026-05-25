@@ -20,15 +20,15 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-test-generator/scripts")
 @tool()
 async def generate_tests(file_path: str, language: str = "auto", output_ext: str = "") -> dict:
     """为指定源代码文件自动生成单元测试。
-    
+
     支持 Python、JavaScript、TypeScript、Java。
     测试文件会生成在源文件同目录下。
-    
+
     Args:
         file_path: 源文件路径（绝对路径或相对路径）
         language: 语言，自动检测或指定 python / javascript / java / ruby
         output_ext: 输出扩展名覆盖，不传则自动推断
-    
+
     Returns:
         生成的测试文件路径和统计信息
     """
@@ -38,7 +38,8 @@ async def generate_tests(file_path: str, language: str = "auto", output_ext: str
     cmd = [
         sys.executable or "python3",
         os.path.join(SKILL_DIR, "generate_tests.py"),
-        "--file", file_path,
+        "--file",
+        file_path,
     ]
     if language and language != "auto":
         cmd.extend(["--lang", language])
@@ -80,11 +81,11 @@ async def generate_tests(file_path: str, language: str = "auto", output_ext: str
 @tool()
 async def generate_tests_batch(directory: str, language: str = "python") -> dict:
     """批量为一个目录下的所有源码文件生成测试。
-    
+
     Args:
         directory: 目录路径
         language: 语言（python / javascript / java）
-    
+
     Returns:
         每个文件的生成结果列表
     """
@@ -93,8 +94,10 @@ async def generate_tests_batch(directory: str, language: str = "python") -> dict
     cmd = [
         sys.executable or "python3",
         os.path.join(SKILL_DIR, "generate_tests.py"),
-        "--dir", directory,
-        "--lang", language,
+        "--dir",
+        directory,
+        "--lang",
+        language,
     ]
 
     try:

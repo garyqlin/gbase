@@ -1,0 +1,15 @@
+# GitHub 语言识别：主力语言 Python
+*.py   linguist-detectable=true
+
+# 文档/配置不算代码
+*.md    linguist-documentation
+*.json  linguist-documentation=false
+*.yaml  linguist-documentation=false
+*.yml   linguist-documentation=false
+*.toml  linguist-documentation=false
+*.cfg   linguist-documentation=false
+*.conf  linguist-documentation=false
+*.html  linguist-language=Python
+*.css   linguist-language=Python
+*.js    linguist-language=Python
+*.sh    linguist-language=Python

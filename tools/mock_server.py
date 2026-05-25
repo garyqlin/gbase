@@ -24,25 +24,29 @@ _active_mock_servers: dict[int, dict] = {}
 @tool()
 async def start_mock_server(description: str, port: int = 4000) -> dict:
     """启动本地 Mock API 服务器，后端开发前可独立工作。
-    
+
     Args:
         description: API 描述，如 "GET /api/users, POST /api/users, GET /api/users/1, DELETE /api/users/1"
         port: 端口号（默认4000）
-    
+
     Returns:
         服务器进程信息和状态
     """
     cmd = [
         sys.executable or "python3",
         os.path.join(SKILL_DIR, "run_mock_server.py"),
-        "--describe", description,
-        "--port", str(port),
+        "--describe",
+        description,
+        "--port",
+        str(port),
     ]
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            *cmd, cwd=os.path.expanduser("~"),
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            *cmd,
+            cwd=os.path.expanduser("~"),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
 
         # 等待启动确认（2秒）
@@ -80,10 +84,10 @@ async def start_mock_server(description: str, port: int = 4000) -> dict:
 @tool()
 async def stop_mock_server(port: int = 4000) -> dict:
     """停止正在运行的 Mock API 服务器。
-    
+
     Args:
         port: 要停止的服务端口（默认4000）
-    
+
     Returns:
         停止结果
     """
@@ -95,4 +99,7 @@ async def stop_mock_server(port: int = 4000) -> dict:
         except ProcessLookupError:
             return {"success": True, "port": port, "message": "Server already stopped"}
     else:
-        return {"success": False, "message": f"No active mock server on port {port}. Try 'lsof -ti :{port} | xargs kill' to force stop."}
+        return {
+            "success": False,
+            "message": f"No active mock server on port {port}. Try 'lsof -ti :{port} | xargs kill' to force stop.",
+        }

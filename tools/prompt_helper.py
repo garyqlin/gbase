@@ -18,6 +18,7 @@ SCRIPT = "scripts/optimize_prompt.py"
 
 def _build_skill_path() -> str:
     import os
+
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     path = os.path.join(base, SKILL_DIR, SCRIPT)
     if os.path.exists(path):

@@ -21,7 +21,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, unquote
 
 from lib.toolkit import tool
 
@@ -118,6 +118,7 @@ ANGLE_KEYWORDS = {
 @dataclass
 class SearchResult:
     """Single search result"""
+
     title: str
     url: str
     snippet: str = ""
@@ -127,12 +128,12 @@ class SearchResult:
     language: str = "unknown"
 
     def __post_init__(self):
-        chinese_chars = sum(1 for c in self.title + self.snippet if '\u4e00' <= c <= '\u9fff')
+        chinese_chars = sum(1 for c in self.title + self.snippet if "\u4e00" <= c <= "\u9fff")
         self.language = "zh" if chinese_chars > 3 else "en"
 
 
 def _is_chinese(text: str) -> bool:
-    return sum(1 for c in text if '\u4e00' <= c <= '\u9fff') > 3
+    return sum(1 for c in text if "\u4e00" <= c <= "\u9fff") > 3
 
 
 def _quote(text: str) -> str:
@@ -142,12 +143,16 @@ def _quote(text: str) -> str:
 async def _fetch_url(url: str, timeout: int = 6) -> str | None:
     """Generic URL fetcher, returns HTML text."""
     import urllib.request
+
     try:
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-        })
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            },
+        )
         r = await asyncio.wait_for(
             asyncio.get_event_loop().run_in_executor(None, lambda: urllib.request.urlopen(req, timeout=timeout)),
             timeout=timeout + 2,
@@ -166,8 +171,14 @@ async def _search_bing(query: str, max_results: int = 8) -> list[SearchResult]:
     if not html:
         return []
     results = []
-    for m in re.finditer(r'<li class="b_algo"[^>]*>.*?<h2>.*?<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?<p[^>]*>(.*?)</p>', html, re.DOTALL):
-        url, title, snippet = m.group(1), re.sub(r'<[^>]+>', '', m.group(2)).strip(), re.sub(r'<[^>]+>', '', m.group(3)).strip()
+    for m in re.finditer(
+        r'<li class="b_algo"[^>]*>.*?<h2>.*?<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?<p[^>]*>(.*?)</p>', html, re.DOTALL
+    ):
+        url, title, snippet = (
+            m.group(1),
+            re.sub(r"<[^>]+>", "", m.group(2)).strip(),
+            re.sub(r"<[^>]+>", "", m.group(3)).strip(),
+        )
         if url:
             results.append(SearchResult(title=title, url=url, snippet=snippet, source="bing"))
             if len(results) >= max_results:
@@ -181,10 +192,14 @@ async def _search_ddg(query: str, max_results: int = 6) -> list[SearchResult]:
     if not html:
         return []
     results = []
-    for m in re.finditer(r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?class="result__snippet"[^>]*>(.*?)</(?:a|td)', html, re.DOTALL):
+    for m in re.finditer(
+        r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?class="result__snippet"[^>]*>(.*?)</(?:a|td)',
+        html,
+        re.DOTALL,
+    ):
         url = m.group(1) if m.group(1).startswith("http") else ""
-        title = re.sub(r'<[^>]+>', '', m.group(2)).strip()
-        snippet = re.sub(r'<[^>]+>', '', m.group(3)).strip()
+        title = re.sub(r"<[^>]+>", "", m.group(2)).strip()
+        snippet = re.sub(r"<[^>]+>", "", m.group(3)).strip()
         if url:
             results.append(SearchResult(title=title, url=url, snippet=snippet, source="duckduckgo"))
             if len(results) >= max_results:
@@ -198,13 +213,15 @@ async def _search_google(query: str, max_results: int = 6) -> list[SearchResult]
     if not html:
         return []
     results = []
-    for m in re.finditer(r'<h3[^>]*>.*?<a[^>]*href="(/url\?q=[^"&]+|https?://[^"]+)"[^>]*>(.*?)</a>.*?</h3>', html, re.DOTALL):
+    for m in re.finditer(
+        r'<h3[^>]*>.*?<a[^>]*href="(/url\?q=[^"&]+|https?://[^"]+)"[^>]*>(.*?)</a>.*?</h3>', html, re.DOTALL
+    ):
         href = m.group(1)
-        title = re.sub(r'<[^>]+>', '', m.group(2)).strip()
+        title = re.sub(r"<[^>]+>", "", m.group(2)).strip()
         url = href
         if href.startswith("/url?q="):
             url = href.split("/url?q=")[1].split("&")[0]
-        url = urllib.parse.unquote(url) if url else ""
+        url = unquote(url) if url else ""
         if url and url.startswith("http") and len(title) > 3:
             results.append(SearchResult(title=title, url=url, snippet="", source="google"))
             if len(results) >= max_results:
@@ -223,14 +240,16 @@ async def _search_qwant(query: str, max_results: int = 6) -> list[SearchResult]:
             results = []
             for item in items:
                 for sub in item.get("items", []):
-                    results.append(SearchResult(
-                        title=sub.get("title", ""),
-                        url=sub.get("url", ""),
-                        snippet=sub.get("desc", ""),
-                        source="qwant",
-                    ))
+                    results.append(
+                        SearchResult(
+                            title=sub.get("title", ""),
+                            url=sub.get("url", ""),
+                            snippet=sub.get("desc", ""),
+                            source="qwant",
+                        )
+                    )
             return results
-    except:
+    except Exception:
         pass
     return []
 
@@ -246,14 +265,21 @@ async def _search_prosearch(query: str, max_results: int = 10) -> list[SearchRes
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            "node", script_path, f"--keyword={query}", f"--cnt={min(max_results, 15)}",
+            "node",
+            script_path,
+            f"--keyword={query}",
+            f"--cnt={min(max_results, 15)}",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
 
         if proc.returncode != 0:
-            logger.warning("prosearch failed (exit=%d): %s", proc.returncode, (stderr or b"").decode("utf-8", errors="replace")[:100])
+            logger.warning(
+                "prosearch failed (exit=%d): %s",
+                proc.returncode,
+                (stderr or b"").decode("utf-8", errors="replace")[:100],
+            )
             return []
 
         raw = stdout.decode("utf-8", errors="replace")
@@ -268,12 +294,14 @@ async def _search_prosearch(query: str, max_results: int = 10) -> list[SearchRes
             url = doc.get("url", "")
             snippet = doc.get("passage", "")[:200]
             if url:
-                results.append(SearchResult(
-                    title=title,
-                    url=url,
-                    snippet=snippet,
-                    source="prosearch",
-                ))
+                results.append(
+                    SearchResult(
+                        title=title,
+                        url=url,
+                        snippet=snippet,
+                        source="prosearch",
+                    )
+                )
                 if len(results) >= max_results:
                     break
 
@@ -372,7 +400,13 @@ def _fuse_results(results: list[SearchResult]) -> dict:
     return {
         "total_raw": len(results),
         "total_unique": len(unique),
-        "by_dimension": {d: [{"title": r.title, "url": r.url, "snippet": r.snippet[:200], "source": r.source, "lang": r.language} for r in items] for d, items in by_dimension.items()},
+        "by_dimension": {
+            d: [
+                {"title": r.title, "url": r.url, "snippet": r.snippet[:200], "source": r.source, "lang": r.language}
+                for r in items
+            ]
+            for d, items in by_dimension.items()
+        },
         "dimension_summary": {d: len(items) for d, items in by_dimension.items()},
     }
 
@@ -451,17 +485,24 @@ async def honeycomb_search(query: str, depth: str = "normal") -> dict:
             gap = _analyze_gaps(query, all_results)
             expansions = gap["expansions"]
 
-            wave_log.append({
-                "wave": wave["name"],
-                "engine_count": len(set(r.source for r in wave_results)),
-                "result_count": len(wave_results),
-                "coverage": gap["coverage_rate"],
-                "is_saturated": gap["is_saturated"],
-                "uncovered": gap["uncovered_angles"],
-            })
+            wave_log.append(
+                {
+                    "wave": wave["name"],
+                    "engine_count": len(set(r.source for r in wave_results)),
+                    "result_count": len(wave_results),
+                    "coverage": gap["coverage_rate"],
+                    "is_saturated": gap["is_saturated"],
+                    "uncovered": gap["uncovered_angles"],
+                }
+            )
 
-            logger.info("Wave %d complete: %s, coverage=%s%%, saturated=%s",
-                       i+1, wave["name"], gap["coverage_rate"], gap["is_saturated"])
+            logger.info(
+                "Wave %d complete: %s, coverage=%s%%, saturated=%s",
+                i + 1,
+                wave["name"],
+                gap["coverage_rate"],
+                gap["is_saturated"],
+            )
 
             if gap["is_saturated"] and i < len(waves) - 1:
                 logger.info("Information saturated, terminating search early")
@@ -484,6 +525,7 @@ async def honeycomb_search(query: str, depth: str = "normal") -> dict:
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Honeycomb meta search engine")
     parser.add_argument("--query", "-q", required=True, help="Search keywords")
     parser.add_argument("--depth", "-d", default="normal", choices=["quick", "normal", "full"])
@@ -495,10 +537,10 @@ if __name__ == "__main__":
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Honeycomb search: {result['query']}")
         print(f"Depth: {result['depth']} | Elapsed: {result['elapsed_s']}s")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         for wave in result["waves"]:
             r = wave.get("result_count", 0)

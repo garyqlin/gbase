@@ -10,6 +10,7 @@ village_connector.py — Village OS connector module
 """
 
 import asyncio
+import contextlib
 import logging
 import os
 
@@ -25,15 +26,16 @@ ENABLED = os.environ.get("VILLAGE_OS_DISABLED") != "1"
 
 # ── 工具函数 ──
 
+
 async def _http_post(path: str, data: dict) -> dict:
     """向 Village OS 发送 HTTP POST 请求。"""
     import aiohttp
+
     try:
-        async with aiohttp.ClientSession() as session, session.post(
-            f"{VILLAGE_OS_URL}{path}",
-            json=data,
-            timeout=aiohttp.ClientTimeout(total=5)
-        ) as resp:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(f"{VILLAGE_OS_URL}{path}", json=data, timeout=aiohttp.ClientTimeout(total=5)) as resp,
+        ):
             return await resp.json()
     except Exception as e:
         logger.warning("[Village] 请求失败: %s", e)
@@ -43,11 +45,12 @@ async def _http_post(path: str, data: dict) -> dict:
 async def _http_get(path: str) -> dict:
     """向 Village OS 发送 HTTP GET 请求。"""
     import aiohttp
+
     try:
-        async with aiohttp.ClientSession() as session, session.get(
-            f"{VILLAGE_OS_URL}{path}",
-            timeout=aiohttp.ClientTimeout(total=5)
-        ) as resp:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(f"{VILLAGE_OS_URL}{path}", timeout=aiohttp.ClientTimeout(total=5)) as resp,
+        ):
             return await resp.json()
     except Exception as e:
         logger.warning("[Village] GET 请求失败: %s", e)
@@ -55,6 +58,7 @@ async def _http_get(path: str) -> dict:
 
 
 # ── 核心 API ──
+
 
 async def register() -> dict:
     """注册到 Village OS 灵魂引擎。"""
@@ -70,13 +74,16 @@ async def register() -> dict:
             "type": "agent",
             "identity": os.environ.get("IDENTITY", "standard"),
             "capabilities": [
-                "chat", "learning", "search", "skills",
-                "email_v3"  # removed feishu_messaging
+                "chat",
+                "learning",
+                "search",
+                "skills",
+                "email_v3",  # removed feishu_messaging
             ],
             "endpoints": {
                 # feishu: removed for release
-            }
-        }
+            },
+        },
     }
     result = await _http_post("/wcp/message", payload)
     if result.get("status") == "ok":
@@ -98,14 +105,14 @@ async def send_heartbeat() -> dict:
             "status": "ok",
             "uptime": __import__("time").time(),
             "mode": os.environ.get("IDENTITY", "standard"),
-        }
+        },
     }
     return await _http_post("/wcp/message", payload)
 
 
 async def send_message(msg_type: str, body: dict, to: str = "*") -> dict:
     """经过 Village OS Security Gateway 发送 WCP 消息。
-    
+
     示例：
         await send_message("mail", {
             "to": "yufei:)node1.opprime",
@@ -113,23 +120,13 @@ async def send_message(msg_type: str, body: dict, to: str = "*") -> dict:
             "body": "你好羽非"
         })
     """
-    payload = {
-        "type": msg_type,
-        "from": VILLAGE_FROM,
-        "to": to,
-        "body": body
-    }
+    payload = {"type": msg_type, "from": VILLAGE_FROM, "to": to, "body": body}
     return await _http_post("/wcp/message", payload)
 
 
 async def send_email(to: str, subject: str, body: str) -> dict:
     """通过 Village OS 发送精灵邮件（自动过安全网关）。"""
-    return await send_message("mail", {
-        "to": to,
-        "subject": subject,
-        "body": body,
-        "action": "send"
-    })
+    return await send_message("mail", {"to": to, "subject": subject, "body": body, "action": "send"})
 
 
 async def check_health() -> dict:
@@ -151,9 +148,10 @@ async def get_soul_status() -> dict:
 
 # ── 启动循环 ──
 
-async def start(loop: asyncio.AbstractEventLoop = None) -> asyncio.Task:
+
+async def start(_loop: asyncio.AbstractEventLoop = None) -> asyncio.Task:
     """在后台启动 Village OS 心跳和注册循环。
-    
+
     用法：
         village_connector = await village.start()
         # 程序退出时：
@@ -168,10 +166,8 @@ async def start(loop: asyncio.AbstractEventLoop = None) -> asyncio.Task:
         await register()
 
         while True:
-            try:
+            with contextlib.suppress(Exception):
                 await send_heartbeat()
-            except Exception:
-                pass
             await asyncio.sleep(HEARTBEAT_INTERVAL)
 
     task = asyncio.create_task(_loop())

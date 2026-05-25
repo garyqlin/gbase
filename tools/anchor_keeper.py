@@ -3,6 +3,7 @@
 Anchor keeper — project anchor management tool
 Project anchor management: init, check, status, Golden Master capture/verify, legacy scan
 """
+
 import os
 import subprocess
 

@@ -46,6 +46,7 @@ TASK_TYPES = {
 
 # ── Build task message ──
 
+
 def build_task_message(task: dict) -> str:
     """Convert protocol tasks to natural language instructions for agents."""
     task_type = task.get("type", "unknown")
@@ -89,8 +90,7 @@ def build_task_message(task: dict) -> str:
     }
 
     msg = type_prompts.get(
-        task_type,
-        f"[Task: {task_type}]\nPlease process project '{target}', scope: {scope or 'full'}."
+        task_type, f"[Task: {task_type}]\nPlease process project '{target}', scope: {scope or 'full'}."
     )
 
     if context:
@@ -104,17 +104,22 @@ def build_task_message(task: dict) -> str:
 
 # ── Callback ──
 
+
 async def send_callback(callback_url: str, payload: dict):
     """Async send callback result. Failure does not affect main flow."""
     if not callback_url:
         return
     try:
         import aiohttp
-        async with aiohttp.ClientSession() as session, session.post(
-            callback_url,
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=10),
-        ) as resp:
+
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
+                callback_url,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp,
+        ):
             if resp.status != 200:
                 logger.warning("[protocol] callback returned %s: %s", resp.status, await resp.text()[:100])
             else:
@@ -125,8 +130,9 @@ async def send_callback(callback_url: str, payload: dict):
         logger.warning("[protocol] callback error: %s", e)
 
 
-def make_callback_payload(task_id: str, task_type: str, status: str,
-                          result: str, trace_id: str = "", error: str = "") -> dict:
+def make_callback_payload(
+    task_id: str, task_type: str, status: str, result: str, trace_id: str = "", error: str = ""
+) -> dict:
     """Build callback payload."""
     return {
         "task_id": task_id,
@@ -140,6 +146,7 @@ def make_callback_payload(task_id: str, task_type: str, status: str,
 
 
 # ── Type validation ──
+
 
 def validate_task(task: dict) -> str | None:
     """Validate task structure. Returns None for pass, string for error."""

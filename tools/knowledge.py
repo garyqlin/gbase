@@ -20,8 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @tool()
-async def remember_fact(fact: str, category: str = "general",
-                        tags: str = "", update_id: int = None) -> dict:
+async def remember_fact(fact: str, category: str = "general", tags: str = "", update_id: int = None) -> dict:
     """记得一条事实——你自己判断这是值得长期记住的、不会过时的信息。
 
     什么时候该用：
@@ -98,8 +97,7 @@ async def remember_fact(fact: str, category: str = "general",
             storage._conn.commit()
 
             logger.info(
-                "事实已更新: #%d | %s → %s (history: %d 版本)",
-                update_id, old_fact[:40], fact[:40], len(history)
+                "事实已更新: #%d | %s → %s (history: %d 版本)", update_id, old_fact[:40], fact[:40], len(history)
             )
 
             return {
@@ -118,7 +116,8 @@ async def remember_fact(fact: str, category: str = "general",
     }
 
     row_id = storage.write(
-        "knowledge", entry,
+        "knowledge",
+        entry,
         summary=f"{category}: {fact[:80]}",
         confidence="high",
     )
@@ -130,10 +129,10 @@ async def remember_fact(fact: str, category: str = "general",
     # --- 同步写入鉴面（失败不影响主流程）---
     try:
         from tools.mirror_tool import get_mirror_instance
+
         m = get_mirror_instance()
         if m:
-            m.record(content=fact[:200], mtype="insight",
-                     tags=["knowledge", category], source="knowledge:remember")
+            m.record(content=fact[:200], mtype="insight", tags=["knowledge", category], source="knowledge:remember")
     except Exception:
         logger.warning("事实已存但鉴面同步失败: %s", fact[:50], exc_info=True)
 
@@ -158,20 +157,20 @@ def _tokenize_for_fts(query: str) -> str:
     示例:
         "人类窗口 human" → "人* OR 类* OR 窗* OR 口* OR 人类窗口* OR human*"
     """
-    parts = _re.findall(r'[a-zA-Z0-9_\-]+|[\u4e00-\u9fff]+', query)
+    parts = _re.findall(r"[a-zA-Z0-9_\-]+|[\u4e00-\u9fff]+", query)
     tokens = []
     for p in parts:
-        if _re.match(r'^[\u4e00-\u9fff]+$', p):
+        if _re.match(r"^[\u4e00-\u9fff]+$", p):
             seen_chars = set()
             for ch in p:
                 if ch not in seen_chars:
-                    tokens.append(f'{ch}*')
+                    tokens.append(f"{ch}*")
                     seen_chars.add(ch)
             if len(p) > 1:
-                tokens.append(f'{p}*')
+                tokens.append(f"{p}*")
         else:
-            tokens.append(f'{p}*')
-    return ' OR '.join(tokens) if tokens else query
+            tokens.append(f"{p}*")
+    return " OR ".join(tokens) if tokens else query
 
 
 @tool()
@@ -225,6 +224,7 @@ async def search_knowledge(query: str, limit: int = 5) -> dict:
                 rows = _query(storage._conn)
         else:
             import sqlite3 as _s3
+
             conn = _s3.connect(storage._db_path)
             try:
                 rows = _query(conn)
@@ -234,17 +234,19 @@ async def search_knowledge(query: str, limit: int = 5) -> dict:
         for r in rows:
             content = json.loads(r[1]) if isinstance(r[1], str) else r[1]
             history = content.get("history", [])
-            results.append({
-                "id": r[0],
-                "fact": content.get("fact", r[2]),
-                "category": content.get("category", ""),
-                "tags": content.get("tags", ""),
-                "summary": r[2],
-                "created_at": r[3],
-                "hits": r[4],
-                "confidence": r[5],
-                "history_count": len(history),
-            })
+            results.append(
+                {
+                    "id": r[0],
+                    "fact": content.get("fact", r[2]),
+                    "category": content.get("category", ""),
+                    "tags": content.get("tags", ""),
+                    "summary": r[2],
+                    "created_at": r[3],
+                    "hits": r[4],
+                    "confidence": r[5],
+                    "history_count": len(history),
+                }
+            )
             if hasattr(storage, "record_hit"):
                 storage.record_hit(r[0])
     except Exception as e:
@@ -260,15 +262,15 @@ async def search_knowledge(query: str, limit: int = 5) -> dict:
         lines.append(f"#{r['id']} [{r['category']}]{hc_str} {r['fact'][:100]}")
         if r["tags"]:
             lines.append(f"   标签: {r['tags']}")
-        dt_diff = int(time.time() - r['created_at'])
+        dt_diff = int(time.time() - r["created_at"])
         if dt_diff < 60:
             ago = f"{dt_diff}秒前"
         elif dt_diff < 3600:
-            ago = f"{dt_diff//60}分钟前"
+            ago = f"{dt_diff // 60}分钟前"
         elif dt_diff < 86400:
-            ago = f"{dt_diff//3600}小时前"
+            ago = f"{dt_diff // 3600}小时前"
         else:
-            ago = f"{dt_diff//86400}天前"
+            ago = f"{dt_diff // 86400}天前"
         lines.append(f"   引用 {r['hits']} 次 | {ago}")
     return {"result": "找到的知识：\n" + "\n".join(lines), "total": len(results), "items": results}
 
@@ -281,7 +283,6 @@ async def search_knowledge_batch(queries: str, limit: int = 3) -> dict:
         queries: 逗号分隔的搜索关键词，例如 "nginx,羽非,端口配置,家庭"
         limit: 每个关键词最多返回几条（默认 3，最大 5）
     """
-    results = []
     qlist = [q.strip() for q in queries.split(",") if q.strip()]
     if not qlist:
         return {"result": "没有搜索关键词。", "total": 0}
@@ -311,17 +312,17 @@ async def search_knowledge_batch(queries: str, limit: int = 3) -> dict:
     for r in all_items:
         hc = r.get("history_count", 0)
         hc_str = f" [历史:{hc}版]" if hc > 0 else ""
-        lines.append(f"#{r['id']} [{r.get('category','?')}]{hc_str} {r.get('fact','')[:80]}")
-        dt_diff = int(time.time() - r.get('created_at', 0))
+        lines.append(f"#{r['id']} [{r.get('category', '?')}]{hc_str} {r.get('fact', '')[:80]}")
+        dt_diff = int(time.time() - r.get("created_at", 0))
         if dt_diff < 60:
             ago = f"{dt_diff}秒前"
         elif dt_diff < 3600:
-            ago = f"{dt_diff//60}分钟前"
+            ago = f"{dt_diff // 60}分钟前"
         elif dt_diff < 86400:
-            ago = f"{dt_diff//3600}小时前"
+            ago = f"{dt_diff // 3600}小时前"
         else:
-            ago = f"{dt_diff//86400}天前"
-        lines.append(f"   引用 {r.get('hits',0)} 次 | {ago}")
+            ago = f"{dt_diff // 86400}天前"
+        lines.append(f"   引用 {r.get('hits', 0)} 次 | {ago}")
 
     return {
         "result": f"从 {len(qlist)} 个搜索词中找到 {len(all_items)} 条知识：\n" + "\n".join(lines),
@@ -363,23 +364,27 @@ async def export_knowledge_md() -> dict:
 
     # 按 category 分组
     from collections import defaultdict
+
     groups = defaultdict(list)
     for r in rows:
         content = json.loads(r[1]) if isinstance(r[1], str) else r[1]
         cat = content.get("category", "general")
-        groups[cat].append({
-            "id": r[0],
-            "fact": content.get("fact", ""),
-            "tags": content.get("tags", ""),
-            "history": content.get("history", []),
-            "summary": r[2],
-            "created_at": r[3],
-            "hits": r[4],
-            "confidence": r[5],
-        })
+        groups[cat].append(
+            {
+                "id": r[0],
+                "fact": content.get("fact", ""),
+                "tags": content.get("tags", ""),
+                "history": content.get("history", []),
+                "summary": r[2],
+                "created_at": r[3],
+                "hits": r[4],
+                "confidence": r[5],
+            }
+        )
 
     # 生成 Markdown
     import datetime
+
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = [
         "# Opprime 知识库",
@@ -394,9 +399,7 @@ async def export_knowledge_md() -> dict:
 
     # 按 category 英文名排序，但 system/user 排前面
     cat_order = ["system", "user", "workflow", "tool", "general"]
-    sorted_cats = sorted(groups.keys(), key=lambda c: (
-        cat_order.index(c) if c in cat_order else 99, c
-    ))
+    sorted_cats = sorted(groups.keys(), key=lambda c: (cat_order.index(c) if c in cat_order else 99, c))
 
     for cat in sorted_cats:
         items = groups[cat]
@@ -435,6 +438,7 @@ async def export_knowledge_md() -> dict:
     # 写入文件（用 write_file 会在 core 里触发备份，这里直接写）
     import os
     from pathlib import Path
+
     out_path = Path(storage._data_dir) / "knowledge.md"
     os.makedirs(out_path.parent, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:

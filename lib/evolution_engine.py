@@ -25,7 +25,10 @@ from lib.backup import list_backups, restore_backup
 
 # ── 配置 ───────────────────────────────────────────
 
-ENGINE_DIR = "/home/opprime-v2/.evolution"
+import os
+from pathlib import Path
+
+ENGINE_DIR = os.getenv("GBASE_EVOLUTION_DIR") or str(Path(__file__).resolve().parent.parent / ".evolution")
 EVAL_LOG_PATH = os.path.join(ENGINE_DIR, "evaluations.jsonl")
 RULES_PATH = os.path.join(ENGINE_DIR, "rules.json")
 
@@ -82,6 +85,7 @@ DEFAULT_RULES = {
 
 # ── 内部工具 ────────────────────────────────────────
 
+
 def _ensure_dirs():
     os.makedirs(ENGINE_DIR, exist_ok=True)
 
@@ -122,6 +126,7 @@ def _count_lines(filepath: str) -> int:
 
 
 # ── 阶段1：触发规则引擎 ─────────────────────────────
+
 
 def should_trigger_evaluation(
     filepath: str,
@@ -165,6 +170,7 @@ def should_trigger_evaluation(
 
 # ── 阶段2：多角度评估 ───────────────────────────────
 
+
 def evaluate_stability() -> dict:
     """
     稳定性评估：检查主服务是否正常运行。
@@ -181,10 +187,7 @@ def evaluate_stability() -> dict:
 
     for svc in services:
         try:
-            result = subprocess.run(
-                ["systemctl", "is-active", svc],
-                capture_output=True, text=True, timeout=5
-            )
+            result = subprocess.run(["systemctl", "is-active", svc], capture_output=True, text=True, timeout=5)
             active = result.stdout.strip() == "active"
             results.append({"service": svc, "active": active, "output": result.stdout.strip()})
         except subprocess.TimeoutExpired:
@@ -196,7 +199,7 @@ def evaluate_stability() -> dict:
     return {
         "passed": passed,
         "score": 1.0 if passed else 0.0,
-        "details": "服务状态: " + ", ".join(r['service'] + "=" + str(r['active']) for r in results),
+        "details": "服务状态: " + ", ".join(r["service"] + "=" + str(r["active"]) for r in results),
         "services": results,
     }
 
@@ -214,10 +217,7 @@ def evaluate_performance() -> dict:
 
     # 当前内存使用（通过 /proc 或 ps）
     try:
-        result = subprocess.run(
-            ["ps", "-o", "rss=", "-p", str(os.getpid())],
-            capture_output=True, text=True, timeout=5
-        )
+        result = subprocess.run(["ps", "-o", "rss=", "-p", str(os.getpid())], capture_output=True, text=True, timeout=5)
         mem_kb = int(result.stdout.strip()) if result.stdout.strip() else 0
         mem_mb = mem_kb / 1024.0
     except (ValueError, subprocess.TimeoutExpired):
@@ -298,6 +298,7 @@ def run_full_evaluation(filepath: str, content: str = "") -> dict:
 
 # ── 阶段3：自动回滚决策 ─────────────────────────────
 
+
 def decide_rollback(evaluation: dict, filepath: str) -> tuple[bool, str, str | None]:
     """
     根据评估结果决定是否回滚。
@@ -353,6 +354,7 @@ def execute_rollback_if_needed(evaluation: dict, filepath: str) -> dict:
 
 # ── 阶段4：恢复后诊断 ────────────────────────────────
 
+
 def diagnose_after_rollback(filepath: str) -> dict:
     """
     回滚后自我诊断：检查系统是否恢复正常。
@@ -372,7 +374,9 @@ def diagnose_after_rollback(filepath: str) -> dict:
         try:
             result = subprocess.run(
                 ["python3", "-c", f"import py_compile; py_compile.compile('{filepath}', doraise=True)"],
-                capture_output=True, text=True, timeout=10
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             checks["syntax_valid"] = result.returncode == 0
         except subprocess.TimeoutExpired:
@@ -386,6 +390,7 @@ def diagnose_after_rollback(filepath: str) -> dict:
 
 
 # ── 公开 API ────────────────────────────────────────
+
 
 def get_engine_status() -> dict:
     """获取进化引擎状态。"""
@@ -442,7 +447,11 @@ def full_evolution_cycle(filepath: str, old_size: int, new_size: int, content: s
 
     # 结论
     if rollback_result["rollback_performed"]:
-        cycle["conclusion"] = "已回滚" if rollback_result["diagnosis"] and rollback_result["diagnosis"].get("healthy") else "回滚后系统异常"
+        cycle["conclusion"] = (
+            "已回滚"
+            if rollback_result["diagnosis"] and rollback_result["diagnosis"].get("healthy")
+            else "回滚后系统异常"
+        )
     elif not evaluation["overall_passed"]:
         cycle["conclusion"] = "评估未通过但未回滚"
     else:

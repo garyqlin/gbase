@@ -7,6 +7,7 @@ All agents. Agent-3 scans third-party code, agent-1 scans project code.
 """
 
 import asyncio
+import contextlib
 import logging
 import os
 import sys
@@ -20,18 +21,19 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-security-scanner/scripts")
 @tool()
 async def security_scan_directory(directory: str, output: str = "") -> dict:
     """扫描指定目录的安全漏洞（密钥泄露、依赖CVE、代码模式）。
-    
+
     Args:
         directory: 要扫描的Directory path
         output: Report output path (optional, auto-generates)
-    
+
     Returns:
         Scan summary (critical/medium/low counts)
     """
     cmd = [
         sys.executable or "python3",
         os.path.join(SKILL_DIR, "security_scan.py"),
-        "--dir", directory,
+        "--dir",
+        directory,
     ]
     if output:
         cmd.extend(["--output", output])
@@ -55,10 +57,8 @@ async def security_scan_directory(directory: str, output: str = "") -> dict:
         for line in stdout_text.split("\n"):
             for level in findings:
                 if f"  {level}:" in line:
-                    try:
+                    with contextlib.suppress(BaseException):
                         findings[level] = int(line.split(f"{level}:")[1].strip().split()[0])
-                    except:
-                        pass
 
         return {
             "success": proc.returncode == 0,

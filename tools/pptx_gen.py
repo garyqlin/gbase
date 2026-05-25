@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
 """PPT presentation generator"""
+
 import json
 import logging
 import os
@@ -9,17 +10,18 @@ from lib.toolkit import tool
 
 logger = logging.getLogger(__name__)
 
+
 @tool()
 async def gen_pptx(title: str = "演示文稿", slides: list = None, output_path: str = "") -> dict:
     """
     生成 PowerPoint (.pptx) 文件。
-    
+
     Args:
         title: 文件名（不含路径）
         slides: 幻灯片列表，每项为 {"title": "封面", "content": ["第一行","第二行"], "layout": "title|content|two"}
                 layout: title=标题页, content=内容页(默认), two=两栏, blank=空白
         output_path: 输出路径
-    
+
     Returns:
         {"path": "...", "size": 12345, "slides": 3}
     """
@@ -29,7 +31,7 @@ async def gen_pptx(title: str = "演示文稿", slides: list = None, output_path
     if not output_path:
         output_path = os.path.expanduser(f"~/Downloads/{title}.pptx")
 
-    script = f'''import json
+    script = f"""import json
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
@@ -56,7 +58,7 @@ for sdata in slides:
         p.font.bold = True
         p.font.color.rgb = RGBColor(0x1A, 0x1A, 0x2E)
         p.alignment = PP_ALIGN.CENTER
-        
+
         content = sdata.get("content", [])
         if content:
             txBox2 = slide.shapes.add_textbox(Inches(1), Inches(4.5), Inches(11.333), Inches(2))
@@ -78,12 +80,12 @@ for sdata in slides:
         else:
             layout = prs.slide_layouts[1]  # title and content
         slide = prs.slides.add_slide(layout)
-        
+
         # 标题
         title_shape = slide.shapes.title
         if title_shape:
             title_shape.text = sdata.get("title", "")
-        
+
         content = sdata.get("content", [])
         if content:
             body = slide.placeholders[1]  # content placeholder
@@ -101,12 +103,9 @@ for sdata in slides:
 
 prs.save({json.dumps(output_path)})
 print("OK:" + {json.dumps(output_path)})
-'''
+"""
 
-    result = subprocess.run(
-        ["python3", "-c", script],
-        capture_output=True, text=True, timeout=30
-    )
+    result = subprocess.run(["python3", "-c", script], capture_output=True, text=True, timeout=30)
 
     if result.returncode != 0:
         return {"error": result.stderr.strip() or result.stdout.strip()}

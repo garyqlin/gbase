@@ -48,6 +48,46 @@ def _is_retryable_error(result: dict) -> bool:
     return any(kw in err for kw in retryable_keywords)
 
 
+# ── RSI Dual-Knob: Task-aware Temperature ──
+_TASK_TYPES: dict[str, list[str]] = {
+    "explore": ["研究", "分析", "评估", "搜索", "对比", "方案", "proposal", "survey", "调研", "research", "analyze"],
+    "execute": ["修改", "创建", "部署", "运行", "启动", "安装", "改", "执行", "添加", "删除",
+                "edit", "create", "deploy", "run", "install", "commit", "push"],
+    "discuss": ["你认为", "怎么看", "讨论", "建议", "意见", "反馈", "看法", "评价",
+                "opinion", "feedback", "review", "suggestion"],
+    "maintain": ["检查", "查看", "状态", "日志", "修复", "排查", "看下", "诊断",
+                 "check", "status", "log", "diagnose", "inspect"],
+}
+
+_SHORT_EXECUTE: set[str] = {"重启", "部署", "推送", "发布", "回滚", "启动", "停止", "构建", "还原"}
+
+_TEMP_CONFIG: dict[str, dict[str, object]] = {
+    "explore":  {"mode": "warm",   "mirror_max": 8,  "experience_max": 3,  "desc": "exploratory"},
+    "execute":  {"mode": "cold",   "mirror_max": 12, "experience_max": 5,  "desc": "strict"},
+    "discuss":  {"mode": "warm",   "mirror_max": 6,  "experience_max": 2,  "desc": "standard"},
+    "maintain": {"mode": "cold",   "mirror_max": 10, "experience_max": 4,  "desc": "cautious"},
+}
+
+
+def _classify_task_intent(message: str) -> str | None:
+    """Classify user message into task type."""
+    msg = message.strip()
+    if not msg:
+        return None
+    if msg in _SHORT_EXECUTE:
+        return "execute"
+    if len(msg) < 10:
+        return None
+    if len(msg) > 200:
+        return "explore"
+    lower = msg.lower()
+    for task_type, keywords in _TASK_TYPES.items():
+        for kw in keywords:
+            if kw in lower:
+                return task_type
+    return "discuss"
+
+
 # Read from config.yaml; default to 15 if not present.
 # Adjust by modifying config.yaml limits.max_tool_depth.
 _NO_CONFIG = None
@@ -132,6 +172,10 @@ class Kernel:
         if mirror_engine:
             tk.set_global("mirror_engine", mirror_engine)
 
+        # ── RSI Dual-Knob: task type tracking ──
+        self._current_task_type: str = "discuss"
+        self._task_type_streak: int = 0
+
     def _build_dynamic_system_prompt(self) -> str:
         """Dynamically build system prompt: base identity + workspace file injection + skill index.
 
@@ -199,12 +243,14 @@ class Kernel:
                 if rule_lines:
                     parts.append("\n---\n".join(rule_lines))
 
-        # Mirror engine injection (expanded from 5 to 8 items to improve recall coverage)
+        # RSI Dual-Knob: task temperature based on detected task type
+        temp_cfg = _TEMP_CONFIG.get(self._current_task_type, _TEMP_CONFIG["discuss"])
+
+        # Mirror engine injection (count follows temperature mode)
         if self.mirror_engine:
-            # Enable Ebbinghaus forgetting curve + 3-layer decay, default 8 items injected.
             # ebbinghaus=True enables time-decay sorting (strength + frequency + last access time).
             # Recently & frequently used memories surface first; stale ones naturally sink but are never deleted.
-            mirror_text = self.mirror_engine.get_injection_text(max_items=8, ebbinghaus=True)
+            mirror_text = self.mirror_engine.get_injection_text(max_items=temp_cfg["mirror_max"], ebbinghaus=True)
             if mirror_text:
                 parts.append(mirror_text)
 
@@ -220,6 +266,15 @@ class Kernel:
             f"## Current Date & Time\n"
             f"Time zone: Asia/Shanghai\n"
             f"Current time: {now.year}-{now.month:02d}-{now.day:02d} {now.hour:02d}:{now.minute:02d}\n"
+        )
+
+        # ── RSI Dual-Knob: Current Run Mode ──
+        mode_desc = temp_cfg["desc"]
+        mode_name = temp_cfg["mode"]
+        parts.append(
+            f"## Current Run Mode\n"
+            f"Task type: {self._current_task_type} ({mode_desc})  |  "
+            f"Mode: {mode_name}\n"
         )
 
         # Dynamic section (HEARTBEAT.md) placed after cache boundary
@@ -275,6 +330,15 @@ class Kernel:
         # system prompt already has skill index; clear old pre-injection logic,
         # let LLM decide whether to load full SKILL.md via read_file.
         enriched_message = user_message
+
+        # 1.2 RSI Dual-Knob: task type detection
+        detected = _classify_task_intent(user_message)
+        if detected is not None:
+            if detected == self._current_task_type:
+                self._task_type_streak += 1
+            else:
+                self._task_type_streak = 0
+                self._current_task_type = detected
 
         # 1.5 Search pre-execution
         # When user message contains search directive words, auto-search once before waiting for LLM decision.

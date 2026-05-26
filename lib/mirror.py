@@ -46,6 +46,20 @@ _MAX_REVIEW_ITEMS = 20
 # ── Ebbinghaus (Oblivion Framework) ──
 _EBBINGHAUS_T = 50  # Temperature: 50-day half-life, suitable for intermittent conversation scenarios
 
+# ── RSI Dual-Knob: Importance weights ──
+_IMPORTANCE_FROZEN = 0.8  # importance >= 0.8 = frozen (nearly no decay)
+_source_to_importance: dict[str, float] = {
+    "user:rule": 0.9,
+    "constitution": 0.9,
+    "explicit:identity": 0.85,
+    "user:preference": 0.8,
+    "experience:success": 0.7,
+    "lesson:high_impact": 0.7,
+    "insight:verified": 0.65,
+    "lesson:repeat": 0.6,
+    "user:feedback": 0.5,
+}
+
 
 def ebbinghaus_retention(n_rounds, utility, frequency, temperature=None):
     """Ebbinghaus forgetting curve: R = exp(-n / ((U+F) × T))
@@ -103,9 +117,14 @@ class Mirror:
         """)
         # Note: FTS5 not suitable for Chinese scenarios, use LIKE for search (manageable data size)
 
+        # RSI dual-knob: add importance column if not present
+        from contextlib import suppress as _suppress
+        with _suppress(Exception):
+            self._conn.execute("ALTER TABLE memories ADD COLUMN importance REAL DEFAULT 0.0")
+
         self._conn.commit()
 
-    def record(self, mtype: str, content: str, tags: list = None, source: str = "", strength: float = 1.0):
+    def record(self, mtype: str, content: str, tags: list = None, source: str = "", strength: float = 1.0, importance: float = 0.0):
         if self._conn is None:
             return
         now = time.time()
@@ -123,10 +142,12 @@ class Mirror:
             self._conn.commit()
             return
 
+        # RSI dual-knob: compute importance from source + strength
+        imp = importance if importance > 0 else _source_to_importance.get(source, 0.0)
         self._conn.execute(
             "INSERT INTO memories (type, content, tags, source, strength, "
-            "created_at, last_access, last_decay) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (mtype, content, tags_str, source, strength, now, now, now),
+            "created_at, last_access, last_decay, importance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (mtype, content, tags_str, source, strength, now, now, now, imp),
         )
         self._conn.commit()
 
@@ -174,15 +195,37 @@ class Mirror:
             return
         now = time.time()
         cutoff = now - _DECAY_INTERVAL
-        cursor = self._conn.execute(
-            "SELECT id, strength, hits, verified FROM memories WHERE is_active=1 AND last_decay < ?",
-            (cutoff,),
-        )
+        # Check if importance column exists (RSI dual-knob)
+        has_importance = False
+        try:
+            cursor = self._conn.execute("SELECT importance FROM memories LIMIT 1")
+            has_importance = True
+        except Exception:
+            pass
+
+        if has_importance:
+            cursor = self._conn.execute(
+                "SELECT id, strength, hits, verified, importance FROM memories WHERE is_active=1 AND last_decay < ?",
+                (cutoff,),
+            )
+        else:
+            cursor = self._conn.execute(
+                "SELECT id, strength, hits, verified FROM memories WHERE is_active=1 AND last_decay < ?",
+                (cutoff,),
+            )
         decayed = forgotten = 0
         for row in cursor.fetchall():
-            mem_id, strength, hits, verified = row
-            protection = min(0.3, (hits * 0.01) + (verified * 0.05))
-            new_strength = strength * (_DECAY_RATE + protection)
+            if has_importance:
+                mem_id, strength, hits, verified, importance = row
+            else:
+                mem_id, strength, hits, verified = row
+                importance = 0.0
+            protection = min(0.3, (hits * 0.01) + (verified * 0.05) + (importance * 0.15))
+            # RSI dual-knob: high-importance memories are frozen (nearly no decay)
+            new_strength = (
+                min(1.0, strength * 1.01) if importance >= 0.8
+                else strength * (_DECAY_RATE + protection)
+            )
             if new_strength < _MIN_STRENGTH:
                 self._conn.execute("UPDATE memories SET is_active=0, last_decay=? WHERE id=?", (now, mem_id))
                 forgotten += 1
@@ -232,13 +275,30 @@ class Mirror:
         if self._conn is None:
             return ""
         self.decay()
-        cursor = self._conn.execute(
-            "SELECT id, type, content, strength, hits, verified, "
-            "created_at, last_access "
-            "FROM memories WHERE is_active=1 "
-            "ORDER BY strength DESC LIMIT ?",  # Fetch all first, sort on Python side
-            (max_items,),
-        )
+        # Check for importance column (RSI dual-knob)
+        has_importance = False
+        try:
+            self._conn.execute("SELECT importance FROM memories LIMIT 1")
+            has_importance = True
+        except Exception:
+            pass
+
+        if has_importance:
+            cursor = self._conn.execute(
+                "SELECT id, type, content, strength, hits, verified, "
+                "created_at, last_access, importance "
+                "FROM memories WHERE is_active=1 "
+                "ORDER BY strength DESC LIMIT ?",
+                (max_items * 2,),  # Oversample for ebbinghaus re-ranking
+            )
+        else:
+            cursor = self._conn.execute(
+                "SELECT id, type, content, strength, hits, verified, "
+                "created_at, last_access "
+                "FROM memories WHERE is_active=1 "
+                "ORDER BY strength DESC LIMIT ?",
+                (max_items * 2,),
+            )
         rows = cursor.fetchall()
         if ebbinghaus:
             now = time.time()
@@ -248,6 +308,13 @@ class Mirror:
                 u = r[3]
                 f = min(1.0, r[4] / 50.0)
                 r_score = ebbinghaus_retention(max(0, days), u, f)
+                # RSI dual-knob: importance boost
+                if has_importance:
+                    imp = r[8] if len(r) > 8 else 0.0
+                    if imp >= 0.8:
+                        r_score = min(1.0, r_score * 1.5)  # frozen memories get boost
+                    elif imp >= 0.6:
+                        r_score = min(1.0, r_score * 1.2)
                 scored.append((r_score, r))
             scored.sort(key=lambda x: x[0], reverse=True)
             rows = [s[1] for s in scored[:max_items]]

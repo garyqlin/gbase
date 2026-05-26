@@ -275,7 +275,7 @@ def _do_push(model: str = "opprime-7b"):
     if safetensors:
         content += f"ADAPTER {safetensors}\n"
     content += 'TEMPLATE """{{ .Prompt }}"""'
-    with open(mf, "w") as f:
+    with open(mf, "w", encoding="utf-8") as f:
         f.write(content)
 
     logger.info("Creating distilled model: %s", target_name)
@@ -289,7 +289,7 @@ def _do_push(model: str = "opprime-7b"):
     return target_name
 
 
-def _do_eval(model: str = "opprime-7b"):
+def _do_evaluate(model: str = "opprime-7b"):
     """Evaluate distillation quality.
 
     Use predefined test sets to evaluate the difference between original and distilled models.
@@ -502,7 +502,7 @@ async def distill_eval(model: str = "opprime-7b") -> dict:
     Args:
         model: Model to evaluate (default opprime-7b)
     """
-    results = _do_eval(model=model)
+    results = _do_evaluate(model=model)
     return {"status": "ok", "total": len(results), "note": f"Evaluation report: {EXPORT_DIR}/eval_report.json"}
 
 
@@ -532,7 +532,7 @@ def cli_main():
         print(f"✅ Push complete: {name}")
 
     elif args.action == "eval":
-        _do_eval(model=args.model)
+        _do_evaluate(model=args.model)
 
     elif args.action == "deps":
         try:
@@ -558,7 +558,7 @@ def cli_main():
         adapter = _do_train(model=args.model, epochs=args.epochs)
         if adapter:
             name = _do_push(model=args.model)
-            _do_eval(model=args.model)
+            _do_evaluate(model=args.model)
             print(f"🎉 Done! Distilled model: {name}")
         else:
             print("⚠️ Training not completed, data exported")

@@ -30,7 +30,11 @@ import sys
 import time
 from pathlib import Path
 
-PROJECT_ROOT = Path(os.getenv("GBASE_ROOT_DIR", "."))
+_ENV_ROOT = os.getenv("GBASE_ROOT_DIR", ".")
+# Security: only allow explicit relative or absolute paths — no empty/unsafe values
+if _ENV_ROOT.strip() in ("", "/", "..", "."):
+    _ENV_ROOT = "."
+PROJECT_ROOT = Path(_ENV_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # ── Tool-Level Safety Hooks ──
@@ -57,7 +61,7 @@ def disk_safety_hook(step: dict, context: dict) -> tuple:
 def mem_safety_hook(step: dict, context: dict) -> tuple:
     """Memory safety check: if available memory < 200MB, block heavy operations."""
     try:
-        with open("/proc/meminfo") as f:
+        with open("/proc/meminfo", encoding="utf-8") as f:
             content = f.read()
         import re
 

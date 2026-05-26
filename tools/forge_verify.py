@@ -132,7 +132,7 @@ def _check_syntax(file_path: str, ext: str) -> tuple:
     """Syntax check"""
     try:
         if ext == ".py":
-            with open(file_path) as f:
+            with open(file_path, encoding="utf-8") as f:
                 ast.parse(f.read())
             return (True, "Syntax OK", 40)
         elif ext in (".ts", ".tsx", ".js", ".jsx"):
@@ -184,7 +184,7 @@ def _check_lint(file_path: str, ext: str) -> tuple:
 def _check_dead_code(file_path: str, ext: str) -> tuple:
     """Simple dead code detection"""
     try:
-        with open(file_path) as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         issues = []
@@ -216,7 +216,7 @@ def _check_dead_code(file_path: str, ext: str) -> tuple:
 def _check_naming(file_path: str, ext: str) -> tuple:
     """Naming convention check"""
     try:
-        with open(file_path) as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         issues = []
@@ -270,7 +270,7 @@ def _check_naming(file_path: str, ext: str) -> tuple:
 def _check_readability(file_path: str, ext: str) -> tuple:
     """Comprehensive readability check"""
     try:
-        with open(file_path) as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
             lines = content.split("\n")
 

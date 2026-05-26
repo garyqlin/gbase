@@ -92,32 +92,32 @@ def _load_rules() -> dict:
     _ensure_dirs()
     if os.path.exists(RULES_PATH):
         try:
-            with open(RULES_PATH) as f:
+            with open(RULES_PATH, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             pass
     # Write default rules
-    with open(RULES_PATH, "w") as f:
+    with open(RULES_PATH, "w", encoding="utf-8") as f:
         json.dump(DEFAULT_RULES, f, indent=2, ensure_ascii=False)
     return DEFAULT_RULES
 
 
 def _save_rules(rules: dict):
     _ensure_dirs()
-    with open(RULES_PATH, "w") as f:
+    with open(RULES_PATH, "w", encoding="utf-8") as f:
         json.dump(rules, f, indent=2, ensure_ascii=False)
 
 
 def _log_evaluation(entry: dict):
     _ensure_dirs()
     entry["timestamp"] = datetime.now().isoformat()
-    with open(EVAL_LOG_PATH, "a") as f:
+    with open(EVAL_LOG_PATH, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 def _count_lines(filepath: str) -> int:
     try:
-        with open(filepath) as f:
+        with open(filepath, encoding="utf-8") as f:
             return sum(1 for _ in f)
     except (FileNotFoundError, UnicodeDecodeError):
         return 0
@@ -254,7 +254,7 @@ def evaluate_security(filepath: str, content: str = "") -> dict:
     # Scan entire file
     if os.path.exists(filepath):
         try:
-            with open(filepath) as f:
+            with open(filepath, encoding="utf-8") as f:
                 full_content = f.read()
             for imp in cfg["forbidden_imports"]:
                 if f"import {imp}" in full_content or f"from {imp}" in full_content:
@@ -395,7 +395,7 @@ def get_engine_status() -> dict:
     rules = _load_rules()
     eval_count = 0
     if os.path.exists(EVAL_LOG_PATH):
-        with open(EVAL_LOG_PATH) as f:
+        with open(EVAL_LOG_PATH, encoding="utf-8") as f:
             eval_count = sum(1 for _ in f)
 
     return {

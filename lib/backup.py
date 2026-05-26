@@ -57,7 +57,7 @@ def _load_index() -> dict:
     if not os.path.exists(INDEX_PATH):
         return {"backups": []}
     try:
-        with open(INDEX_PATH) as f:
+        with open(INDEX_PATH, encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
         return {"backups": []}
@@ -65,7 +65,7 @@ def _load_index() -> dict:
 
 def _save_index(index: dict):
     os.makedirs(BACKUP_DIR, exist_ok=True)
-    with open(INDEX_PATH, "w") as f:
+    with open(INDEX_PATH, "w", encoding="utf-8") as f:
         json.dump(index, f, indent=2, ensure_ascii=False)
 
 

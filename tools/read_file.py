@@ -12,7 +12,7 @@ from lib.toolkit import tool
 # Allowed root directories for reading
 # Prefer environment variable for cross-env deployment without code changes
 _env_roots = os.environ.get("GBASE_ALLOWED_ROOTS")
-ALLOWED_ROOTS = [r.strip() for r in _env_roots.split(":") if r.strip()] if _env_roots else [os.path.expanduser("~/")]
+ALLOWED_ROOTS = [r.strip() for r in _env_roots.split(":") if r.strip()] if _env_roots else [os.path.abspath(os.path.dirname(os.path.dirname(__file__)))]
 
 logger = logging.getLogger(__name__)
 

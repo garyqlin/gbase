@@ -212,7 +212,7 @@ def _save_history(query: str, engines: list[str], results_count: int):
             "engines": engines,
             "results": results_count,
         }
-        with open(HISTORY_FILE, "a") as f:
+        with open(HISTORY_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception:
         pass
@@ -224,7 +224,7 @@ def _load_history(limit: int = 20) -> list[dict]:
         return []
     try:
         entries = []
-        with open(HISTORY_FILE) as f:
+        with open(HISTORY_FILE, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line:

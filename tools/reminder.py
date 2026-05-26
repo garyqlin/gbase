@@ -18,7 +18,7 @@ def _load_reminders() -> list:
     if not os.path.exists(REMINDER_FILE):
         return []
     try:
-        with open(REMINDER_FILE) as f:
+        with open(REMINDER_FILE, encoding="utf-8") as f:
             return json.load(f)
     except (OSError, json.JSONDecodeError):
         return []
@@ -26,7 +26,7 @@ def _load_reminders() -> list:
 
 def _save_reminders(reminders: list):
     os.makedirs(os.path.dirname(REMINDER_FILE) or ".", exist_ok=True)
-    with open(REMINDER_FILE, "w") as f:
+    with open(REMINDER_FILE, "w", encoding="utf-8") as f:
         json.dump(reminders, f, ensure_ascii=False, indent=2)
 
 

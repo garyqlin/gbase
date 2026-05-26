@@ -34,7 +34,7 @@ def _load_env() -> None:
     env_path = Path(__file__).parent / ".env"
     if not env_path.exists():
         return
-    with open(env_path) as f:
+    with open(env_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
@@ -297,7 +297,7 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
     import time as _time
 
     import uvicorn
-    from fastapi import FastAPI, Request
+    from fastapi import FastAPI, HTTPException, Request
     from fastapi.middleware.cors import CORSMiddleware
 
     api_key = os.environ.get("OPENAI_API_KEY", "")
@@ -369,9 +369,21 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
     app = FastAPI(title="Gbase Agent")
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+    # API Token auth (optional — set GBASE_API_TOKEN in .env to enable)
+    _api_token = os.environ.get("GBASE_API_TOKEN", "")
+
+    async def _require_token(request: Request) -> None:
+        if not _api_token:
+            return  # auth disabled when no token is set
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer ") or auth[len("Bearer "):] != _api_token:
+            raise HTTPException(status_code=401, detail="Invalid or missing API token")
+        return
+
     @app.post("/ask")
     async def ask_direct(request: Request) -> dict:
         """Direct ask endpoint for Agent-to-Agent communication."""
+        await _require_token(request)
         body = await request.json()
         user_message = body.get("message", "")
         platform = body.get("platform", "api")
@@ -390,6 +402,7 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
     @app.post("/lifeline/snapshot-before-edit")
     async def lifeline_snapshot_before_edit(request: Request) -> dict:
         """Take a snapshot before editing code."""
+        await _require_token(request)
         from lib.lifeline import take_snapshot
 
         body = await request.json()
@@ -429,6 +442,7 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
     @app.post("/pipeline/run")
     async def pipeline_run(request: Request) -> dict:
         """Trigger a quality gate pipeline."""
+        await _require_token(request)
         body = await request.json()
         task = body.get("task", "")
         project = body.get("project", "")
@@ -470,6 +484,7 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
     @app.post("/audit")
     async def audit_handler(request: Request) -> dict:
         """Generic audit route for agent protocol requests."""
+        await _require_token(request)
         from lib.battle_protocol import (
             build_task_message,
             make_callback_payload,
@@ -542,6 +557,7 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
     @app.post("/hammer/audit")
     async def hammer_audit(request: Request) -> dict:
         """Hammer-specific route."""
+        await _require_token(request)
         if "hammer" not in str(identity_name).lower():
             return {"error": f"This route is for hammer identity, current: {identity_name}"}
         return await audit_handler(request)
@@ -549,6 +565,7 @@ async def http_mode(identity_name: str = "default", port: int = 8420, data_dir: 
     @app.post("/ink/evaluate")
     async def ink_evaluate(request: Request) -> dict:
         """Ink-specific route."""
+        await _require_token(request)
         if "ink" not in str(identity_name).lower():
             return {"error": f"This route is for ink identity, current: {identity_name}"}
         return await audit_handler(request)
@@ -667,7 +684,7 @@ def main() -> None:
 
         prompt_path = identity_dir / "system_prompt.txt"
         if not prompt_path.exists():
-            with open(prompt_path, "w") as f:
+            with open(prompt_path, "w", encoding="utf-8") as f:
                 f.write(_DEFAULT_ARM_PROMPTS.get(arm_name, "You are an AI agent."))
 
         os.environ["IDENTITY"] = f"arms/{arm_name}"

@@ -29,6 +29,7 @@
 ╚═══════════════════════════════════════════════════════════╝
 """
 
+import ast
 import json
 import os
 import time
@@ -184,7 +185,7 @@ class DAGEngine:
         if not wf_path.exists():
             return None
 
-        with open(wf_path) as f:
+        with open(wf_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         return self._parse_workflow(data)
@@ -197,7 +198,7 @@ class DAGEngine:
         """Save workflow to YAML."""
         wf_path = DAG_DIR / f"{workflow.name}.yaml"
         data = self._serialize_workflow(workflow)
-        with open(wf_path, "w") as f:
+        with open(wf_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
 
     def _parse_workflow(self, data: dict) -> DAGWorkflow:
@@ -542,8 +543,8 @@ class DAGEngine:
                     value = "None"
                 expr = expr.replace(ref, str(value), 1)
 
-            # Safe evaluation (only comparison and logical ops allowed)
-            return bool(eval(expr, {"__builtins__": {}}, {}))
+            # Safe evaluation — only literal expressions allowed
+            return bool(ast.literal_eval(expr))
         except Exception:
             return True  # Default to pass when condition cannot be evaluated (non-blocking)
 
@@ -717,7 +718,7 @@ def _init_pilot_workflows(_engine: DAGEngine):
     for name, wf_data in PILOT_WORKFLOWS.items():
         wf_path = DAG_DIR / f"{name}.yaml"
         if not wf_path.exists():
-            with open(wf_path, "w") as f:
+            with open(wf_path, "w", encoding="utf-8") as f:
                 yaml.dump(wf_data, f, allow_unicode=True, default_flow_style=False)
 
 

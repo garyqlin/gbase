@@ -54,7 +54,7 @@ async def profile_database(db_path: str = "", sql: str = "") -> dict:
 
         report_path = "/tmp/opprime-query-profile.json"
         if os.path.exists(report_path):
-            with open(report_path) as f:
+            with open(report_path, encoding="utf-8") as f:
                 report = json.load(f)
             os.remove(report_path)
             return report

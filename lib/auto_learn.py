@@ -114,7 +114,7 @@ class AutoLearner:
     Falls back to search mode if no RSS sources configured.
     """
 
-    def __init__(self, sender_func, kernel_run_func):
+    def __init__(self, sender_func=None, kernel_run_func=None):
         """Initialize.
 
         Args:

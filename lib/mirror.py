@@ -61,6 +61,17 @@ _source_to_importance: dict[str, float] = {
 }
 
 
+_IMPORTANCE_FROZEN = 0.8
+_IMPORTANCE_FREQ_BUMP = 0.65
+
+
+_NOISE_EXPERIENCE_PATTERNS = [
+    "任务已成功完成", "执行成功", "operation completed", "task finished",
+    "回复太短", "回复长度偏短", "工具调用成功", "command executed successfully",
+    "exec_command executed",
+]
+
+
 def ebbinghaus_retention(n_rounds, utility, frequency, temperature=None):
     """Ebbinghaus forgetting curve: R = exp(-n / ((U+F) × T))
 
@@ -121,6 +132,9 @@ class Mirror:
         from contextlib import suppress as _suppress
         with _suppress(Exception):
             self._conn.execute("ALTER TABLE memories ADD COLUMN importance REAL DEFAULT 0.0")
+        # Triple-Layer Filter: add inject_hits
+        with _suppress(Exception):
+            self._conn.execute("ALTER TABLE memories ADD COLUMN inject_hits INTEGER DEFAULT 0")
 
         self._conn.commit()
 
@@ -271,7 +285,155 @@ class Mirror:
             report["items"].append(item)
         return report
 
-    def get_injection_text(self, max_items: int = 5, ebbinghaus: bool = True) -> str:
+    # ── Intent dimension labels (for triple-layer filter) ──
+    _INTENT_DIMENSIONS = {
+        "install": "operation", "config": "operation", "debug": "operation", "deploy": "operation",
+        "fix": "operation", "troubleshoot": "operation", "run": "operation", "setup": "operation",
+        "architecture": "architecture", "pattern": "architecture", "principle": "architecture",
+        "design": "architecture", "structure": "architecture",
+        "fact": "fact", "context": "fact", "person": "fact", "history": "fact",
+        "lesson": "experience", "anti.pattern": "experience", "failure": "experience",
+        "warning": "experience", "gotcha": "experience",
+        "research": "research", "paper": "research", "survey": "research",
+        "arxiv": "research", "reference": "research",
+    }
+
+    def _score_intent(self, content: str, tags: str, user_input: str = "") -> float:
+        """Layer 1: Intent match score (rule-based, LLM-free fallback)."""
+        if not user_input:
+            return 0.3
+
+        def _detect_dimensions(text: str) -> dict:
+            scores = {"operation": 0, "architecture": 0, "fact": 0, "experience": 0, "research": 0}
+            text_lower = text.lower()
+            for keyword, dim in self._INTENT_DIMENSIONS.items():
+                if keyword in text_lower:
+                    scores[dim] = scores.get(dim, 0) + 1
+            if any(q in text_lower for q in ["how to", "how do", "steps", "install", "run", "debug", "fix"]):
+                scores["operation"] += 1
+            if any(q in text_lower for q in ["why", "architecture", "design", "principle", "pattern", "structure"]):
+                scores["architecture"] += 1
+            if any(q in text_lower for q in ["who is", "what is", "when did", "where", "paper", "research"]):
+                scores["research"] += 1
+            if any(q in text_lower for q in ["lesson", "mistake", "error", "fail", "gotcha", "warning"]):
+                scores["experience"] += 1
+            return scores
+
+        mem_dims = _detect_dimensions(content + " " + tags)
+        user_dims = _detect_dimensions(user_input)
+        mem_dominant = max(mem_dims, key=mem_dims.get) if max(mem_dims.values()) > 0 else None
+        user_dominant = max(user_dims, key=user_dims.get) if max(user_dims.values()) > 0 else None
+        if mem_dominant is None or user_dominant is None:
+            return 0.3
+        if mem_dominant == user_dominant:
+            return 1.0
+        partial_pairs = {("operation", "experience"), ("experience", "operation"),
+                         ("architecture", "research"), ("research", "architecture"),
+                         ("fact", "research"), ("research", "fact")}
+        if (mem_dominant, user_dominant) in partial_pairs:
+            return 0.6
+        return 0.0
+
+    def _score_feedback(self, inject_hits: int, days_since_created: float) -> float:
+        """Layer 2: Trigger rate feedback."""
+        if days_since_created < 1:
+            return 0.8
+        if inject_hits == 0 and days_since_created > 90:
+            return 0.05
+        if inject_hits == 0 and days_since_created > 30:
+            return 0.3
+        expected = max(1, days_since_created / 30)
+        ratio = inject_hits / expected
+        if ratio >= 1.0:
+            return 1.0
+        if ratio >= 0.3:
+            return 0.8
+        if ratio >= 0.1:
+            return 0.3
+        return 0.1
+
+    @staticmethod
+    def _score_density(content: str) -> float:
+        """Layer 3: Information density."""
+        length = len(content)
+        if length < 30:
+            return 1.0
+        actionable = 0
+        if any(kw in content for kw in ["\u2192", "`", "pip ", "import ", "sudo", "curl", "POST",
+                                        "Error:", "failed", "fix:", "rule:", "Don't", "Never"]):
+            actionable += 2
+        if any(kw in content for kw in ["\u6b65\u9aa4", "\u7b2c\u4e00\u6b65", "\u547d\u4ee4", "\u914d\u7f6e", "\u53c2\u6570"]):
+            actionable += 2
+        punct_count = sum(1 for c in content if c in "!?.,:;")
+        density = min(1.0, (actionable + punct_count / max(1, length) * 50) / 4.0)
+        return density
+
+    @staticmethod
+    def _is_noise_memory(tags: str, content: str) -> bool:
+        for pattern in _NOISE_EXPERIENCE_PATTERNS:
+            if pattern in content:
+                return True
+        if "auto.success" in tags or "short_reply" in tags or "api_error" in tags:
+            return True
+        return False
+
+    def _get_tags(self, memory_id: int) -> str:
+        if self._conn is None:
+            return ""
+        cursor = self._conn.execute("SELECT tags FROM memories WHERE id=?", (memory_id,))
+        row = cursor.fetchone()
+        return row[0] if row else ""
+
+    def _get_inject_hits(self, memory_id: int) -> int:
+        if self._conn is None:
+            return 0
+        cursor = self._conn.execute("SELECT inject_hits FROM memories WHERE id=?", (memory_id,))
+        row = cursor.fetchone()
+        return row[0] if row else 0
+
+    def _increment_inject_hits(self, memory_id: int):
+        if self._conn is None:
+            return
+        self._conn.execute("UPDATE memories SET inject_hits = inject_hits + 1 WHERE id=?", (memory_id,))
+        self._conn.commit()
+
+    def _rate_candidates(self, rows: list, user_input: str, max_items: int = 5, ebbinghaus: bool = True) -> list:
+        frozen = [r for r in rows if len(r) > 8 and r[8] >= _IMPORTANCE_FROZEN]
+        dynamic = [r for r in rows if r not in frozen]
+        now = time.time()
+        scored = []
+        for r in dynamic:
+            content = r[2]
+            tags = self._get_tags(r[0])
+            days = (now - (r[7] if r[7] else r[6])) / 86400
+            is_noise = self._is_noise_memory(tags, content)
+            noise_penalty = 0.1 if is_noise else 1.0
+            s1 = self._score_intent(content, tags, user_input)
+            if s1 == 0.0:
+                continue
+            inject_hits = self._get_inject_hits(r[0])
+            s2 = self._score_feedback(inject_hits, days)
+            s3 = self._score_density(content)
+            if ebbinghaus:
+                U = r[3]
+                F = min(1.0, r[4] / 50.0)
+                imp = r[8] if len(r) > 8 else 0.0
+                effective_imp = imp
+                if F > 0.15 and imp < _IMPORTANCE_FREQ_BUMP:
+                    effective_imp = _IMPORTANCE_FREQ_BUMP
+                R = ebbinghaus_retention(max(0, days), U, F, importance=effective_imp)
+            else:
+                R = 1.0
+            W = 0.5 * s1 + 0.25 * s2 + 0.25 * s3
+            final_score = R * W * noise_penalty
+            scored.append((final_score, r))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        selected = frozen + [s[1] for s in scored[:max_items]]
+        for r in selected:
+            self._increment_inject_hits(r[0])
+        return selected[:max_items]
+
+    def get_injection_text(self, max_items: int = 5, ebbinghaus: bool = True, user_input: str = "") -> str:
         if self._conn is None:
             return ""
         self.decay()
@@ -320,9 +482,13 @@ class Mirror:
             rows = [s[1] for s in scored[:max_items]]
         if not rows:
             return ""
+        # Apply triple-layer scoring
+        result = self._rate_candidates(rows, user_input, max_items=max_items, ebbinghaus=ebbinghaus)
+        if not result:
+            return ""
         icons = {"lesson": "⚠️", "insight": "✅", "principle": "📐", "pattern": "🔄", "context": "📌"}
         lines = []
-        for row in rows:
+        for row in result:
             _, mtype, content, _, _, verified, *_ = row
             icon = icons.get(mtype, "📝")
             vmark = f" [verified {verified} times]" if verified > 0 else ""
@@ -418,47 +584,81 @@ class Mirror:
             logger.warning("Context handoff failed: %s", e)
             return ""
 
-    def recall(self, query: str, limit: int = 10, ebbinghaus: bool = True) -> list:
-        """Search memories (LIKE fuzzy matching, Chinese-friendly).
+    @staticmethod
+    def _expand_recall_query(query: str) -> list:
+        """Expand query into multiple LIKE-friendly sub-queries."""
+        import re
+        import jieba
 
-        Oblivion closed-loop: write back hits + last_access after retrieval,
-        so the Ebbinghaus F component reflects real access frequency.
-        """
+        clean = re.sub(r"[\u3000-\u303f\uff00-\uffef\u2000-\u206f。，！？、；：""''\\s,.!?;:()「」\[\]【】{}<>\u3008\u3009/\\|@#$%^&*+=\-~]+", " ", query)
+        clean = clean.strip()
+        if not clean:
+            return [query] if query else []
+        tokens = [w.strip() for w in jieba.cut(clean) if w.strip() and len(w.strip()) >= 2]
+        ngrams = []
+        for token in tokens:
+            if len(token) > 4:
+                for i in range(len(token) - 1):
+                    ngrams.append(token[i:i+2])
+        all_terms = tokens + ngrams
+        all_terms = list(dict.fromkeys(all_terms))
+        return all_terms if all_terms else [query]
+
+    def recall(self, query: str, limit: int = 10, ebbinghaus: bool = True,
+               include_forgotten: bool = False) -> list:
+        """Search memories with OR-style token expansion (Chinese-friendly)."""
         if self._conn is None:
             return []
         if not query or not query.strip():
             return []
         now = time.time()
-        like_q = f"%{query}%"
-        cursor = self._conn.execute(
-            """SELECT id, type, content, strength, hits, verified,
-                      created_at, last_access
-               FROM memories
-               WHERE is_active=1 AND (content LIKE ? OR type LIKE ?)
-               ORDER BY strength DESC
-               LIMIT ?""",  # Python side re-ranks with Ebbinghaus
-            (like_q, like_q, limit),
+        terms = self._expand_recall_query(query)
+        if not terms:
+            return []
+        clauses = []
+        params = []
+        for t in terms:
+            clauses.append("(content LIKE ? OR tags LIKE ?)")
+            params.extend([f"%{t}%", f"%{t}%"])
+        active_filter = "" if include_forgotten else "AND is_active=1"
+        sql = (
+            "SELECT id, type, content, strength, hits, verified, "
+            "created_at, last_access, COALESCE(importance, 0.0) "
+            "FROM memories "
+            "WHERE (" + " OR ".join(clauses) + ") " + active_filter + " "
+            "ORDER BY strength DESC LIMIT ?"
         )
+        cursor = self._conn.execute(sql, params + [limit * 2])
         rows = cursor.fetchall()
+        # Dedup by id (same memory may match multiple terms)
+        seen_ids = set()
+        unique = []
+        for r in rows:
+            if r[0] not in seen_ids:
+                seen_ids.add(r[0])
+                unique.append(r)
+        rows = unique[:limit * 2]
         if ebbinghaus and rows:
             scored = []
             for r in rows:
                 days = (now - (r[7] if r[7] else r[6])) / 86400
                 u = r[3]
                 f = min(1.0, r[4] / 50.0)
-                r_score = ebbinghaus_retention(max(0, days), u, f)
+                imp = r[8]
+                r_score = ebbinghaus_retention(max(0, days), u, f, importance=imp)
                 scored.append((r_score, r))
             scored.sort(key=lambda x: x[0], reverse=True)
             rows = [s[1] for s in scored[:limit]]
-        # Oblivion write-back: update access stats, close Ebbinghaus feedback loop
         if rows:
             for r in rows:
                 self._conn.execute("UPDATE memories SET hits=hits+1, last_access=? WHERE id=?", (now, r[0]))
             self._conn.commit()
-        return [
-            dict(zip(["id", "type", "content", "strength", "hits", "verified", "created_at", "last_access"], row, strict=False))
-            for row in rows
-        ]
+        keys = ["id", "type", "content", "strength", "hits", "verified", "created_at", "last_access", "importance"]
+        return [dict(zip(keys, row, strict=False)) for row in rows]
+
+    def search_cold(self, query: str, limit: int = 10) -> list[dict]:
+        """Search only cold (is_active=0) memories."""
+        return self.recall(query, limit=limit, include_forgotten=True)
 
     def forget(self, pattern: str) -> int:
         """Batch soft-delete matching memories. Returns deletion count."""

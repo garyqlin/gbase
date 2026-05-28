@@ -41,3 +41,10 @@ logs/
 *.bkp
 
 data/search_history.jsonl
+
+# Forge audit
+forge-audit-*.md
+
+# Arms
+arms/
+

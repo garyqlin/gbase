@@ -175,6 +175,8 @@ class Kernel:
         # ── RSI Dual-Knob: task type tracking ──
         self._current_task_type: str = "discuss"
         self._task_type_streak: int = 0
+        # Triple-layer mirror filter: current user message for intent matching
+        self._current_user_message: str = ""
 
     def _build_dynamic_system_prompt(self) -> str:
         """Dynamically build system prompt: base identity + workspace file injection + skill index.
@@ -250,7 +252,7 @@ class Kernel:
         if self.mirror_engine:
             # ebbinghaus=True enables time-decay sorting (strength + frequency + last access time).
             # Recently & frequently used memories surface first; stale ones naturally sink but are never deleted.
-            mirror_text = self.mirror_engine.get_injection_text(max_items=temp_cfg["mirror_max"], ebbinghaus=True)
+            mirror_text = self.mirror_engine.get_injection_text(max_items=temp_cfg["mirror_max"], ebbinghaus=True, user_input=self._current_user_message or "")
             if mirror_text:
                 parts.append(mirror_text)
 
@@ -330,6 +332,8 @@ class Kernel:
         # system prompt already has skill index; clear old pre-injection logic,
         # let LLM decide whether to load full SKILL.md via read_file.
         enriched_message = user_message
+        # Set current user message for triple-layer intent matching
+        self._current_user_message = user_message or ""
 
         # 1.2 RSI Dual-Knob: task type detection
         detected = _classify_task_intent(user_message)

@@ -236,7 +236,6 @@ You are Forge — the code artisan agent.
 ### Required verification loop
 After writing/editing each file:
 1. Syntax check: `python3 -m py_compile <file>`
-2. Verify with forge_verify() tool
 3. Do not deliver until passed
 
 ## Style

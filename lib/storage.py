@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/lib/storage.py
+Gbase storage engine module
 
-Storage engine — SQLite primary + JSONL readable mirror dual-write.
+Persistence Engine — SQLite primary + JSONL readable mirror dual-write.
 
-All experiences/knowledge/skills are read and written through this module.
+All experience/knowledge/skill records are read/written through this module.
 """
 
+import contextlib
 import json
 import logging
 import os
@@ -20,15 +21,18 @@ logger = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).parent.parent / "data"
 DB_PATH = DATA_DIR / "dat.db"
 
-# JSONL mirror filenames for the three layers
+# JSONL mirror file names for each layer
 _MIRROR_FILES = {
     "experience": "experience.jsonl",
     "knowledge": "knowledge.jsonl",
     "skills": "skills.jsonl",
 }
 
-_MAX_RECORDS = 50
-"""Maximum number of records per type (oldest deleted when exceeded)"""
+# P1: Soft limit — only delete un-referenced (hits=0) records older than 90 days
+# Old hard limit of 50 was the root cause of goldfish memory.
+# All hit-referenced records are now preserved permanently.
+_MAX_RECORDS = 50000
+_PRUNING_KEEP_DAYS = 90  # hide unused records after 90 days
 
 
 class Storage:
@@ -36,10 +40,11 @@ class Storage:
 
     Usage:
         store = Storage()
-        store.setup()           # First-time initialization
+        store.setup()           # First-time init
+        store.write("experience", {"summary": "xxx", ...})
         entries = store.read_recent("experience", limit=5)
 
-    Thread-safe: internally uses threading.Lock.
+    Thread-safe: uses threading.Lock internally.
     """
 
     def __init__(self, db_path: str = None, data_dir: str = None):
@@ -48,10 +53,10 @@ class Storage:
         self._lock = threading.Lock()
         self._conn: sqlite3.Connection | None = None
 
-    # -- Initialization -----------------------------------
+    # ── Initialization ────────────────────────────────
 
     def setup(self):
-        """First-time initialization (create tables + directories + WAL mode)."""
+        """First-time init (create tables + directories + WAL mode)."""
         os.makedirs(self._data_dir, exist_ok=True)
 
         with self._lock:
@@ -72,8 +77,13 @@ class Storage:
                 CREATE INDEX IF NOT EXISTS idx_type_created
                 ON entries(type, created_at DESC)
             """)
+            # Compat migration: add tags/rule columns if missing
+            with contextlib.suppress(Exception):
+                conn.execute("ALTER TABLE entries ADD COLUMN tags TEXT DEFAULT ''")
+            with contextlib.suppress(Exception):
+                conn.execute("ALTER TABLE entries ADD COLUMN rule TEXT DEFAULT ''")
             # FTS5 full-text index (supports Chinese via unicode61 tokenizer)
-            # content='entries' means text is not stored separately, linked via entries table rowid
+            # content='entries' means text is not stored separately, linked via rowid
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS entries_fts USING fts5(
                     content, summary,
@@ -116,28 +126,23 @@ class Storage:
                 logger.warning("FTS index rebuild skipped: %s", rebuild_err)
             logger.info("Storage engine ready: %s", self._db_path)
 
-    # -- Write -----------------------------------------
+    # ── Write ──────────────────────────────────────────
 
-    def write(self, type_: str, entry: dict, summary: str = "", confidence: str = "low", **_kwargs) -> int:
-        """Write a record. Auto-writes SQLite + appends JSONL mirror.
+    def _ensure_ready(self):
+        """Ensure storage is initialized. Must be called inside self._lock."""
+        if self._conn is None:
+            self.setup()
 
-        Args:
-            type_: Type (experience / knowledge / skills)
-            entry: Content dict (will be JSON-serialized)
-            summary: One-line summary
-            confidence: Confidence (low / medium / high)
-
-        Returns:
-            Record ID (on success) or 0 (skipped)
-        """
+    def write(self, type_: str, entry: dict, summary: str = "", confidence: str = "low", **kwargs) -> int:
+        """Write a record. Auto-writes SQLite + appends JSONL mirror."""
+        _ = kwargs  # noqa: ARG002 — compat extension params
         now = time.time()
         content_json = json.dumps(entry, ensure_ascii=False)
 
         with self._lock:
-            if self._conn is None:
-                raise RuntimeError("Storage not initialized, call setup() first")
+            self._ensure_ready()
 
-            # Write to SQLite
+            # Write SQLite
             cursor = self._conn.execute(
                 "INSERT INTO entries (type, content, summary, created_at, confidence) VALUES (?, ?, ?, ?, ?)",
                 (type_, content_json, summary, now, confidence),
@@ -164,19 +169,10 @@ class Storage:
             logger.debug("Write %s[%d]: %s", type_, row_id, summary[:60])
             return row_id
 
-    # -- Read ------------------------------------------
+    # ── Read ──────────────────────────────────────────
 
     def read_recent(self, type_: str, limit: int = 5) -> list[dict]:
-        """Read the most recent N records.
-
-        Args:
-            type_: Type
-            limit: Count
-
-        Returns:
-            [{"id": 1, "type": ..., "content": ..., "summary": ...,
-              "created_at": ..., "hits": ..., "confidence": ...}, ...]
-        """
+        """Read the most recent N records."""
         with self._lock:
             if self._conn is None:
                 return []
@@ -202,23 +198,22 @@ class Storage:
                 )
             return results
 
-    # -- Hit count (increase reference weight) ------------
+    # ── Hit count (increase reference weight) ─────────
 
     def record_hit(self, record_id: int):
-        """Increment the hits counter for a record."""
+        """Increment hit count for a record."""
         with self._lock:
-            if self._conn is None:
-                return
+            self._ensure_ready()
             self._conn.execute(
                 "UPDATE entries SET hits = hits + 1 WHERE id = ?",
                 (record_id,),
             )
             self._conn.commit()
 
-    # -- Internal methods ------------------------------
+    # ── Internal methods ────────────────────────────
 
     def _prune(self, type_: str):
-        """When exceeding the limit, delete the oldest records."""
+        """Tiered pruning. Must be called inside self._lock."""
         if self._conn is None:
             return
         cursor = self._conn.execute(
@@ -228,14 +223,18 @@ class Storage:
         count = cursor.fetchone()[0]
         if count > _MAX_RECORDS:
             excess = count - _MAX_RECORDS
-            self._conn.execute(
-                "DELETE FROM entries WHERE id IN (SELECT id FROM entries WHERE type=? ORDER BY created_at ASC LIMIT ?)",
-                (type_, excess),
-            )
+            cutoff = time.time() - _PRUNING_KEEP_DAYS * 86400
+            _deleted = self._conn.execute(
+                "DELETE FROM entries WHERE id IN ("
+                "SELECT id FROM entries WHERE type=? AND hits=0 AND created_at < ? "
+                "ORDER BY created_at ASC LIMIT ?)",
+                (type_, cutoff, excess,),
+            ).rowcount
             self._conn.commit()
-            logger.info("Pruned %d expired %s records", excess, type_)
+            if _deleted > 0:
+                logger.info("Pruned %d un-referenced %s records (> %d days)", _deleted, type_, _PRUNING_KEEP_DAYS)
 
-    # -- Cleanup ---------------------------------------
+    # ── Cleanup ───────────────────────────────────────
 
     def close(self):
         with self._lock:

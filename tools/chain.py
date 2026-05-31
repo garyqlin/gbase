@@ -16,7 +16,7 @@ from lib.toolkit import tool
 
 logger = logging.getLogger(__name__)
 
-ORANGE_URL = os.getenv("OPPRIME_CHAIN_ORANGE_URL", "http://8.153.91.115:4200")
+ORANGE_URL = os.getenv("OPPRIME_CHAIN_ORANGE_URL", "http://localhost:4200")
 
 
 @tool()

@@ -48,3 +48,6 @@ forge-audit-*.md
 # Arms
 arms/
 
+*.pyc
+__pycache__/
+.DS_Store

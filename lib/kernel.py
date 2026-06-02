@@ -2,12 +2,12 @@
 """
 gbase/lib/kernel.py
 
-内核循环:调 LLM → 工具执行 → 再调 → 回复。
+Kernel loop: LLM invocation → tool execution → recall → response.
 
-三层架构的 Layer 2:
-- 只做一件事:LLM 调用 + tool_call 执行循环
+Layer 2 of the three-tier architecture:
+- - Single responsibility: LLM call + tool_call execution loop
 - 不做:Memory injection、经验存储、侦察兵、认知检测
-- 最多 5 层工具调用深度
+- - Maximum 5 levels of tool call depth
 """
 
 import asyncio
@@ -26,23 +26,23 @@ from .mirror import Mirror
 from .session import JsonlSessionManager
 from .tracer import close_trace, get_failure_analysis, init_trace, record_tool_call
 
-# ── GMem 集成钩子 ──
-# GMem 是 GBase 自带的记忆系统，通过升级 mirror / toolkit / experience 三个子模块实现
-# 不依赖外部服务，不引入新依赖
-# P0: KV Cache 准备 → hot_pattern_observe() 跟踪高频模式
+# ── GMem Integration Hook ──
+# # GMem is GBase's built-in memory system, implemented by upgrading three submodules: mirror / toolkit / experience
+# # No external service dependencies, no new dependencies introduced
+# # P0: KV Cache preparation → hot_pattern_observe() tracks high-frequency patterns
 # P1: 异步记忆调度 → create_task 非阻塞Experience extraction + async_record
-# P2: 经验标准化 → export/import 版本校验 + 筛选
-# P3: 实体关系图 → gmem_relations 表 + predict() 多跳扩展
+# # P2: Experience standardization → export/import version verification + filtering
+# # P3: Entity relationship graph → gmem_relations table + predict() multi-hop extension
 
 
 logger = logging.getLogger(__name__)
 
 
-# ── GMem P1: 异步后台任务（不阻塞主线程） ──
+# ── GMem P1: Asynchronous background tasks (non-blocking main thread) ──
 
 
 async def _async_mirror_record(mirror_engine, user_message: str, reply: str, completed_ok: bool = True):
-    """后台记录 mirror 记忆。空实现——记录决策完全交给 agent 自己决定。"""
+    """Record mirror memory in background. Empty implementation - recording decision is entirely delegated to the agent."""
 
 
 async def _auto_note_if_deep_work(tool_count: int, reply: str, user_message: str):
@@ -60,14 +60,14 @@ async def _auto_note_if_deep_work(tool_count: int, reply: str, user_message: str
     - 与其依赖 LLM 记得主动 call note_write，不如系统自动兜底
     - 但 LLM 主动写的（含 judgment 的）远优于自动的，所以 auto 只作为兜底，不替代手动
     """
-    # 条件 1：工具调用量达标
+    # Condition 1: Tool call count meets threshold
     if tool_count < 5:
         return
-    # 条件 2：回复内容充实
+    # Condition 2: Response content is substantial
     reply_len = len(reply)
     if reply_len < 300:
         return
-    # 条件 3：不是纯简单问答（探测）
+    # Condition 3: Not pure simple Q&A (probe)
     simple_cues = ["你好", "测试", "嗨", "在吗", "hi", "hello", "ping", "测试一下", "早安", "晚安"]
     if any(cue in user_message.strip().lower() for cue in simple_cues):
         return
@@ -75,15 +75,15 @@ async def _auto_note_if_deep_work(tool_count: int, reply: str, user_message: str
     try:
         from tools.note_tool import note_write as _raw_note_write
 
-        # 自动生成笔记标题
+        # Auto generate note title
         title = (reply[:80].replace("\n", " ").strip())[:80]
         if len(title) < 5:
             title = (user_message[:60].replace("\n", " ").strip())[:60]
 
-        # 智能估算笔记内容（防止太长超过合理范围）
+        # Smart estimate note content (prevent exceeding reasonable length)
         content = reply[:2000].strip()
 
-        # 从工具调用数推测任务深度
+        # Estimate task depth from tool call count
         if tool_count >= 10:
             tags = "auto-note,deep-work,heavy"
         elif tool_count >= 7:
@@ -93,7 +93,7 @@ async def _auto_note_if_deep_work(tool_count: int, reply: str, user_message: str
 
         await _raw_note_write(
             title=title,
-            content=f"[系统自动存档] 来自对话总结\n\n## 本次任务\n{user_message[:200]}\n\n## 产出摘要\n{content}",
+            content=f"[System Auto Archive] 来自对话总结\n\n## Current Task\n{user_message[:200]}\n\n## Output Summary\n{content}",
             tags=tags,
             source="kernel.auto_note",
         )
@@ -110,10 +110,10 @@ async def _async_deep_search_save(mirror_engine, query: str, tool_name: str, _ar
     """GMem P0: 深度搜索后自动Save结果摘要到 mirror。"""
     try:
         summary = (query or tool_name)[:200]
-        # 从 kernel 文件层级推算搜索深度
+        # Estimate search depth from kernel file hierarchy
         mirror_engine.record_search(query, summary, depth=5)
     except Exception as _e:
-        logger.debug("GMem P0 搜索摘要记录失败: %s", _e)
+        logger.debug("GMem P0 search summary recording failed: %s", _e)
 
 
 async def _async_extract_experience(
@@ -129,7 +129,7 @@ async def _async_extract_experience(
     rollback_occurred=False,
     rollback_action="",
 ):
-    """后台提取经验（含反脆弱: 失败经验）。"""
+    """Extract experience in background (includes anti-fragility: failure experience)."""
     try:
         await engine.extract(
             user_message=user_message,
@@ -167,8 +167,8 @@ def _is_retryable_error(result: dict) -> bool:
     return any(kw in err for kw in retryable_keywords)
 
 
-# 从 config.yaml 读取，不存在则默认 15
-# 可通过修改 config.yaml limits.max_tool_depth 调整
+# Read from config.yaml, default 15 if not exists
+# Configurable通过修改 config.yaml limits.max_tool_depth 调整
 _NO_CONFIG = None
 try:
     from main import _cfg_get
@@ -236,8 +236,8 @@ TOOL_BUDGET_WARN = 12
 _tool_parameter_hints = {
     "write_file": '参数格式: {"filepath": "/path/to/file", "content": "文件内容"}。'
     "filepath 是必填文件路径，content 是必填文件内容。不要传空对象 {}。",
-    "exec_command": '参数格式: {"command": "要执行的命令"}。command 是必填字符串。可选参数: workdir, timeout（文件扫描/桌面操作建议 30-60 秒，简单命令 5-15 秒）。',
-    "read_file": '参数格式: {"filepath": "/path/to/file"}。可选参数: offset, max_chars。',
+    "exec_command": '参数格式: {"command": "要执行的命令"}。command 是必填字符串。Configurable选参数: workdir, timeout（文件扫描/桌面操作建议 30-60 秒，简单命令 5-15 秒）。',
+    "read_file": '参数格式: {"filepath": "/path/to/file"}。Configurable选参数: offset, max_chars。',
 }
 
 TOOL_BUDGET_PLAN = 8
@@ -542,7 +542,7 @@ class Kernel:
         _rel_desc = {"companion": "陪伴/辅助 — 以用户节奏为准，不强推观点", "coach": "教练/启发 — 适度挑战和反问"}
         _trust_note = ""
         if self._trust_broken and not self._trust_repair_sent:
-            _trust_note = "  |  ⚠️ 信任可能受损：优先使用温和语气，避免强势结论"
+            _trust_note = "  |  ⚠️ 信任Configurable能受损：优先使用温和语气，避免强势结论"
         elif self._trust_repair_sent:
             _trust_note = "  |  🛡️ 信任修复已触发：持续关注用户是否恢复开放态度"
         parts.append(f"## Current Relation Mode\nStance: {_rel_mode} — {_rel_desc.get(_rel_mode, '')}{_trust_note}\n")
@@ -637,7 +637,7 @@ class Kernel:
                         "WHERE type='knowledge' AND confidence='high' "
                         "ORDER BY hits DESC, created_at DESC LIMIT 6",
                     ).fetchall()
-            _kn_rows = _kn_rows or []  # 保护: fetchall 可能返回 None
+            _kn_rows = _kn_rows or []  # 保护: fetchall Configurable能返回 None
             if _kn_rows:
                 _lines = []
                 for _s, _ts, _h in _kn_rows[:4]:
@@ -827,7 +827,7 @@ class Kernel:
                         enriched_message = (
                             f"当前时间是 {_now.year}年{_now.month}月{_now.day}日 {_now.hour:02d}:{_now.minute:02d}（北京时间 Asia/Shanghai）。\n"
                             f"\n"
-                            f"【先期Search参考】（这是快速初步搜索的结果，可能不够全或不够新，你可以自主决定是否需要进一步搜索）\n"
+                            f"【先期Search参考】（这是快速初步搜索的结果，Configurable能不够全或不够新，你Configurable以自主决定是否需要进一步搜索）\n"
                             f"{json.dumps(search_result, ensure_ascii=False)[:4000]}\n\n"
                             f"---\n\n"
                             f"{enriched_message}"
@@ -1105,7 +1105,7 @@ class Kernel:
                 {
                     "step": 4,
                     "action": "conclude",
-                    "data": ("建议检查工具链是否可优化" if tools_used > 5 else "当前性能稳定"),
+                    "data": ("建议检查工具链是否Configurable优化" if tools_used > 5 else "当前性能稳定"),
                 },
             ],
         }
@@ -1271,7 +1271,7 @@ class Kernel:
                 except (json.JSONDecodeError, ValueError):
                     continue
 
-        # 如果没有任何外部验证通过且内容较长，标记可请求人类
+        # 如果没有任何外部验证通过且内容较长，标记Configurable请求人类
         if not results and len(content) > 200:
             results.append({"source": "human_request", "passed": None, "detail": "无自动验证可用，建议人工确认"})
 
@@ -1495,8 +1495,8 @@ class Kernel:
             reply = choice0.message.content or ""
             finish_reason = getattr(choice0, "finish_reason", None)
             if finish_reason == "length":
-                logger.warning("⚠️ LLM 输出被截断 (finish_reason=length)！max_tokens=%s 可能不够", self.max_tokens)
-                reply += "\n\n[⚠️ 输出被截断，结果可能不完整]"
+                logger.warning("⚠️ LLM 输出被截断 (finish_reason=length)！max_tokens=%s Configurable能不够", self.max_tokens)
+                reply += "\n\n[⚠️ 输出被截断，结果Configurable能不完整]"
             if session:
                 session.append({"role": "assistant", "content": reply})
             return reply
@@ -1514,7 +1514,7 @@ class Kernel:
         choice = response.choices[0]
         finish_reason = getattr(choice, "finish_reason", None)
         if finish_reason == "length":
-            logger.warning("⚠️ LLM 输出被截断 (finish_reason=length)！max_tokens=%s 可能不够", self.max_tokens)
+            logger.warning("⚠️ LLM 输出被截断 (finish_reason=length)！max_tokens=%s Configurable能不够", self.max_tokens)
         msg = choice.message
 
         # ⚠️ DeepSeek V4 推理模型必须回传 reasoning_content
@@ -1557,7 +1557,7 @@ class Kernel:
         if session:
             session.append(assistant_msg)
 
-        # 并行执行工具（同层可独立工具同时跑）
+        # 并行执行工具（同层Configurable独立工具同时跑）
         async def _run_one_tool(tc):
             """执行单个工具并返回tool消息。
 
@@ -1603,7 +1603,7 @@ class Kernel:
                 return {
                     "role": "tool",
                     "tool_call_id": tc.id,
-                    "content": f"[熔断] 工具 {func_name} 因连续失败达到上限，暂停 {remaining} 秒后恢复。可用其他工具代替（如 exec_safe('cat <path>') 代替 read_file），或等恢复后重试。",
+                    "content": f"[熔断] 工具 {func_name} 因连续失败达到上限，暂停 {remaining} 秒后恢复。Configurable用其他工具代替（如 exec_safe('cat <path>') 代替 read_file），或等恢复后重试。",
                 }
 
             # ═══ 熔断检查：整轮是否已熔断 ═══
@@ -1632,7 +1632,7 @@ class Kernel:
                 return {
                     "role": "tool",
                     "tool_call_id": tc.id,
-                    "content": "[熔断] 本轮执行因连续失败过多被终止。你仍可以：① 换其他工具或方案执行；② 分析失败原因修复后等冷却恢复；③ 等 60 秒后整轮熔断自动解除。",
+                    "content": "[熔断] 本轮执行因连续失败过多被终止。你仍Configurable以：① 换其他工具或方案执行；② 分析失败原因修复后等冷却恢复；③ 等 60 秒后整轮熔断自动解除。",
                 }
 
             logger.info("工具调用: %s(%s)", func_name, json.dumps(func_args, ensure_ascii=False)[:120])

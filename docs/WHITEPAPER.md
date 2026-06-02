@@ -261,8 +261,8 @@ Example markers:
 | Conversation | Marker |
 |-------------|--------|
 | "帮我查一下今天的天气" | `查询·天气` |
-| "小馒头喜欢吃草莓" | `讨论·小馒头·草莓` |
-| "部署到阿里云 ECS 8.153.91.115" | `部署·阿里云·ECS·服务器` |
+| "<用户事实>" | `讨论·用户·事实` |
+| "部署到阿里云 ECS <阿里云ECS地址>" | `部署·阿里云·ECS·服务器` |
 
 This enables human-like "first locate, then recall" retrieval — ask the timeline index for recent markers, then drill into the one that looks relevant.
 
@@ -667,9 +667,9 @@ Every 50 loops, the kernel runs a framework self-check:
 
 ```python
 # Each agent sets its home
-GBASE_HOME=/Users/gary/gundam-home
+GBASE_HOME=$GBASE_HOME
 GBASE_AGENT_NAME=gundam
-GBASE_AGENT_HOMES=poseidon:/Users/gary/poseidon-home:gundam:/Users/gary/gundam-home
+GBASE_AGENT_HOMES=poseidon:$GBASE_HOME:gundam:$GBASE_HOME
 ```
 
 **Write rule:** If `write_file(path)` targets another agent's home → `PermissionError`
@@ -923,7 +923,7 @@ GBase agents are deployed as macOS **launchd daemons** for auto-restart and resi
 | Lancer CC | 8441 | `start-cc.sh` |
 | Lancer X | 8442 | `start-x.sh` |
 | Poseidon | 8428 | Managed by Gundam home |
-| Opprime (cloud) | 8420 (ECS) | PM2 on Aliyun ECS |
+| Opprime (cloud) | 8420 (cloud) | PM2 on cloud server |
 | Herald | TBD | Health reporting |
 
 ### 19.3 Monitoring & Alerts
@@ -1230,11 +1230,11 @@ GBase agents run as **macOS launchd daemons** for automatic restart on crash.
 ```xml
 <key>KeepAlive</key><true/>
 <key>ThrottleInterval</key><integer>10</integer>
-<key>WorkingDirectory</key><string>/Users/gary/opprime</string>
+<key>WorkingDirectory</key><string>$GBASE_HOME</string>
 <key>EnvironmentVariables</key>
 <dict>
     <key>PYTHONPATH</key>
-    <string>/Users/gary/opprime</string>
+    <string>$GBASE_HOME</string>
 </dict>
 ```
 

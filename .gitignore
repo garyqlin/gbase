@@ -51,3 +51,20 @@ arms/
 *.pyc
 __pycache__/
 .DS_Store
+
+# Internal work files — NOT for public repository
+HAMMER_TASK.md
+_audit_runner.py
+.forge_test_instructions
+
+# Internal documentation (contains personal deployment info)
+docs/WHITEPAPER.md
+docs/WHITEPAPER.pdf
+docs/WHITEPAPER.html
+
+# Agent runtime data (may contain personal memories)
+data/arms/
+data/experience.jsonl
+data/knowledge.jsonl
+data/sessions/
+data/mirror/

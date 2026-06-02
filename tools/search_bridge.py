@@ -1,21 +1,21 @@
 # SPDX-License-Identifier: MIT
 """
-search_bridge.py — ProSearch agent
+search_bridge.py — OpenClaw ProSearch proxy
 
-Runs locally, provides an HTTP search interface for agents.
-Agents POST /search with query to get results.
+Runs locally on Mac Studio (alongside Gateway), providing an HTTP interface
+for cloud agents. Agents just POST /search {"query":"..."} to get
+high-quality search results.
 
 Usage:
     python3 search_bridge.py [port]
     Default port: 8430
 
-Auto-reports address to agents on startup.
+After startup, automatically reports the address to agents.
 """
 
 import asyncio
 import json
 import logging
-import os
 import subprocess
 import sys
 
@@ -23,7 +23,7 @@ try:
     from aiohttp import web
 except ImportError:
     subprocess.check_call(
-        [sys.executable, "-m", "pip", "install", "aiohttp", "--quiet"]
+        [sys.executable, "-m", "pip", "install", "aiohttp", "-i", "https://pypi.tuna.tsinghua.edu.cn/simple", "--quiet"]
     )
     from aiohttp import web
 
@@ -34,7 +34,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-PROSEARCH = os.getenv("PROSEARCH_PATH") or ""  # Set PROSEARCH_PATH to enable search bridge
+PROSEARCH = "$HOME/Library/Application Support/QClaw/openclaw/config/skills/online-search/scripts/prosearch.cjs"
 DEFAULT_PORT = 8430
 
 
@@ -86,7 +86,7 @@ async def handle_search(request: web.Request) -> web.Response:
         try:
             data = json.loads(output)
         except json.JSONDecodeError:
-            logger.warning("ProSearch returned non-JSON: %s", output[:200])
+            logger.warning("prosearch returned non-JSON: %s", output[:200])
             return web.json_response(
                 {
                     "query": query,
@@ -121,7 +121,7 @@ async def handle_search(request: web.Request) -> web.Response:
                 }
             )
 
-        logger.info("Search results: %d items", len(results))
+        logger.info("Search results: %d entries", len(results))
         return web.json_response(
             {
                 "query": query,
@@ -130,8 +130,8 @@ async def handle_search(request: web.Request) -> web.Response:
             }
         )
 
-    except TimeoutError:
-        logger.warning("Search timed out: %s", query)
+    except asyncio.TimeoutError:
+        logger.warning("Search timeout: %s", query)
         return web.json_response(
             {
                 "query": query,
@@ -140,17 +140,17 @@ async def handle_search(request: web.Request) -> web.Response:
             }
         )
     except Exception as e:
-        logger.error("Search error: %s", str(e))
+        logger.error("Search exception: %s", str(e))
         return web.json_response(
             {
                 "query": query,
                 "results": [],
-                "message": f"Search error: {str(e)[:200]}",
+                "message": f"Search exception: {str(e)[:200]}",
             }
         )
 
 
-async def handle_health(_request: web.Request) -> web.Response:
+async def handle_health(request: web.Request) -> web.Response:
     return web.json_response({"status": "ok"})
 
 
@@ -162,7 +162,7 @@ async def main():
     app.router.add_get("/health", handle_health)
     app.router.add_get("/", handle_health)
 
-    logger.info("Search agent started on port %d", port)
+    logger.info("Search proxy started on port %d", port)
     logger.info("API: POST http://localhost:%d/search", port)
     logger.info('     {"query": "search keyword", "count": 8}')
 

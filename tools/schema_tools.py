@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/schema_tools.py
+gbase/tools/schema_tools.py
 
 JSON/YAML schema validation and inference tool.
 """

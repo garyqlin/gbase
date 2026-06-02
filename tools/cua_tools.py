@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/cua_tools.py
+gbase/tools/cua_tools.py
 
 CUA desktop operation tool.
 """

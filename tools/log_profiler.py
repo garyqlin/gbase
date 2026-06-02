@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/log_profiler.py
+gbase/tools/log_profiler.py
 
 Multi-source log analyzer.
 Suitable for agent-3 (research) + standard edition.
@@ -40,7 +40,7 @@ async def analyze_log_file(file_path: str, log_format: str = "auto", slow_thresh
         "--slow-threshold",
         str(slow_threshold_ms),
         "--output",
-        "/tmp/opprime-log-analysis.json",
+        "/tmp/gbase-log-analysis.json",
     ]
 
     try:
@@ -53,7 +53,7 @@ async def analyze_log_file(file_path: str, log_format: str = "auto", slow_thresh
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
 
         # Read JSON report
-        report_path = "/tmp/opprime-log-analysis.json"
+        report_path = "/tmp/gbase-log-analysis.json"
         if os.path.exists(report_path):
             with open(report_path, encoding="utf-8") as f:
                 report = json.load(f)

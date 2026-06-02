@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/lib/identity.py
+gbase/lib/identity.py
 
-Identity loader: loads identity from identities/<name>/ directory.
+身份加载器：从 identities/<name>/ 目录加载身份声明。
 """
 
 import functools
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class Identity:
-    """Identity object."""
+    """身份证象。"""
 
     def __init__(self, name: str, root_dir: str = "identities", experience_engine=None, skill_loader=None):
         self.name = name
@@ -25,18 +25,18 @@ class Identity:
         self._experience_engine = experience_engine
         self._skill_loader = skill_loader
 
-        # Track file mtimes for cache invalidation
+        # 记录文件 mtime 用于缓存失效
         self._file_mtimes: dict[str, float] = {}
 
         self._load()
 
     def _load(self):
-        """Load all files from the identity directory."""
+        """从身份目录加载所有文件。"""
         system_prompt_path = os.path.join(self.root, "system_prompt.txt")
         if os.path.exists(system_prompt_path):
             with open(system_prompt_path, encoding="utf-8") as f:
                 self.system_prompt = f.read().strip()
-            logger.info("Identity %s: loaded system_prompt (%d chars)", self.name, len(self.system_prompt))
+            logger.info("身份 %s: 加载 system_prompt (%d chars)", self.name, len(self.system_prompt))
 
         soul_path = os.path.join(self.root, "SOUL.md")
         if os.path.exists(soul_path):
@@ -54,21 +54,21 @@ class Identity:
                 self.memory = f.read().strip()
 
     def set_experience_engine(self, engine):
-        """Inject experience engine (optional)."""
+        """注入经验引擎（可选）。"""
         self._experience_engine = engine
-        logger.info("Experience engine bound")
+        logger.info("经验引擎已绑定")
 
     def get_system_prompt(self) -> str:
-        """Build the final system prompt (identity declaration + memory + constitution + experience + skill index)."""
+        """构建最终的 system prompt（身份声明 + 记忆 + 宪法 + 经验 + skill 索引）。"""
         parts = [self.system_prompt]
         if self.constitution:
-            parts.append(f"\n\n## CONSTITUTION\n{self.constitution}")
+            parts.append(f"\n\n## 宪法\n{self.constitution}")
         if self.soul:
-            parts.append(f"\n## SOUL\n{self.soul}")
+            parts.append(f"\n## 灵魂\n{self.soul}")
         if self.memory:
-            parts.append(f"\n## MEMORY\n{self.memory}")
+            parts.append(f"\n## 记忆\n{self.memory}")
 
-        # Skill index (injected before experience, as experience takes priority)
+        # skill 索引（先于经验注入，因为经验更优先）
         if self._skill_loader:
             skill_text = self._skill_loader.get_injection_text()
             if skill_text:
@@ -81,14 +81,14 @@ class Identity:
         return "\n".join(parts)
 
     def set_skill_loader(self, loader):
-        """Inject skill loader (optional)."""
+        """注入 skill 加载器（可选）。"""
         self._skill_loader = loader
 
 
 @functools.cache
-def _identity_cache_key(_name: str, _root_dir: str) -> bool:  # noqa: ARG001
-    """Internal cache sentinel.
-    Returns True if cache is available (not actually used for Identity object caching).
+def _identity_cache_key(name: str, root_dir: str) -> bool:
+    """内部缓存哨兵：标记给定身份的配置文件是否已缓存。
+    返回 True 表示缓存可用（实际不用于 Identity 对象缓存）。
     """
     return True
 
@@ -97,16 +97,16 @@ _identity_store: dict = {}
 
 
 def load_identity(name: str, root_dir: str = "identities", experience_engine=None, skill_loader=None) -> Identity:
-    """Quick: load an identity (with caching).
+    """快捷：加载一个身份（带缓存）。
 
-    Identity objects with the same name+root_dir are cached and reused (process-level cache),
-    but experience_engine and skill_loader are re-injected every time,
-    as they may change at runtime.
+    相同 name+root_dir 的 Identity 对象会被缓存复用（proces 级缓存），
+    但 experience_engine 和 skill_loader 每次都会重新注入，
+    因为它们可能在运行时变化。
     """
     key = (name, root_dir)
     if key in _identity_store:
         ident = _identity_store[key]
-        # Re-inject runtime dependencies that may have changed
+        # 重新注入可能变化的运行时依赖
         ident.set_experience_engine(experience_engine)
         ident.set_skill_loader(skill_loader)
         return ident
@@ -116,7 +116,7 @@ def load_identity(name: str, root_dir: str = "identities", experience_engine=Non
 
 
 def list_identities(root_dir: str = "identities") -> list[str]:
-    """List all available identities."""
+    """列出所有可用身份。"""
     if not os.path.isdir(root_dir):
         return []
     return sorted(

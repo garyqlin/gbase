@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/prompt_helper.py
+gbase/tools/prompt_helper.py
 
 Prompt optimization tool.
 """

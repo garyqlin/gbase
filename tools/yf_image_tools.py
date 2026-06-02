@@ -2,7 +2,7 @@
 """
 yf_image_tools.py — YF Image ecosystem @tool file.
 
-Registers 7 tools for the opprime-core-v2 tool system:
+Registers 7 tools for the gbase tool system:
  1. yf_generate_image     — T2I via YF-image-base
  2. yf_recognize_image    — VLM image understanding
  3. yf_optimize_text      — LLM text optimization

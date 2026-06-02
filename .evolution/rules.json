@@ -15,7 +15,7 @@
     "stability": {
       "enabled": true,
       "check_services": [
-        "opprime.service"
+        "gbase.service"
       ],
       "max_restart_attempts": 3,
       "startup_timeout_sec": 15

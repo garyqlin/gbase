@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/mock_server.py
+gbase/tools/mock_server.py
 
 Local mock API server.
 Mock server for agent-2 (design arm).

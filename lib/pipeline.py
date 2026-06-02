@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/lib/pipeline.py
+gbase/lib/pipeline.py
 
 Quality Gate Pipeline — auto-chains agent-1→agent-2→verdict.
 

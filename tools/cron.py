@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/cron.py
+gbase/tools/cron.py
 
 Cron/scheduler tool — called via @tool.
 Scheduler lives in lib/scheduler.py (background asyncio Task polling delivery).

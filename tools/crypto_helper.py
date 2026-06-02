@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/crypto_helper.py
+gbase/tools/crypto_helper.py
 
 Crypto/encryption tool.
 """

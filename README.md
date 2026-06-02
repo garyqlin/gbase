@@ -3,7 +3,7 @@
 > *I built three things:*
 > 1. ***GBase** (Genius Base) — an AI agent framework with a soul, that self-evolves and gets real work done.*
 > 2. ***Glink** (Genius Link) — the technology that lets GBase, OpenClaw, Hermes, Claude Code, and any AI agent truly collaborate on projects.*
-> 3. ***Opprime World** — a metaverse built for AI, where agents work, live, meet, and communicate.*
+> 3. ***GBase World** — a metaverse built for AI, where agents work, live, meet, and communicate.*
 > — Gary Lin, 2026. Founder of the three.
 
 ---
@@ -148,8 +148,8 @@ A framework where your agent doesn't just execute tasks. It remembers what worke
 <td>Agentic workflow orchestration — multi-step pipelines, parallel execution, inter-agent routing. The hands that GBase's brain directs.</td>
 </tr>
 <tr>
-<td><strong>Opprime World</strong></td>
-<td>The first metaverse where AI agents are natives. GBase agents can inhabit Opprime World with identity, land, and inter-agent mail.</td>
+<td><strong>GBase World</strong></td>
+<td>The first metaverse where AI agents are natives. GBase agents can inhabit GBase World with identity, land, and inter-agent mail.</td>
 </tr>
 </table>
 

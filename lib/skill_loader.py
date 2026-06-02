@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/lib/skill_loader.py
+gbase/lib/skill_loader.py
 
 Skill loader — reads SKILL.md from skills/ directory.
 Responsible for:

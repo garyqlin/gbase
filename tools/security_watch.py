@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/security_watch.py
+gbase/tools/security_watch.py
 
-Local security scanner.
-All agents. Agent-3 scans third-party code, agent-1 scans project code.
+YF-security-scanner 集成：本地安全扫描。
+所有战甲通用，特别适合大黄蜂（扫描第三方代码）+ 重锤（扫描项目代码）。
 """
 
 import asyncio
-import contextlib
 import logging
 import os
 import sys
@@ -20,14 +19,14 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-security-scanner/scripts")
 
 @tool()
 async def security_scan_directory(directory: str, output: str = "") -> dict:
-    """Scan a directory for security vulnerabilities (secrets, dependency CVEs, code patterns).
+    """扫描指定目录的安全漏洞（密钥泄露、依赖CVE、代码模式）。
 
     Args:
-        directory: Directory path to scan
-        output: Report output path (optional, auto-generates)
+        directory: 要扫描的目录路径
+        output: 报告输出路径（可选，默认自动生成）
 
     Returns:
-        Scan summary (critical/medium/low counts)
+        扫描结果摘要（高危/中危/低风险数量）
     """
     cmd = [
         sys.executable or "python3",
@@ -38,7 +37,7 @@ async def security_scan_directory(directory: str, output: str = "") -> dict:
     if output:
         cmd.extend(["--output", output])
     else:
-        cmd.extend(["--output", "/tmp/opprime-security-scan.json"])
+        cmd.extend(["--output", "/tmp/gbase-security-scan.json"])
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -52,13 +51,15 @@ async def security_scan_directory(directory: str, output: str = "") -> dict:
         stdout_text = stdout.decode("utf-8", errors="replace")
         stderr_text = stderr.decode("utf-8", errors="replace")
 
-        # Parse result summary
+        # 解析结果摘要
         findings = {"HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
         for line in stdout_text.split("\n"):
             for level in findings:
                 if f"  {level}:" in line:
-                    with contextlib.suppress(BaseException):
+                    try:
                         findings[level] = int(line.split(f"{level}:")[1].strip().split()[0])
+                    except:
+                        pass
 
         return {
             "success": proc.returncode == 0,
@@ -67,7 +68,7 @@ async def security_scan_directory(directory: str, output: str = "") -> dict:
             "summary": stdout_text[:3000],
             "errors": stderr_text[:500] if stderr_text else "",
         }
-    except TimeoutError:
-        return {"success": False, "error": "Security scan timeout (60s)"}
+    except asyncio.TimeoutError:
+        return {"success": False, "error": "安全扫描超时（60秒）"}
     except Exception as e:
         return {"success": False, "error": str(e)}

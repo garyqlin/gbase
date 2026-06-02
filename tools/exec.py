@@ -2,105 +2,84 @@
 """
 tools/exec.py
 
-Shell command executor for LLM (compile, test, git, etc.).
-Security constraints:
-- Auto-detect project root (parent of __file__'s project)
-- Default 30-second timeout
-- Only non-interactive commands are allowed
+命令执行工具。使用 lib/safe_shell 底座执行。
 """
-
 import asyncio
 import os
-import shlex
 from pathlib import Path
 
+import re
+
+from lib.territory import check_territory_violation, build_territory_error
 from lib.toolkit import tool
+from lib.safe_shell import exec_command as _exec_command
 
-# Auto-detect project root
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-# Allowed working directories
 _PROJECT_ROOTS = [
-    _PROJECT_ROOT,
+    Path(__file__).resolve().parent.parent,
+    Path("$GBASE_PROJECTS/nuoboke"),
+    Path("$GBASE_PROJECTS"),
+    Path("$GBASE_STATE"),
+    Path("$GBASE_DESKTOP"),
+    Path("$HOME"),
+    Path("/tmp"),
 ]
+_PROJECT_ROOT = _PROJECT_ROOTS[0]
 
 
 @tool()
-async def exec_command(command: str, timeout: int = 30, workdir: str = "", **_kwargs) -> dict:
-    """Execute a shell command (non-interactive).
+async def exec_command(command: str, timeout: int = 300, workdir: str = "", **_kwargs) -> dict:
+    """在 Shell 中执行命令（非交互式）。
 
-    Run Python scripts, pytest tests, git commands, etc.
-    Only allowed within the project root directory.
+    用于运行 Python 脚本、pytest 测试、git 命令等。
+    只能在项目根目录及其子目录下执行。
 
     Args:
-        command: Shell command to run (single line, non-interactive)
-        timeout: Timeout in seconds (default 30, max 120)
-        workdir: Working directory (empty = project root, or subdirectory name)
+        command: 要执行的 Shell 命令（单行，非交互式）
+        timeout: 超时秒数（默认 300，最大 300）
+        workdir: 工作目录（留空默认项目根，也可传子目录名）
 
     Returns:
-        Execution result: returncode / stdout / stderr / error
+        执行结果：returncode / stdout / stderr / error
     """
-    # Security check
     if not command or not command.strip():
-        return {"error": "Command cannot be empty"}
+        return {"error": "命令不能为空"}
 
-    timeout = min(max(timeout, 1), 120)
+    timeout = min(max(timeout, 1), 300)
 
-    # Resolve working directory
+    # ── 领地检查：命令中显式 cd 到其他 Agent 的家目录 ──
+    # 扫描常见的路径操作模式（cd、>重定向、cp、mv、write to）
+    cd_match = re.findall(r'(?:^|;|&&|\|\|)\s*cd\s+(\S+)', command)
+    write_match = re.findall(r'((?:>|>>)\s*/[^\s;|&]+)', command)
+
+    for target_path in cd_match + write_match:
+        stripped = target_path.lstrip('> ').strip()
+        violation = check_territory_violation(stripped)
+        if violation:
+            logger.warning(
+                "⚠️ exec_command 检测到领地侵犯嫌疑: 命令目标 "
+                "'%s' 属于 Agent「%s」", stripped, violation
+            )
+
     if workdir:
-        # Use absolute path directly (multi-project support)
         target = Path(workdir) if workdir.startswith("/") else _PROJECT_ROOT / workdir
-        # Prevent path traversal
         try:
             target = target.resolve()
             target.relative_to(_PROJECT_ROOT)
         except (ValueError, RuntimeError):
-            return {"error": f"Working directory not in allowed scope: {workdir}"}
+            return {"error": f"工作目录不在允许范围内: {workdir}"}
         workdir = str(target)
     else:
         workdir = str(_PROJECT_ROOT)
 
-    # Create directory if it doesn't exist
     os.makedirs(workdir, exist_ok=True)
 
     try:
-        cmd_parts = shlex.split(command)
-        proc = await asyncio.create_subprocess_exec(
-            *cmd_parts,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=workdir,
+        result = await _exec_command(
+            command=command,
+            timeout=timeout,
+            workdir=workdir,
+            cmdname="exec_command",
         )
-
-        try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except TimeoutError:
-            proc.kill()
-            await proc.wait()
-            return {
-                "error": f"Command execution timed out ({timeout}s)",
-                "command": command[:200],
-                "workdir": workdir,
-            }
-
-        stdout_text = stdout.decode("utf-8", errors="replace")
-        stderr_text = stderr.decode("utf-8", errors="replace")
-
-        result = {
-            "returncode": proc.returncode,
-            "stdout": stdout_text[:6000],
-            "stderr": stderr_text[:2000],
-            "workdir": workdir,
-        }
-
-        # Mark if output was truncated
-        if len(stdout_text) > 6000:
-            result["stdout_truncated"] = True
-            result["stdout_full_length"] = len(stdout_text)
-        if len(stderr_text) > 2000:
-            result["stderr_truncated"] = True
-
         return result
-
     except Exception as e:
-        return {"error": f"Execution failed: {e}"}
+        return {"error": f"执行失败: {e}"}

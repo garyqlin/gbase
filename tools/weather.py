@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/weather.py
+gbase/tools/weather.py
 
 Weather lookup tool.
 """

@@ -2,7 +2,7 @@
 """
 village_connector.py — Village OS connector module
 
-Injected into Opprime v2 startup flow to:
+Injected into GBase v2 startup flow to:
 1. Register with Soul Engine on startup (capability declaration)
 2. 60-second heartbeat
 3. Provide WCP message sending functions (via Security Gateway)
@@ -17,8 +17,8 @@ import os
 logger = logging.getLogger("village-os")
 
 VILLAGE_OS_URL = os.environ.get("VILLAGE_OS_URL", "http://127.0.0.1:8765")
-VILLAGE_NAME = "village:opprime:standard"
-NODE_NAME = "opprime-v2"
+VILLAGE_NAME = "village:gbase:standard"
+NODE_NAME = "gbase-v2"
 VILLAGE_FROM = f"{VILLAGE_NAME}:{NODE_NAME}"
 HEARTBEAT_INTERVAL = 60  # seconds
 ENABLED = os.environ.get("VILLAGE_OS_DISABLED") != "1"
@@ -69,7 +69,7 @@ async def register() -> dict:
         "type": "capability",
         "from": VILLAGE_FROM,
         "body": {
-            "name": "Opprime v2",
+            "name": "GBase v2",
             "version": "2.0",
             "type": "agent",
             "identity": os.environ.get("IDENTITY", "standard"),
@@ -115,8 +115,8 @@ async def send_message(msg_type: str, body: dict, to: str = "*") -> dict:
 
     Example:
         await send_message("mail", {
-            "to": "yufei:)node1.opprime",
-            "subject": "From Opprime",
+            "to": "yufei:)node1.gbase",
+            "subject": "From GBase",
             "body": "Hello Yufei"
         })
     """

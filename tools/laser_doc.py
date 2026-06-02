@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/laser_doc.py
+gbase/tools/laser_doc.py
 
 Laser doc writer: developer docs + test plans.
 Provides doc authoring capabilities for Laser (test arm): write developer docs first, then test based on the docs.

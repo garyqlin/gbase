@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/data_seeder.py
+gbase/tools/data_seeder.py
 
 Smart test data generator.
 Demo data seeder for agent-3 (research arm).

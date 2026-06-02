@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/lib/battle_protocol.py
+gbase/lib/battle_protocol.py
 
 Agent communication protocol - send tasks to agents, auto-return results.
 

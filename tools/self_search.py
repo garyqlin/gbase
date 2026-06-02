@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/self_search.py
+gbase/tools/self_search.py
 
 Self-search: retrieve relevant records from experience/knowledge base.
 Uses LLM for semantic matching, zero extra dependencies.
@@ -59,7 +59,7 @@ async def search_self(question: str) -> dict:
     if not candidates:
         return {"result": "Experience base exists but has no usable summary content."}
 
-    search_prompt = f"""You are Opprime's memory search system.
+    search_prompt = f"""You are GBase's memory search system.
 
 The user just asked a question. You need to find the 1-3 most relevant entries from the experience base.
 Note: The experiences are knowledge learned from past conversations, not what the user is asking now.

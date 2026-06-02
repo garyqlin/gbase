@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/memory_profiler.py
+gbase/tools/memory_profiler.py
 
 Memory profiler tool.
 """

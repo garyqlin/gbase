@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/commit_helper.py
+gbase/tools/commit_helper.py
 
 AI commit message generator.
 Auto-commit helper for agent-1 (engineering arm).

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/learn.py
+gbase/tools/learn.py
 
 Self-learning tool — LLM configures learning direction.
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/reminder.py
+gbase/tools/reminder.py
 
 Reminder/scheduler tool. Uses JSON file storage.
 """

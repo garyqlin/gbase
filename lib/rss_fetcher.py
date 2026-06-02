@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/lib/rss_fetcher.py
+gbase/lib/rss_fetcher.py
 
 RSS fetcher — fetch and parse RSS feeds into structured data.
 
@@ -162,7 +162,7 @@ def save_rss_topics(topics: list[dict]):
 # RSS Fetching
 # ═══════════════════════════════════════════════════
 
-_USER_AGENT = "Opprime AutoLearner/1.0 (+https://github.com/opprime)"
+_USER_AGENT = "GBase AutoLearner/1.0 (+https://github.com/gbase)"
 
 
 def _fetch_feed(url: str, timeout: int = 15) -> str:

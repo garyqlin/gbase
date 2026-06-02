@@ -117,7 +117,7 @@ def _check_ollama() -> bool:
         return False
 
 
-def _do_train(model: str = "opprime-7b", epochs: int = 3):
+def _do_train(model: str = "gbase-7b", epochs: int = 3):
     """Train LoRA with mlx."""
     data_path, count = _export_data(force=False)
     if count < 3:
@@ -190,8 +190,8 @@ def _do_train(model: str = "opprime-7b", epochs: int = 3):
 def _resolve_gguf(model: str) -> Path | None:
     """Resolve GGUF file path from model name."""
     gguf_map = {
-        "opprime-lite": MODELS_DIR / "DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
-        "opprime-7b": MODELS_DIR / "DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
+        "gbase-lite": MODELS_DIR / "DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
+        "gbase-7b": MODELS_DIR / "DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
     }
     p = gguf_map.get(model)
     if not p or not p.exists():
@@ -253,7 +253,7 @@ def _convert_mlx(src: Path, train_dir: Path, val_dir: Path):
     _write(val_dir, lines[split:])
 
 
-def _do_push(model: str = "opprime-7b"):
+def _do_push(model: str = "gbase-7b"):
     """Push LoRA to ollama."""
     adapter_dir = EXPORT_DIR / f"lora-{model}"
     target_name = f"{model}-distilled"
@@ -289,7 +289,7 @@ def _do_push(model: str = "opprime-7b"):
     return target_name
 
 
-def _do_evaluate(model: str = "opprime-7b"):
+def _do_evaluate(model: str = "gbase-7b"):
     """Evaluate distillation quality.
 
     Use predefined test sets to evaluate the difference between original and distilled models.
@@ -453,7 +453,7 @@ def _load_self_learn_status() -> dict:
 
 @tool()
 async def distill_export() -> dict:
-    """Export training data from Opprime's experience library for local model distillation.
+    """Export training data from GBase's experience library for local model distillation.
 
     Convert high-confidence experiences from experience.jsonl and knowledge.jsonl
     into standard SFT format (JSONL).
@@ -471,11 +471,11 @@ async def distill_export() -> dict:
 
 
 @tool()
-async def distill_train(model: str = "opprime-7b", epochs: int = 3) -> dict:
+async def distill_train(model: str = "gbase-7b", epochs: int = 3) -> dict:
     """Fine-tune local GGUF model with LoRA using exported training data.
 
     Args:
-        model: Base model name (opprime-lite=1.5B, opprime-7b=7B, default 7B)
+        model: Base model name (gbase-lite=1.5B, gbase-7b=7B, default 7B)
         epochs: Training epochs (default 3)
     """
     adapter = _do_train(model=model, epochs=epochs)
@@ -485,22 +485,22 @@ async def distill_train(model: str = "opprime-7b", epochs: int = 3) -> dict:
 
 
 @tool()
-async def distill_push(model: str = "opprime-7b") -> dict:
+async def distill_push(model: str = "gbase-7b") -> dict:
     """Push fine-tuned LoRA adapter to ollama.
 
-    Create a new model named opprime-7b-distilled (or opprime-lite-distilled).
-    Then use `ollama run opprime-7b-distilled` to use it directly.
+    Create a new model named gbase-7b-distilled (or gbase-lite-distilled).
+    Then use `ollama run gbase-7b-distilled` to use it directly.
     """
     name = _do_push(model=model)
     return {"status": "ok", "model_name": name, "note": f"Distilled model '{name}' ready, use ollama run {name}"}
 
 
 @tool()
-async def distill_eval(model: str = "opprime-7b") -> dict:
+async def distill_eval(model: str = "gbase-7b") -> dict:
     """Evaluate quality comparison between distilled and original models.
 
     Args:
-        model: Model to evaluate (default opprime-7b)
+        model: Model to evaluate (default gbase-7b)
     """
     results = _do_evaluate(model=model)
     return {"status": "ok", "total": len(results), "note": f"Evaluation report: {EXPORT_DIR}/eval_report.json"}
@@ -512,9 +512,9 @@ async def distill_eval(model: str = "opprime-7b") -> dict:
 
 
 def cli_main():
-    parser = argparse.ArgumentParser(description="Opprime distillation tool")
+    parser = argparse.ArgumentParser(description="GBase distillation tool")
     parser.add_argument("action", choices=["export", "train", "push", "eval", "deps", "all"], help="Action type")
-    parser.add_argument("--model", default="opprime-7b", choices=["opprime-lite", "opprime-7b"])
+    parser.add_argument("--model", default="gbase-7b", choices=["gbase-lite", "gbase-7b"])
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--force", action="store_true")
 

@@ -151,7 +151,7 @@ def agent_generate_report(inputs: dict, context: dict) -> dict:
 
     report_lines = []
     report_lines.append("=" * 50)
-    report_lines.append("Opprime Daily Inspection Report")
+    report_lines.append("GBase Daily Inspection Report")
     report_lines.append(f"Time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     report_lines.append("=" * 50)
 
@@ -415,7 +415,7 @@ def agent_weekly_report(inputs: dict, context: dict) -> dict:
     """Weekly report generation."""
     stats = inputs.get("stats", "?")
     trend = inputs.get("trend", "?")
-    report = f"Opprime Weekly Report\nStats: {stats}\nTrend: {trend}\nGenerated at: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+    report = f"GBase Weekly Report\nStats: {stats}\nTrend: {trend}\nGenerated at: {time.strftime('%Y-%m-%d %H:%M:%S')}"
     return {"status": "ok", "report": report}
 
 

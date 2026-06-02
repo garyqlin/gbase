@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/test_generator.py
+gbase/tools/test_generator.py
 
 Auto-generate unit tests from code.
 Designed for agent-1 (engineering arm).

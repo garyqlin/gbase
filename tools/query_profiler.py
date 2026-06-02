@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/query_profiler.py
+gbase/tools/query_profiler.py
 
 SQL query performance profiler.
 DB query profiler for agent-1 (engineering) + standard edition.
@@ -36,7 +36,7 @@ async def profile_database(db_path: str = "", sql: str = "") -> dict:
         sys.executable or "python3",
         os.path.join(SKILL_DIR, "profile_queries.py"),
         "--output",
-        "/tmp/opprime-query-profile.json",
+        "/tmp/gbase-query-profile.json",
     ]
     if db_path:
         cmd.extend(["--sqlite", db_path])
@@ -52,7 +52,7 @@ async def profile_database(db_path: str = "", sql: str = "") -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
 
-        report_path = "/tmp/opprime-query-profile.json"
+        report_path = "/tmp/gbase-query-profile.json"
         if os.path.exists(report_path):
             with open(report_path, encoding="utf-8") as f:
                 report = json.load(f)

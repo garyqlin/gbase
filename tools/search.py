@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/search.py
+gbase/tools/search.py
 
 Web search: multi-engine parallel + BeautifulSoup parsing + auto snippet + cache
 """

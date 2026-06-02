@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/file_checker.py
+gbase/tools/file_checker.py
 
 File integrity checker tool.
 """

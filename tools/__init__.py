@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/__init__.py
+gbase/tools/__init__.py
 
 Tool set and platform route registration.
 Each identity can override in their own configuration.

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/lib/fetcher.py
+gbase/lib/fetcher.py
 
 Unified HTTP fetcher: proxy pool + auto-retry + header spoofing.
 Shared by all engines and fetch_page.

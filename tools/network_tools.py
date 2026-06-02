@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/tools/network_tools.py
+gbase/tools/network_tools.py
 
 Network diagnostic tool.
 """

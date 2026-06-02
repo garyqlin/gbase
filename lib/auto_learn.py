@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/lib/auto_learn.py
+gbase/lib/auto_learn.py
 
-Autonomous learning engine — enables Opprime to proactively learn from the web and persist knowledge.
+Autonomous learning engine — enables GBase to proactively learn from the web and persist knowledge.
 
 Design principles:
 - Runs independently, delivers report via configured channel

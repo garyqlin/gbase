@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/lib/tracer.py
+gbase/lib/tracer.py
 
 Execution observability — auto-trace each tool call, output exact failure step number.
 

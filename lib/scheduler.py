@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
 """
-opprime-core-v2/lib/scheduler.py v2.0 — Cron-like task scheduler
+gbase/lib/scheduler.py v2.0 — Cron-like task scheduler
 
 Changelog (2026-05-19):
 1. Three action types: action="custom", action="send", and action="learn".
    - "custom": send message content as LLM task to Kernel for processing (silent execution, no notification to owner)
    - "send": deliver notification to configured channel
    - "learn": call learn_all_topics() (original logic)
-2. Heartbeat protection: writes to /tmp/opprime_heartbeat every 5s for external stat to detect process liveness
+2. Heartbeat protection: writes to /tmp/gbase_heartbeat every 5s for external stat to detect process liveness
 """
 
 import asyncio
@@ -21,7 +21,7 @@ from datetime import UTC, datetime, timedelta
 logger = logging.getLogger(__name__)
 
 DB_PATH = os.environ.get("OPPRIME_CRON_DB", "data/cron.db")
-HEARTBEAT_PATH = "/tmp/opprime_heartbeat"
+HEARTBEAT_PATH = "/tmp/gbase_heartbeat"
 
 # ── Schedule Parsing ────────────────────────────────────────
 
@@ -152,7 +152,7 @@ class CronScheduler:
         self.db_path = db_path
         self._sender = None  # async def send_text(open_id, text)
         self._learner = None  # AutoLearner instance
-        self._kernel = None  # OpprimeKernel instance (for custom action)
+        self._kernel = None  # GBaseKernel instance (for custom action)
         self._learning = False
         self._running = False
         self._task: asyncio.Task | None = None

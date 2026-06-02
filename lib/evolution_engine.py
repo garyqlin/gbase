@@ -51,7 +51,7 @@ DEFAULT_RULES = {
         # Stability check
         "stability": {
             "enabled": True,
-            "check_services": ["opprime.service"],
+            "check_services": ["gbase.service"],
             "max_restart_attempts": 3,
             "startup_timeout_sec": 15,
         },

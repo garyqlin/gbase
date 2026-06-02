@@ -39,11 +39,17 @@ if _env_path.exists():
                 os.environ[_key] = _value
     logger.info(".env 已加载 (%s)", _env_path)
 
-# ── 原高达的飞书 Bot 配置 ──
-APP_ID = "cli_aa843ca68c7a9cba"
-APP_SECRET = "Bx2aoLqZ9R3VKdL4LCrcLgcTqjphIFZv"
-ENCRYPT_KEY = "lOLsHEZmAKwNcoWXLHl06czQWg0PSRrN"
-PORT = 8440
+# ── 原高达的飞书 Bot 配置（从环境变量读取，不硬编码） ──
+APP_ID = os.environ.get("FEISHU_APP_ID", "")
+APP_SECRET = os.environ.get("FEISHU_APP_SECRET", "")
+ENCRYPT_KEY = os.environ.get("FEISHU_ENCRYPT_KEY", "")
+PORT = int(os.environ.get("FEISHU_PORT", "8440"))
+
+# 启动时校验必备配置
+if not APP_ID or not APP_SECRET or not ENCRYPT_KEY:
+    logger.warning(
+        "飞书 Bot 配置不完整：请设置 FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_ENCRYPT_KEY 环境变量"
+    )
 
 # ── GBase/GBase 内核配置 ──
 IDENTITY_NAME = "gbase"

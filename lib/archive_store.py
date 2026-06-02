@@ -1,25 +1,25 @@
 # SPDX-License-Identifier: MIT
 """
-archive_store.py — 存档上下文存储（记忆架构 v2）
+archive_store.py — Archive context storage (memory architecture v2)
 
-替代所有压缩相关代码。不压缩对话，保留原始全文。
+Replaces all compression-related code. Does not compress conversations, retains original full text.
 
-核心思路：
-  - 原始对话全文写入 SQLite，不做任何摘要
-  - batch 写入（每 5 轮 flush）减少写入频率
-  - 按 session_key 索引过滤 + LIKE Search + BM25 排序
-  - 中文Search完全依赖 LIKE（性能测试：10K 条数据 LIKE 查询 <1ms）
+Core ideas:
+  - Write full original conversation to SQLite, no summarization
+  - Batch writes (flush every 5 rounds) reduces write frequency
+  - Filter by session_key index + LIKE Search + BM25 sorting
+  - Chinese Search fully relies on LIKE (performance test: 10K entries LIKE query <1ms)
 
-为什么不选 FTS5：
-  - FTS5 的 unicode61 tokenizer 不索引 CJK 字符（中文被忽略）
-  - 自定义 tokenizer 需编译 C 扩展（维护成本高）
-  - LIKE + session_key 索引在 100K 级别性能实测 < 2ms，完全足够
+Why not choose FTS5:
+  - FTS5 unicode61 tokenizer does not index CJK characters (Chinese is ignored)
+  - Custom tokenizer requires compiling C extensions (high maintenance cost)
+  - LIKE + session_key index performance test at 100K level < 2ms, fully sufficient
 
-用法：
+Usage:
   store = ArchiveStore(session_key="user:xxx")
-  store.append("user", "你的问题")
-  store.append("assistant", "我的回答")
-  hits = store.search("问题关键词")
+  store.append("user", "your question")
+  store.append("assistant", "my answer")
+  hits = store.search("query keywords")
 """
 
 import json
@@ -34,31 +34,31 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# ─── 默认配置 ──────────────────────────────────────
-_DEFAULT_BATCH_SIZE = 5          # 每 N 轮写入一次 DB
-_DEFAULT_BM25_THRESHOLD = 1.0    # 命中 1 个以上关键词即返回
-_DEFAULT_SEARCH_TOP_K = 4        # 最多返回多少条
-_MAX_CONTENT_CHARS = 2000        # 单条内容截断长度
-_MAX_ENTRIES_PER_SESSION = 50000 # 单 session 存档上限
+# ─── Default configuration ──────────────────────────────────────
+_DEFAULT_BATCH_SIZE = 5          # Write to DB every N rounds
+_DEFAULT_BM25_THRESHOLD = 1.0    # Return when 1+ keywords are hit
+_DEFAULT_SEARCH_TOP_K = 4        # Maximum number of results to return
+_MAX_CONTENT_CHARS = 2000        # Single content truncation length
+_MAX_ENTRIES_PER_SESSION = 50000 # Single session archive limit
 _LOCK = threading.Lock()
 
-# ── M3 稀疏注意力启发：时间衰减分段策略 ──
-# 7天内（热区）：全权重，无衰减
-# 7-30天（温区）：线性衰减，从1.0到0.5
-# 30+天（冷区）：指数衰减，每30天×0.5
+# ── M3 sparse attention inspired: Time decay segmentation strategy ──
+# Within 7 days (hot zone): Full weight, no decay
+# 7-30 days (warm zone): Linear decay from 1.0 to 0.5
+# 30+ days (cold zone): Exponential decay, ×0.5 every 30 days
 _TIME_DECAY_WARM_HOURS = 168     # 7 * 24
 _TIME_DECAY_COLD_HOURS = 720     # 30 * 24
 
-# ── Cosmos 3 启发：Entity conflict detection配置 ──
-_CONFLICT_SENSITIVITY = 0.8      # 冲突判定阈值
+# ── Cosmos 3 inspired: Entity conflict detection configuration ──
+_CONFLICT_SENSITIVITY = 0.8      # Conflict determination threshold
 
-# ── 热度缓存（LRU）───
-_HOT_CACHE_MAX_SIZE = 64         # 最多缓存64个实体查询
-_HOT_CACHE_TTL_SEC = 3600         # 缓存有效期1小时
+# ── Hot cache (LRU)───
+_HOT_CACHE_MAX_SIZE = 64         # Cache up to 64 entity queries
+_HOT_CACHE_TTL_SEC = 3600         # Cache validity period 1 hour
 
 
 class ArchiveStore:
-    """会话存档存储 —— 不压缩，保留原始对话全文。"""
+    """Session archive storage — No compression, retains full original conversation text."""
 
     def __init__(
         self,
@@ -75,7 +75,7 @@ class ArchiveStore:
         self._turn_count = 0
         self._last_user_prefix = ""
         self._turn_entries: list[int] = []  # 当前轮的 entry id（flush 后用于 marker）
-        # ── 热度查询缓存（M3 启发：LRU 加速高频实体查询） ──
+        # ── Hot query cache (M3 inspired: LRU accelerates high-frequency entity queries) ──
         self._hot_cache: OrderedDict = OrderedDict()
         self._hot_cache_max = _HOT_CACHE_MAX_SIZE
         self._hot_cache_ttl = _HOT_CACHE_TTL_SEC
@@ -93,7 +93,7 @@ class ArchiveStore:
         self._init_db()
 
     def _init_db(self):
-        """初始化表（线程安全，幂等）。"""
+        """Initialize tables (thread-safe, idempotent)."""
         with _LOCK:
             conn = sqlite3.connect(self.db_path)
             try:
@@ -111,7 +111,7 @@ class ArchiveStore:
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_archive_skey ON archive_entries(session_key)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_archive_ts ON archive_entries(timestamp)")
 
-                # ── 时间线标记表 ──
+                # ── Timeline marker table ──
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS archive_markers (
                         id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -128,10 +128,10 @@ class ArchiveStore:
             finally:
                 conn.close()
 
-    # ── 写入 ──────────────────────────────────────────
+    # ── Write ──────────────────────────────────────────
 
     def append(self, role: str, content: str | list | dict, *, priority: int = 0, source_id: str = ""):
-        """追加一条对话记录。自动生成时间线标记。"""
+        """Append a conversation record. Automatically generate timeline markers."""
         if not content:
             return
 
@@ -332,7 +332,7 @@ class ArchiveStore:
         return None
 
     def _check_conflict(self, content: str) -> str:
-        """写入前检查是否与已有存档中同一实体的矛盾事实冲突。
+        """Write前检查是否与已有存档中同一实体的矛盾事实冲突。
 
         做浅层模式匹配：
         - 检测到"xxxx是YYY"句式
@@ -393,7 +393,7 @@ class ArchiveStore:
         return ""
 
     def flush(self):
-        """批量写入 pending 数据和时间线标记。"""
+        """批量Write pending 数据和时间线标记。"""
         with _LOCK:
             conn = sqlite3.connect(self.db_path)
             try:
@@ -434,7 +434,7 @@ class ArchiveStore:
                         row = cursor.fetchone()
                         if row:
                             cutoff_id = row[0]
-                            # 1️⃣ 先读被删数据 → 写入 trash 文件（纯文本 JSONL）
+                            # 1️⃣ 先读被删数据 → Write trash 文件（纯文本 JSONL）
                             trash = conn.execute(
                                 "SELECT content, role, timestamp, source_id FROM archive_entries WHERE session_key = ? AND id < ?",
                                 (self.session_key, cutoff_id),
@@ -589,7 +589,7 @@ class ArchiveStore:
         scored.sort(key=lambda r: (-r["priority"], -r["score"]))
         result = scored[:top_k]
 
-        # ── 写入缓存 ──
+        # ── Write缓存 ──
         if result:
             self._hot_cache[cache_key] = (time.time(), result)
             if len(self._hot_cache) > self._hot_cache_max:
@@ -766,7 +766,7 @@ def _save_trash(session_key: str, rows: list[tuple]):
             f.write("\n".join(lines) + "\n")
         logger.info("📝 归档 %d 条 -> %s", len(rows), trash_path)
     except Exception as e:
-        logger.warning("归档写入失败（不影响主流程）: %s", e)
+        logger.warning("归档Write失败（不影响主流程）: %s", e)
 
 
 def _copy_old_data(dat_db_path: str, archive_db_path: str):

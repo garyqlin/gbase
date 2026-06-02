@@ -6,7 +6,7 @@ Kernel loop: LLM invocation → tool execution → recall → response.
 
 Layer 2 of the three-tier architecture:
 - - Single responsibility: LLM call + tool_call execution loop
-- 不做:Memory injection、经验存储、侦察兵、认知检测
+- Not responsible for: Memory injection, experience storage, scout, cognitive detection
 - - Maximum 5 levels of tool call depth
 """
 
@@ -30,7 +30,7 @@ from .tracer import close_trace, get_failure_analysis, init_trace, record_tool_c
 # # GMem is GBase's built-in memory system, implemented by upgrading three submodules: mirror / toolkit / experience
 # # No external service dependencies, no new dependencies introduced
 # # P0: KV Cache preparation → hot_pattern_observe() tracks high-frequency patterns
-# P1: 异步记忆调度 → create_task 非阻塞Experience extraction + async_record
+# P1: Asynchronous memory scheduling → create_task non-blocking Experience extraction + async_record
 # # P2: Experience standardization → export/import version verification + filtering
 # # P3: Entity relationship graph → gmem_relations table + predict() multi-hop extension
 
@@ -46,19 +46,19 @@ async def _async_mirror_record(mirror_engine, user_message: str, reply: str, com
 
 
 async def _auto_note_if_deep_work(tool_count: int, reply: str, user_message: str):
-    """自动笔记触发器：检测到深度工作时后台写入 L4 笔记。
+    """Auto note trigger: Write to L4 note in background when deep work is detected.
 
-    触发条件（需同时满足）：
-    - 工具调用 >= 5 次（说明做了实质性工作）
-    - IP 回复长度 > 300 字（说明内容充实）
-    - 不是简单回复（不含纯问答特征）
+    Trigger conditions (all must be met):
+    - Tool calls >= 5 (indicates substantial work done)
+    - IP reply length > 300 characters (indicates substantial content)
+    - Not a simple reply (no pure Q不是简单回复（不含纯问答特征）A features)
 
-    这样做的理由：
-    - 高达（Gundam）的任务一轮结束没有自动触发 note_write
-    - 热记忆 mirror 会衰减，深度调研/设计的内容重启后就只剩碎片
-    - L4 笔记不衰减，是唯一可靠的持久层
-    - 与其依赖 LLM 记得主动 call note_write，不如系统自动兜底
-    - 但 LLM 主动写的（含 judgment 的）远优于自动的，所以 auto 只作为兜底，不替代手动
+    Rationale:
+    - Gundam tasks do not automatically trigger note_write at the end of a round
+    - Hot memory mirror will decay, content from deep research/design will only be fragments after restart
+    - L4 notes do not decay, is the only reliable persistence layer
+    - Instead of relying on LLM to remember to call note_write actively, let the system automatically cover the bottom line
+    - But LLM actively written (with judgment) is far better than automatic ones, so auto only serves as a bottom line, does not replace manual writing
     """
     # Condition 1: Tool call count meets threshold
     if tool_count < 5:
@@ -93,7 +93,7 @@ async def _auto_note_if_deep_work(tool_count: int, reply: str, user_message: str
 
         await _raw_note_write(
             title=title,
-            content=f"[System Auto Archive] 来自对话总结\n\n## Current Task\n{user_message[:200]}\n\n## Output Summary\n{content}",
+            content=f"[System Auto Archive] From conversation summary\n\n## Current Task\n{user_message[:200]}\n\n## Output Summary\n{content}",
             tags=tags,
             source="kernel.auto_note",
         )
@@ -107,7 +107,7 @@ async def _auto_note_if_deep_work(tool_count: int, reply: str, user_message: str
 
 
 async def _async_deep_search_save(mirror_engine, query: str, tool_name: str, _args: dict):
-    """GMem P0: 深度搜索后自动Save结果摘要到 mirror。"""
+    """GMem P0: Automatically save search result summary to mirror after deep search."""
     try:
         summary = (query or tool_name)[:200]
         # Estimate search depth from kernel file hierarchy

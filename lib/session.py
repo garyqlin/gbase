@@ -2,13 +2,13 @@
 """
 gbase/lib/session.py
 
-Session 管理：append-only JSONL 实现。
-永不物理删除旧条目，通过压缩路标跳转。
+Session management: append-only JSONL implementation.
+Never physically delete old entries, navigate via compression markers.
 
-三层Context compression体系（Claude Code 五层压缩的简化版）：
-- L1: 在线实时压缩 — 对话超过阈值时用 LLM 生成摘要
-- L2: 多层摘要进化 — 多个 compaction 合并为更高级摘要
-- L3: 会话状态追踪 — 动态压缩阈值 + 上下文使用量统计
+Three-layer context compression system (simplified version of Claude Code's 5-layer compression):
+- L1: Real-time online compression - Generate summary with LLM when conversation exceeds threshold
+- L2: Multi-layer summary evolution - Merge multiple compactions into higher-level summaries
+- L3: Session state tracking - Dynamic compression threshold + context usage statistics
 """
 
 import json
@@ -20,33 +20,33 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 class JsonlSessionManager:
-    """Append-only JSONL Session Manager，带三层压缩能力。"""
+    """Append-only JSONL Session Manager with three-layer compression capability."""
 
     def __init__(self, filepath: str, max_context: int = 100):
         self.filepath = Path(filepath)
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
         self.max_context = max_context
-        self._adaptive_max = max_context  # L3: 动态阈值调节
+        self._adaptive_max = max_context  # L3: Dynamic threshold adjustment
         self.fh: object | None = None
         self._stats = {"messages": 0, "compactions": 0, "tokens_estimate": 0}
-        self._compacted_up_to = 0  # 压缩路标
-        self._compaction_level = 0  # L2: 当前摘要层级（第几次合并压缩）
+        self._compacted_up_to = 0  # Compression marker
+        self._compaction_level = 0  # L2: Current summary level (number of merge compressions)
         self._open()
 
     def _open(self):
-        """打开或创建 JSONL 文件。"""
+        """Open or create JSONL file."""
         if self.fh:
             try:
                 if hasattr(self.fh, "close"):
                     self.fh.close()
             except Exception:
-                logger.exception("静默异常")
+                logger.exception("Silent exception")
         self.fh = open(self.filepath, "a+", encoding="utf-8")
 
 
     def _update_adaptive_max(self):
-        """L3: 根据压缩层级动态调节上下文保留轮次。"""
-        # 每层压缩后，保留的轮次缩小，但不低于底线
+        """L3: Dynamically adjust context retention rounds based on compression level."""
+        # After each layer of compression, the number of retained rounds decreases, but not below the minimum
         base = self.max_context
         level = self._compaction_level
         if level <= 0:
@@ -56,13 +56,13 @@ class JsonlSessionManager:
         elif level == 2:
             self._adaptive_max = max(8, base - 8)
         else:
-            self._adaptive_max = 50  # 第三层及以上，至少保留 3 轮（6 条消息）
+            self._adaptive_max = 50  # Level 3 and above, retain at least 3 rounds (6 messages)
 
     @staticmethod
     def _estimate_tokens(text: str) -> int:
-        """粗略估算 token 数。
+        """Roughly estimate token count.
 
-        中文约 1.5 chars/token，英文约 4 chars/token，加安全边际。
+        Chinese approx 1.5 chars/token, English approx 4 chars/token, plus safety margin.
         """
         if not text:
             return 0
@@ -80,7 +80,7 @@ class JsonlSessionManager:
         return self._adaptive_max
 
     def append(self, entry: dict) -> int:
-        """追加一条记录。entry 是消息字典，必须包含 role 字段。"""
+        """Append a record. entry is a message dictionary, must contain role field."""
         entry["_id"] = int(time.time() * 1000)
         entry["_ts"] = time.time()
         role = entry.get("role", "unknown")
@@ -101,12 +101,12 @@ class JsonlSessionManager:
         return entry["_id"]
 
     def append_batch(self, entries: list[dict]):
-        """批量追加。"""
+        """Batch append."""
         for e in entries:
             self.append(e)
 
     def append_user_message(self, content: str, extra: dict | None = None) -> int:
-        """快捷：追加一条用户消息。"""
+        """Shortcut: Append a user message."""
         entry = {"role": "user", "content": content}
         if extra:
             entry.update(extra)
@@ -116,17 +116,17 @@ class JsonlSessionManager:
         return self
 
     def build_context(self, max_messages: int | None = None, max_tokens: int = 0) -> list[dict]:
-        """构建 LLM messages 上下文。
+        """Build LLM messages context.
 
         Three-layer filtering：
-        1. compaction entry 跳过旧内容，注入摘要（多层：只有最高层摘要注入）
-        2. 去掉 tool_call / tool_result
-        3. 按轮压缩 + 保留最近 max_messages 轮
+        1. Compaction entry skips old content, injects summary (multi-layer: only highest level summary is injected)
+        2. Remove tool_call / tool_result
+        3. Compress by round + retain last max_messages rounds
 
-        如果 max_tokens > 0，从后往前累计 token，超出则截断前面的内容。
+        If max_tokens > 0, accumulate tokens from back to front, truncate front content when exceeding.
 
-        L2 多层摘要：如果有多个 compaction level，
-        只有最高层的摘要被注入到上下文。
+        L2 multi-layer summary: If there are multiple compaction levels,
+        Only the highest level summary is injected into the context.
         """
         if max_messages is None:
             max_messages = self._adaptive_max
@@ -134,8 +134,8 @@ class JsonlSessionManager:
         messages: list[dict] = []
         current_assistant_buf: dict | None = None
         skipped_compacted = False
-        highest_summary = ""  # L2: 最高层摘要（用于注入）
-        highest_entry = None  # L2: 最高层完整 entry（结构化字段使用）
+        highest_summary = ""  # L2: Highest level summary (for injection)
+        highest_entry = None  # L2: Highest level complete entry (for structured field usage)
         highest_level = -1
 
         try:
@@ -334,7 +334,7 @@ class JsonlSessionManager:
                             "content": entry.get("content", ""),
                         })
         except Exception:
-            logger.exception("静默异常")
+            logger.exception("Silent exception")
 
         return {"summaries": summaries, "recent": recent[-max_messages:]}
 
@@ -343,7 +343,7 @@ class JsonlSessionManager:
             try:
                 self.fh.close()
             except Exception:
-                logger.exception("静默异常")
+                logger.exception("Silent exception")
 
     def __del__(self):
         self.close()

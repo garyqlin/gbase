@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 MAILBOX_URL = os.getenv("OPPRIME_MAILBOX_URL", "")
 CHAIN_URL = os.getenv("OPPRIME_CHAIN_ORANGE_URL", "")
 
-# 当前 GBase 的邮箱地址
-MY_ADDRESS = "zagu:)node3.gbase"  # 后续可根据节点 ID 动态获取
+# 当前 GBase 的邮箱地址（建议从环境变量或配置读取）
+MY_ADDRESS = os.getenv("GBASE_MAILBOX_ADDRESS", "zagu:)node3.gbase")
 
 
 @tool()

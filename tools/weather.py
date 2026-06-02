@@ -20,14 +20,19 @@ WEATHER_API = "https://wttr.in/{city}?format=%C+%t+%h+%w"
 @tool()
 async def get_weather(city: str) -> dict:
     """Query current weather for a given city."""
-    url = WEATHER_API.format(city=city)
+    # Sanitize city input to prevent injection into URL
+    import re
+    safe_city = re.sub(r'[^a-zA-Z\u4e00-\u9fff\s,.-]', '', city.strip())[:100]
+    if not safe_city:
+        return {"error": "Invalid city name"}
+    url = WEATHER_API.format(city=safe_city)
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=10)
             text = resp.text.strip()
             if not text or "Unknown" in text:
                 return {"error": f"City '{city}' not found"}
-            return {"city": city, "weather": text}
+            return {"city": safe_city, "weather": text}
     except Exception as e:
-        logger.warning("Weather query failed %s: %s", city, e)
+        logger.warning("Weather query failed %s: %s", safe_city, e)
         return {"error": f"Weather query failed: {str(e)}"}

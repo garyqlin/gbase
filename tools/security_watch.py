@@ -9,12 +9,16 @@ YF-security-scanner 集成：本地安全扫描。
 import asyncio
 import logging
 import os
+import re
 import sys
 
 from lib.toolkit import tool
 
 logger = logging.getLogger(__name__)
-SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-security-scanner/scripts")
+SKILL_DIR = os.environ.get(
+    "YF_SECURITY_SCANNER_DIR",
+    os.path.expanduser("~/.qclaw/skills/YF-security-scanner/scripts"),
+)
 
 
 @tool()
@@ -28,11 +32,18 @@ async def security_scan_directory(directory: str, output: str = "") -> dict:
     Returns:
         扫描结果摘要（高危/中危/低风险数量）
     """
+    # Sanitize directory path to prevent injection
+    safe_dir = re.sub(r'[;&|`$]', '', directory.strip())
+    if not safe_dir:
+        return {"error": "Directory path is empty after sanitization"}
+    if not os.path.isdir(safe_dir):
+        return {"error": f"Directory not found: {safe_dir}"}
+
     cmd = [
         sys.executable or "python3",
         os.path.join(SKILL_DIR, "security_scan.py"),
         "--dir",
-        directory,
+        safe_dir,
     ]
     if output:
         cmd.extend(["--output", output])

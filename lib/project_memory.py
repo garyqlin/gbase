@@ -9,7 +9,7 @@ lib/project_memory.py
 核心能力：
 - Phase/Task 进度追踪：记录"在做什么、做到哪了、下一步是什么"
 - Decision 决策日志：关键决策 + 上下文 + 推理链，可回溯
-- Context 上下文快照：对话结束自动保存，对话开始自动恢复
+- Context 上下文快照：对话结束自动Save，对话开始自动恢复
 - 与进化引擎联动：每次进化记录进记忆，每次改动有上下文
 
 数据目录：data/project_memory/
@@ -201,7 +201,7 @@ def save_context(
     overview: str, current_task: str = "", next_steps: list = None, active_files: list = None, notes: str = ""
 ):
     """
-    保存当前工作上下文——对话结束时调用。
+    Save当前工作上下文——对话结束时调用。
     下次对话开始时自动恢复。
     """
     context = {
@@ -217,7 +217,7 @@ def save_context(
 
 
 def load_context() -> dict:
-    """加载上次保存的上下文。"""
+    """加载上次Save的上下文。"""
     context = _load_json(CONTEXT_PATH, {})
     if context:
         age = time.time() - datetime.fromisoformat(context.get("saved_at", "2000-01-01T00:00:00")).timestamp()
@@ -283,11 +283,11 @@ def init_project_memory():
     _ensure_dirs()
 
     # 波段一：核心基础设施
-    set_phase("band-1", "波段一：核心基础设施", "备份系统 + 进化引擎 + AI自愈管道", "completed")
-    add_task("band-1", "backup-system", "写前自动备份系统", "lib/backup.py", "done")
+    set_phase("band-1", "波段一：核心基础设施", "Backup系统 + 进化引擎 + AI自愈管道", "completed")
+    add_task("band-1", "backup-system", "写前自动Backup系统", "lib/backup.py", "done")
     add_task("band-1", "evolution-engine", "自动进化触发链路", "lib/evolution_engine.py", "done")
-    add_task("band-1", "writefile-integration", "write_file 集成备份", "tools/write_file.py", "done")
-    add_task("band-1", "rollback-tool", "回滚 CLI 工具", "tools/rollback.py", "done")
+    add_task("band-1", "writefile-integration", "write_file 集成Backup", "tools/write_file.py", "done")
+    add_task("band-1", "rollback-tool", "Rollback CLI 工具", "tools/rollback.py", "done")
     add_task("band-1", "self-heal", "AI自愈管道 (lifeline)", "lib/lifeline.py", "done")
 
     # 波段二：长项目记忆 + 进化闭环
@@ -298,9 +298,9 @@ def init_project_memory():
     add_task("band-2", "auto-context-recovery", "对话开始时自动恢复上下文", "加载上次 context.json", "todo")
     add_task("band-2", "progress-card", "进度可视化卡片", "从 phases.json 生成飞书卡片", "todo")
 
-    # 保存初始上下文
+    # Save初始上下文
     save_context(
-        overview="波段二启动：正在创建项目记忆引擎。波段一已完成（备份+进化引擎+自愈管道）。",
+        overview="波段二启动：正在创建项目记忆引擎。波段一已完成（Backup+进化引擎+自愈管道）。",
         current_task="创建项目记忆引擎 (lib/project_memory.py)",
         next_steps=[
             "验证 project_memory.py 语法和函数",

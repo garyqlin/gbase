@@ -114,9 +114,9 @@ def check_failure_patterns(file_path: str, new_content: str) -> list[str]:
         if not lib_path.exists():
             hits.append(f"FP-004: from lib.{lib} 可能不存在 ({lib_path} not found)")
 
-    # FP-005：改前没备份
+    # FP-005：改前没Backup
     if "lifeline" not in new_content and any(kw in new_content for kw in ["port=", "api_key=", "secret="]):
-        # 改端口/API key 建议加备份
+        # 改端口/API key 建议加Backup
         pass
 
     return hits

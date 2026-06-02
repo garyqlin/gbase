@@ -64,7 +64,7 @@ def extract_key_points_from_session(session_path: str, max_entries: int = 50) ->
         tool_calls = d.get("tool_calls", None)
 
         if role == "user" and content:
-            # 新问题开始，保存前一对
+            # 新问题开始，Save前一对
             if current_q and current_a:
                 pairs.append({"q": current_q, "a": current_a})
             current_q = content[:200]
@@ -281,7 +281,7 @@ def run_daily_extraction(session_path: str = None, db_path: str = DB_PATH):
     return inserted
 
 
-# ─── 跨 session 记忆注入 ──────────────────────────
+# ─── 跨 session Memory injection ──────────────────────────
 
 
 def get_cross_session_injections(session_dir: str = None, max_recent: int = 3) -> str:

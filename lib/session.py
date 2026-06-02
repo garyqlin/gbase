@@ -5,7 +5,7 @@ gbase/lib/session.py
 Session 管理：append-only JSONL 实现。
 永不物理删除旧条目，通过压缩路标跳转。
 
-三层上下文压缩体系（Claude Code 五层压缩的简化版）：
+三层Context compression体系（Claude Code 五层压缩的简化版）：
 - L1: 在线实时压缩 — 对话超过阈值时用 LLM 生成摘要
 - L2: 多层摘要进化 — 多个 compaction 合并为更高级摘要
 - L3: 会话状态追踪 — 动态压缩阈值 + 上下文使用量统计
@@ -20,7 +20,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 class JsonlSessionManager:
-    """Append-only JSONL 会话管理器，带三层压缩能力。"""
+    """Append-only JSONL Session Manager，带三层压缩能力。"""
 
     def __init__(self, filepath: str, max_context: int = 100):
         self.filepath = Path(filepath)
@@ -118,7 +118,7 @@ class JsonlSessionManager:
     def build_context(self, max_messages: int | None = None, max_tokens: int = 0) -> list[dict]:
         """构建 LLM messages 上下文。
 
-        三层过滤：
+        Three-layer filtering：
         1. compaction entry 跳过旧内容，注入摘要（多层：只有最高层摘要注入）
         2. 去掉 tool_call / tool_result
         3. 按轮压缩 + 保留最近 max_messages 轮
@@ -272,7 +272,7 @@ class JsonlSessionManager:
         # 保留最近 max_messages 轮
         # 但强制保留最后 1 轮完整 user+assistant（防止 LLM 忘记自己刚说过什么）
         if len(messages) > max_messages:
-            # 截断前保存最后完整的 user+assistant 对
+            # 截断前Save最后完整的 user+assistant 对
             keep = []
             for m in reversed(messages):
                 keep.insert(0, m)

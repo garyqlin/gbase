@@ -7,8 +7,8 @@ archive_store.py — 存档上下文存储（记忆架构 v2）
 核心思路：
   - 原始对话全文写入 SQLite，不做任何摘要
   - batch 写入（每 5 轮 flush）减少写入频率
-  - 按 session_key 索引过滤 + LIKE 检索 + BM25 排序
-  - 中文检索完全依赖 LIKE（性能测试：10K 条数据 LIKE 查询 <1ms）
+  - 按 session_key 索引过滤 + LIKE Search + BM25 排序
+  - 中文Search完全依赖 LIKE（性能测试：10K 条数据 LIKE 查询 <1ms）
 
 为什么不选 FTS5：
   - FTS5 的 unicode61 tokenizer 不索引 CJK 字符（中文被忽略）
@@ -49,7 +49,7 @@ _LOCK = threading.Lock()
 _TIME_DECAY_WARM_HOURS = 168     # 7 * 24
 _TIME_DECAY_COLD_HOURS = 720     # 30 * 24
 
-# ── Cosmos 3 启发：实体冲突检测配置 ──
+# ── Cosmos 3 启发：Entity conflict detection配置 ──
 _CONFLICT_SENSITIVITY = 0.8      # 冲突判定阈值
 
 # ── 热度缓存（LRU）───
@@ -145,7 +145,7 @@ class ArchiveStore:
 
         ts = time.time()
 
-        # 用户消息：记录前缀 + 实体冲突检测（Cosmos 3 启发）
+        # 用户消息：记录前缀 + Entity conflict detection（Cosmos 3 启发）
         if role == "user":
             conflict = self._check_conflict(content)
             if conflict:
@@ -315,7 +315,7 @@ class ArchiveStore:
 
         return " · ".join(parts)
 
-    # ── Cosmos 3 启发：实体冲突检测 ───────────────────
+    # ── Cosmos 3 启发：Entity conflict detection ───────────────────
 
     @staticmethod
     def _get_subject_entity(text: str) -> str | None:
@@ -480,13 +480,13 @@ class ArchiveStore:
         self._batch_count = 0
         self._last_flush_time = time.time()
 
-    # ── 检索（语义桥）─────────────────────────────────
+    # ── Search（语义桥）─────────────────────────────────
 
     def search(self, query: str, top_k: int = _DEFAULT_SEARCH_TOP_K,
                time_from: float | None = None, time_to: float | None = None) -> list[dict]:
-        """检索当期会话中与 query 相关的历史记录。
+        """Search当期会话中与 query 相关的历史记录。
 
-        支持多维弱线索检索：
+        支持多维弱线索Search：
           - 关键词匹配（中文2-gram/英文分词）
           - 时间范围过滤（可选）
           - priority 加权
@@ -504,7 +504,7 @@ class ArchiveStore:
 
         keywords = self._extract_keywords(query)
         if not keywords:
-            logger.debug("语义桥：query 无可检索关键词")
+            logger.debug("语义桥：query 无可Search关键词")
             return []
 
         # ── 热度缓存命中（M3 启发：高频实体免扫全表） ──

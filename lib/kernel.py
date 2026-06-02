@@ -6,7 +6,7 @@ gbase/lib/kernel.py
 
 三层架构的 Layer 2:
 - 只做一件事:LLM 调用 + tool_call 执行循环
-- 不做:记忆注入、经验存储、侦察兵、认知检测
+- 不做:Memory injection、经验存储、侦察兵、认知检测
 - 最多 5 层工具调用深度
 """
 
@@ -30,7 +30,7 @@ from .tracer import close_trace, get_failure_analysis, init_trace, record_tool_c
 # GMem 是 GBase 自带的记忆系统，通过升级 mirror / toolkit / experience 三个子模块实现
 # 不依赖外部服务，不引入新依赖
 # P0: KV Cache 准备 → hot_pattern_observe() 跟踪高频模式
-# P1: 异步记忆调度 → create_task 非阻塞经验提取 + async_record
+# P1: 异步记忆调度 → create_task 非阻塞Experience extraction + async_record
 # P2: 经验标准化 → export/import 版本校验 + 筛选
 # P3: 实体关系图 → gmem_relations 表 + predict() 多跳扩展
 
@@ -107,7 +107,7 @@ async def _auto_note_if_deep_work(tool_count: int, reply: str, user_message: str
 
 
 async def _async_deep_search_save(mirror_engine, query: str, tool_name: str, _args: dict):
-    """GMem P0: 深度搜索后自动保存结果摘要到 mirror。"""
+    """GMem P0: 深度搜索后自动Save结果摘要到 mirror。"""
     try:
         summary = (query or tool_name)[:200]
         # 从 kernel 文件层级推算搜索深度
@@ -145,7 +145,7 @@ async def _async_extract_experience(
             llm_client=client,
         )
     except Exception as e:
-        logger.warning("异步经验提取异常: %s", e)
+        logger.warning("异步Experience extraction异常: %s", e)
 
 
 def _is_retryable_error(result: dict) -> bool:
@@ -255,7 +255,7 @@ _TASK_TYPES = {
     "maintain": ["检查", "查看", "状态", "日志", "修复", "排查", "看下", "诊断"],
 }
 
-_SHORT_EXECUTE = {"重启", "部署", "推送", "发布", "回滚", "启动", "停止", "构建", "还原"}
+_SHORT_EXECUTE = {"重启", "部署", "推送", "发布", "Rollback", "启动", "停止", "构建", "还原"}
 
 _TEMP_CONFIG = {
     "explore": {"mode": "warm", "mirror_max": 4, "experience_max": 2, "desc": "探索/研究 — 轻量模式"},
@@ -342,10 +342,10 @@ class Kernel:
         self._user_msg_lengths: list[int] = []  # 最近 N 轮用户消息长度
         self._consecutive_short = 0  # 连续简短回复计数
 
-        # ── 反脆弱: 回路计数 + 框架自省 ──
+        # ── Anti-fragile: loop counting + 框架自省 ──
         self._round_count: int = 0  # 累加对话轮次
 
-        # ── ArchiveStore 初始化（无 session 依赖，全局写入 + 全局检索） ──
+        # ── ArchiveStore 初始化（无 session 依赖，全局写入 + 全局Search） ──
         from pathlib import Path
         self._archive_store = None
         if data_dir:
@@ -368,7 +368,7 @@ class Kernel:
             tk.set_global("mirror_engine", mirror_engine)
 
     def _build_dynamic_system_prompt(self) -> str:
-        """动态构建 system prompt：基础身份 + workspace file injection + skill 索引。
+        """Dynamically build system prompt：基础身份 + workspace file injection + skill 索引。
 
         每次 run() 调用时重建，与 OpenClaw 每 turn 重新拼装的逻辑一致。
         拼装顺序参考 OpenClaw 的 buildAgentSystemPrompt + CONTEXT_FILE_ORDER。
@@ -388,7 +388,7 @@ class Kernel:
 
         # ── 云端：无 workspace 文件注入（这些文件只在本地 Mac Studio）
 
-        # ── 技能路由（SkillRouter + SkillLoader 双层匹配） ──
+        # ── Skill Router（SkillRouter + SkillLoader 双层匹配） ──
         if self.skill_loader:
             from .skill_router import SkillRouter
             router = SkillRouter(
@@ -424,7 +424,7 @@ class Kernel:
         # ── RSI Dual-Knob: Run Temperature — 使用用户消息判断任务类型 ──
         temp_cfg = _TEMP_CONFIG.get(self._current_task_type, _TEMP_CONFIG["discuss"])
 
-        # ── 鉴面引擎注入（分层：热记忆 + 温记忆） ──
+        # ── Mirror Engine注入（分层：热记忆 + 温记忆） ──
         if self.mirror_engine:
             # L1: Hot memory — high inject_hits lesson only, max 3
             hot_text = self.mirror_engine.get_injection_text(
@@ -445,7 +445,7 @@ class Kernel:
             if warm_text:
                 parts.append(warm_text)
 
-        # ── L2 Knowledge 自动检索注入 ──
+        # ── L2 Knowledge 自动Search注入 ──
         # 每次对话启动时，用当前用户消息匹配知识库中的事实
         # 命中后注入 system prompt，不依赖 LLM 自己记得去 search_knowledge
         from .toolkit import get_global
@@ -454,7 +454,7 @@ class Kernel:
         if _storage and self._current_user_message and len(self._current_user_message) > 3:
             try:
                 _query = self._current_user_message[:200]
-                logger.info("Knowledge 自动检索: query=%s", _query)
+                logger.info("Knowledge 自动Search: query=%s", _query)
                 # 直接查 SQLite (不走 tool, 直接调 storage)
                 # 中文不分词，改用字符级 n-gram: 单字+双字组合
                 _import_re = __import__('re')
@@ -503,13 +503,13 @@ class Kernel:
                         + "\n".join(_results)
                     )
                     parts.append(_know_text)
-                    logger.info("Knowledge 自动检索: 命中 %d 条", len(_results))
+                    logger.info("Knowledge 自动Search: 命中 %d 条", len(_results))
                 else:
-                    logger.info("Knowledge 自动检索: 无命中")
+                    logger.info("Knowledge 自动Search: 无命中")
             except Exception as _e:
-                logger.warning("Knowledge 自动检索失败（不阻塞主流程）: %s", _e)
+                logger.warning("Knowledge 自动Search失败（Non-blocking for main flow）: %s", _e)
 
-        # ── 上下文交接注入（修复 AI 失忆：从上次 session 提取对话实质） ──
+        # ── 上下文交接注入（修复 AI 失忆：Extract conversation essence from previous session） ──
         if self.mirror_engine:
             handoff_text = self.mirror_engine.inject_last_context()
             if handoff_text:
@@ -574,7 +574,7 @@ class Kernel:
             if _cross:
                 _memory_injections.append(("今日其他会话", _cross))
         except Exception:
-            logger.exception("L0 跨会话记忆注入失败")
+            logger.exception("L0 跨会话Memory injection失败")
 
         try:
             # L1: daily_memory 会话记忆
@@ -583,10 +583,10 @@ class Kernel:
             if _daily:
                 _memory_injections.append(("会话记忆摘要", _daily))
         except Exception:
-            logger.exception("L1 会话记忆注入失败")
+            logger.exception("L1 会话Memory injection失败")
 
         try:
-            # L2: 活跃经验注入（按 hits 排序 + 最近7天中置信度过滤）
+            # L2: 活跃Experience injection（按 hits 排序 + 最近7天中置信度过滤）
             _rows = []
             _kn_rows = []
             from .storage import Storage
@@ -647,7 +647,7 @@ class Kernel:
                     _lines.append(f"  - 💡 {_s[:180]} (hits={_h}, {_dt})")
                 _memory_injections.append(("活跃知识点", "\n".join(_lines)))
         except Exception:
-            logger.exception("L2 记忆注入失败")
+            logger.exception("L2 Memory injection失败")
 
         if _memory_injections:
             # #1: 去重 — 相同内容前缀只保留第一条
@@ -691,14 +691,14 @@ class Kernel:
         Returns:
             LLM 最终回复文本
         """
-        # ── GMem P0: 设置搜索结果自动沉淀的全局引用 ──
+        # ── GMem P0: 设置搜索结果Auto sedimentation的全局引用 ──
         if self.mirror_engine and hasattr(self.mirror_engine, "record_search"):
             toolkit.__dict__["_GMEM_MIRROR"] = self.mirror_engine
 
         # ── Set current user message for triple-layer intent matching ──
         self._current_user_message = user_message or ""
 
-        # ── ArchiveStore 检索（跨 session 搜索） ──
+        # ── ArchiveStore Search（跨 session 搜索） ──
         archive_hits = ""
         if self._archive_store and len(user_message) > 3:
             try:
@@ -730,9 +730,9 @@ class Kernel:
                         archive_lines.append(f"  [{_ts_str}] ({_who}) {_content_str}")
                     if archive_lines:
                         archive_hits = "【历史记忆】\n" + "\n".join(archive_lines[:5])
-                        logger.info("ArchiveStore 全局检索到 %d 条相关记忆", len(archive_lines))
+                        logger.info("ArchiveStore 全局Search到 %d 条相关记忆", len(archive_lines))
             except Exception as e:
-                logger.warning("ArchiveStore 检索失败（不影响主流程）: %s", e)
+                logger.warning("ArchiveStore Search失败（不影响主流程）: %s", e)
 
         # ── 动态拼装 system prompt ──
         self.system_prompt = self._build_dynamic_system_prompt()
@@ -786,7 +786,7 @@ class Kernel:
 
         _timings.append(("pre_process", time.time()))
 
-        # ── 1.5 搜索预执行 ──
+        # ── 1.5 Pre-execute search ──
         # 用户消息含搜索指令词时，不等 LLM 判断，先自动搜一次
         # 注意：触发词不能太短（如单个"搜"字），会匹配"搜索引擎"等正常话语
         pre_search = False
@@ -817,7 +817,7 @@ class Kernel:
                 elif str(now.month) not in query:
                     query = query + " " + str(now.month) + "月"
             if query:
-                logger.info("搜索预执行: query=%s", query)
+                logger.info("Pre-execute search: query=%s", query)
                 try:
                     search_result = await search_web(query=query, engines="bing_cn,duckduckgo,qwant,sogou")
                     if search_result and isinstance(search_result, dict):
@@ -827,16 +827,16 @@ class Kernel:
                         enriched_message = (
                             f"当前时间是 {_now.year}年{_now.month}月{_now.day}日 {_now.hour:02d}:{_now.minute:02d}（北京时间 Asia/Shanghai）。\n"
                             f"\n"
-                            f"【先期检索参考】（这是快速初步搜索的结果，可能不够全或不够新，你可以自主决定是否需要进一步搜索）\n"
+                            f"【先期Search参考】（这是快速初步搜索的结果，可能不够全或不够新，你可以自主决定是否需要进一步搜索）\n"
                             f"{json.dumps(search_result, ensure_ascii=False)[:4000]}\n\n"
                             f"---\n\n"
                             f"{enriched_message}"
                         )
-                        logger.info("搜索预执行完成")
+                        logger.info("Pre-execute search完成")
                 except Exception as e:
-                    logger.warning("搜索预执行失败（不影响主流程）: %s", e)
+                    logger.warning("Pre-execute search失败（不影响主流程）: %s", e)
 
-        # ── 2. 构建 messages（含 ArchiveStore 检索注入） ──
+        # ── 2. 构建 messages（含 ArchiveStore Search注入） ──
         messages: list[dict] = []
         if session:
             context = session.build_context()
@@ -848,7 +848,7 @@ class Kernel:
                 session.append_user_message(user_with_archive)
             else:
                 session.append_user_message(enriched_message)
-        # 最终 user message（已含 archive 检索结果）
+        # 最终 user message（已含 archive Search结果）
         final_user = (
             f"【历史记忆参考】\n{archive_hits}\n\n---\n\n{enriched_message}"
             if archive_hits else enriched_message
@@ -874,7 +874,7 @@ class Kernel:
             reply = await _loop_coro
 
         # ── 5.5 GMem 记忆入库（P2） ──
-        # P1: 异步记录 mirror + 经验提取 + 自动笔记（不阻塞主回复）
+        # P1: 异步记录 mirror + Experience extraction + 自动笔记（不阻塞主回复）
         # 只要回复有内容，就启动后台记忆 + 自动笔记流程
         if reply and len(reply) > 10:
             _msg = user_message
@@ -900,11 +900,11 @@ class Kernel:
                     getattr(self, '_current_task_type', 'unknown')
                 )
             _engine = self.experience_engine
-            # 🔄 反脆弱: 检测是否是失败/回滚（从 reply 中提取特征）
+            # 🔄 反脆弱: 检测是否是失败/Rollback（从 reply 中提取特征）
             _has_failure = any(kw in reply for kw in ["验证失败", "错误", "fail", "rollback_to_baseline"])
             _failure_reason = ""
             _failed_approach = ""
-            _rollback = "rollback" in reply.lower() or "回滚" in reply
+            _rollback = "rollback" in reply.lower() or "Rollback" in reply
             if _has_failure:
                 # 尝试从 reply 中提取失败原因
                 _reply_lower = reply.lower()
@@ -925,7 +925,7 @@ class Kernel:
                 )
             )
 
-        # ── 反脆弱: 回路计数 + 框架级自省（路径依赖 #68） ──
+        # ── Anti-fragile: loop counting + Framework-level introspection（路径依赖 #68） ──
         self._round_count = getattr(self, "_round_count", 0) + 1
         if self._round_count % 50 == 0:
             _ = self._framework_self_check()
@@ -1277,7 +1277,7 @@ class Kernel:
 
         return results
 
-    # ── 反脆弱: 框架级自省（路径依赖 #68） ──
+    # ── 反脆弱: Framework-level introspection（路径依赖 #68） ──
     def _framework_self_check(self) -> dict:
         """每50轮执行一次，检查遗忘机制等框架级设定是否需要切换。
 
@@ -1293,7 +1293,7 @@ class Kernel:
             "flags": [],
         }
 
-        # 检查 mirror 记忆注入量
+        # 检查 mirror Memory injection量
         if self.mirror_engine:
             stats = self.mirror_engine.get_stats()
             total = stats.get("total", 0)
@@ -1305,7 +1305,7 @@ class Kernel:
                     report["forgetting_utility"] = 0.2
                     report["flags"].append("遗忘过快: 平均记忆强度 < 0.3，可能需要调低遗忘速率")
 
-        # 检查经验命中率和回滚率（从 gradient 日志计算）
+        # 检查经验命中率和Rollback率（从 gradient 日志计算）
         if len(self._gradient_log) >= 10:
             window = self._gradient_log[-10:]
             total_entries = len(window)
@@ -1315,12 +1315,12 @@ class Kernel:
 
         if report["forgetting_utility"] < 0.3:
             logger.warning(
-                "框架级自省: 遗忘机制效能下降 (forgetting_utility=%.1f), 建议讨论框架切换",
+                "Framework-level introspection: 遗忘机制效能下降 (forgetting_utility=%.1f), 建议讨论框架切换",
                 report["forgetting_utility"],
             )
 
         logger.info(
-            "框架级自省(第%d轮): %d条记忆, 遗忘效用=%.1f, flags=%s",
+            "Framework-level introspection(第%d轮): %d条记忆, 遗忘效用=%.1f, flags=%s",
             self._round_count,
             report["mirror_injection"],
             report["forgetting_utility"],
@@ -1388,7 +1388,7 @@ class Kernel:
         return base + "/chat/completions"
 
     async def _online_compress_session(self, session: "JsonlSessionManager") -> None:
-        """三层上下文压缩入口。
+        """三层Context compression入口。
 
         1. L1: 在线实时压缩（消息 ≥ 20 条时触发）
         2. L2: 多层摘要进化（已有 compaction 时，合并升级）
@@ -1403,7 +1403,7 @@ class Kernel:
             )
             stats = session.get_stats()
             logger.info(
-                "✅ 上下文压缩完成 (stats: %d msgs, %d compactions, level=%d)",
+                "✅ Context compression完成 (stats: %d msgs, %d compactions, level=%d)",
                 stats.get("messages", 0),
                 stats.get("compactions", 0),
                 session.get_compaction_level(),

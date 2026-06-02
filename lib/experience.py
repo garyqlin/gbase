@@ -52,7 +52,7 @@ _ANTI_FRAGILE_RULES = [
         "summary": "工具调用时有 API 错误，下次应注意检查工具是否可用",
         "confidence": "high",
     },
-    # ── 反脆弱: 失败尝试也写入经验，不静默回滚 ──
+    # ── 反脆弱: 失败尝试也写入经验，不静默Rollback ──
     {
         "name": "failed_action",
         "check": lambda ctx: bool(ctx.get("has_failure", False)),
@@ -62,7 +62,7 @@ _ANTI_FRAGILE_RULES = [
     {
         "name": "failed_rollback",
         "check": lambda ctx: bool(ctx.get("rollback_occurred", False)),
-        "summary": "执行回滚: [{rollback_action}] 验证失败，已回滚。这条路走不通。",
+        "summary": "执行Rollback: [{rollback_action}] 验证失败，已Rollback。这条路走不通。",
         "confidence": "medium",
     },
     # ── 反脆弱: 成功模式提炼（成功比失败更需要分析）──
@@ -150,11 +150,11 @@ API 错误: {has_api_error}
 """
 
 
-# ── 经验提取器 ──────────────────────────────────────────
+# ── Experience extraction器 ──────────────────────────────────────────
 
 
 class ExperienceEngine:
-    """经验引擎。绑定到一个 Storage 实例上运作。"""
+    """Experience Engine。绑定到一个 Storage 实例上运作。"""
 
     def __init__(self, storage: store_module.Storage):
         self.storage = storage
@@ -204,10 +204,10 @@ class ExperienceEngine:
 
             if _is_duplicate_rule(self.storage, rule_name):
                 self._skip_count[rule_name] = self._skip_count.get(rule_name, 0) + 1
-                logger.debug("经验去重跳过: rule=%s (已跳过%d次)", rule_name, self._skip_count[rule_name])
+                logger.debug("Experience deduplication跳过: rule=%s (已跳过%d次)", rule_name, self._skip_count[rule_name])
                 return
 
-            logger.info("经验提取（规则）: %s", rule_result["summary"][:60])
+            logger.info("Experience extraction（规则）: %s", rule_result["summary"][:60])
             # --- 如果是成功完成任务自动刻入 insight ---
             if tool_calls_count > 0 and not has_api_error and rule_result["type"] != "insight" and not has_failure:
                 _record_success_insight(self, user_message, tool_calls_count)
@@ -247,7 +247,7 @@ class ExperienceEngine:
             try:
                 await self._llm_extract(context, llm_client)
             except Exception as e:
-                logger.warning("经验提取（LLM）失败: %s", e)
+                logger.warning("Experience extraction（LLM）失败: %s", e)
 
     async def _llm_extract(self, context: dict, client):
         """元认知反思提取 — 从「发生了什么」升级到「为什么发生、如何避免、什么条件下该用不同策略」。
@@ -270,7 +270,7 @@ class ExperienceEngine:
             )
             text = response.choices[0].message.content.strip()
             if text == "null" or not text:
-                logger.debug("经验提取（LLM）: 无有价值教训")
+                logger.debug("Experience extraction（LLM）: 无有价值教训")
                 return
 
             result = json.loads(text)
@@ -316,19 +316,19 @@ class ExperienceEngine:
                 except Exception:
                     pass
 
-                logger.info("经验提取（元认知反思）: %s", summary[:60])
+                logger.info("Experience extraction（元认知反思）: %s", summary[:60])
 
                 # --- 自动刻入 insight（成功任务不留空洞） ---
                 if context.get("tool_calls_count", 0) > 0 and not context.get("has_api_error", False):
                     _record_success_insight(self, context.get("user_message", ""), context["tool_calls_count"])
 
         except (json.JSONDecodeError, KeyError) as e:
-            logger.debug("经验提取（LLM）解析失败: %s | 原始响应: %s", e, text[:200] if 'text' in dir() else "N/A")
+            logger.debug("Experience extraction（LLM）解析失败: %s | 原始响应: %s", e, text[:200] if 'text' in dir() else "N/A")
         except Exception as e:
-            logger.debug("经验提取（LLM）异常: %s", e)
+            logger.debug("Experience extraction（LLM）异常: %s", e)
 
     def search(self, query: str, limit: int = 5) -> list[dict]:
-        """搜索经验库。优先 FTS5 全文检索，无结果时回退 LIKE 模糊匹配。
+        """搜索经验库。优先 FTS5 全文Search，无结果时回退 LIKE 模糊匹配。
 
         排序逻辑：
         - 先按 BM25 相关性分 + 内容长度惩罚（太长降级）

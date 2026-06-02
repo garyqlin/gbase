@@ -259,7 +259,7 @@ _GMEM_SEARCH_DEPTH = 0
 
 
 async def _async_record_search(mirror, query: str, _tool_name: str, args: dict):
-    """后台保存搜索结果到 mirror。"""
+    """后台Save搜索结果到 mirror。"""
     global _GMEM_SEARCH_DEPTH
     try:
         summary = str(args.get("query", "") or args.get("url", ""))[:200]
@@ -283,7 +283,7 @@ async def execute(tool_name: str, args: dict, use_cache: bool = False) -> dict:
     # GMem P0: 模式观察（跟踪高频调用）
     hot_pattern_observe(tool_name, args)
 
-    # GMem P0: 搜索结果自动沉淀到 memory
+    # GMem P0: 搜索结果Auto sedimentation到 memory
     search_tools = {
         "anysearch_search",
         "anysearch_batch_search",

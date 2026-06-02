@@ -197,7 +197,7 @@ class Mirror:
             except Exception:
                 logger.exception("静默异常")
 
-    # ── GMem P0: 搜索结果自动沉淀 ──
+    # ── GMem P0: 搜索结果Auto sedimentation ──
     SEARCH_TTL = {"fresh": 3600, "normal": 21600, "stale": 86400}
     """搜索结果的 TTL（秒）：fresh < 1h, normal < 6h, stale < 24h。"""
 
@@ -1328,7 +1328,7 @@ class Mirror:
         logger.info("GMem import: 成功导入 %d 条 (source=%s)", count, source_tag)
         return count
 
-    # ── 独立基准状态（冗余备份 #65） ──
+    # ── 独立基准状态（冗余Backup #65） ──
     BASELINE_FILE = "mirror_baseline.json"
 
     def save_baseline(self, label: str = "auto", data_dir: str = ""):
@@ -1336,7 +1336,7 @@ class Mirror:
 
         - 首次初始化时自动创建 baseline
         - 只有人类显式确认后才会更新
-        - 回滚的终点是 baseline，不是上一个版本
+        - Rollback的终点是 baseline，不是上一个版本
         """
         import json
         from pathlib import Path
@@ -1382,7 +1382,7 @@ class Mirror:
         return str(filepath)
 
     def rollback_to_baseline(self, data_dir: str = ""):
-        """回滚到最近的人类确认基准，不是上一个版本。
+        """Rollback到最近的人类确认基准，不是上一个版本。
 
         Restore memory state from the latest human-confirmed baseline.
         Falls back to the most recent baseline if no "human" baseline exists.

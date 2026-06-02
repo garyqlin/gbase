@@ -85,7 +85,7 @@ class LoopCache:
                 "total_tokens": tokens,
                 "status": "experimental",
                 "cached_at": time.time(),
-                "steps": steps,  # 保存模板步骤
+                "steps": steps,  # Save模板步骤
                 "history": [],
             }
         else:
@@ -152,5 +152,5 @@ class LoopCache:
         }
 
     def close(self):
-        """同步保存（无实际操作，save 在 intercept 中已做）。"""
+        """同步Save（无实际操作，save 在 intercept 中已做）。"""
         self._save_templates()

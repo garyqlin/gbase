@@ -1,7 +1,7 @@
 """
 gbase/lib/channels/feishu.py
 
-飞书通道:加密解密、消息收发。
+Feishu Channel:加密解密、消息收发。
 
 来自 V0 feishu_bridge.py 的浓缩版。
 只保留核心链:解密 → 处理 → 回复。
@@ -20,14 +20,14 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# ── 飞书通道心跳配置 ──
+# ── Feishu Channel心跳配置 ──
 _HEARTBEAT_INTERVAL = 180  # 每 3 分钟检测一次（不是 5 分钟，更敏感）
 _HEARTBEAT_MAX_FAILURES = 3  # 连续 3 次失败触发重连
 _HEARTBEAT_RECONNECT_DELAYS = [5, 30, 120, 300]  # 指数退避：5s → 30s → 2min → 5min
 
 
 class FeishuChannel:
-    """飞书通道。"""
+    """Feishu Channel。"""
 
     def __init__(self, app_id: str, app_secret: str, encrypt_key: str):
         self.app_id = app_id
@@ -67,14 +67,14 @@ class FeishuChannel:
         self._heartbeat_reconnects = 0
 
     async def start_heartbeat(self):
-        """启动飞书通道心跳后台检测。"""
+        """启动Feishu Channel心跳后台检测。"""
         if self._heartbeat_task and not self._heartbeat_task.done():
             return  # 已有心跳在跑
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-        logger.info("飞书通道心跳已启动 (间隔 %ds, 最大失败 %d 次)", _HEARTBEAT_INTERVAL, _HEARTBEAT_MAX_FAILURES)
+        logger.info("Feishu Channel心跳已启动 (间隔 %ds, 最大失败 %d 次)", _HEARTBEAT_INTERVAL, _HEARTBEAT_MAX_FAILURES)
 
     async def _heartbeat_loop(self):
-        """心跳循环：定时检测飞书通道可用性。
+        """心跳循环：定时检测Feishu Channel可用性。
 
         检测方式：轻量调用 _ensure_token 验证 token 有效即可，
         不额外发送消息（不发 ping 字样的消息到飞书）。
@@ -99,7 +99,7 @@ class FeishuChannel:
                     if data.get("code") == 0:
                         # 心跳成功
                         if not self._heartbeat_healthy:
-                            logger.info("💚 飞书通道已恢复")
+                            logger.info("💚 Feishu Channel已恢复")
                         self._heartbeat_healthy = True
                         self._heartbeat_failures = 0
                         backoff_index = 0
@@ -110,13 +110,13 @@ class FeishuChannel:
                 break
             except Exception as e:
                 self._heartbeat_failures += 1
-                logger.warning("💔 飞书通道心跳失败 (%d/%d): %s", self._heartbeat_failures, _HEARTBEAT_MAX_FAILURES, e)
+                logger.warning("💔 Feishu Channel心跳失败 (%d/%d): %s", self._heartbeat_failures, _HEARTBEAT_MAX_FAILURES, e)
 
                 if self._heartbeat_failures >= _HEARTBEAT_MAX_FAILURES:
                     # 触发重连
                     self._heartbeat_healthy = False
                     delay = _HEARTBEAT_RECONNECT_DELAYS[min(backoff_index, len(_HEARTBEAT_RECONNECT_DELAYS) - 1)]
-                    logger.error("🔴 飞书通道异常，%ds 后尝试重新初始化", delay)
+                    logger.error("🔴 Feishu Channel异常，%ds 后尝试重新初始化", delay)
                     await asyncio.sleep(delay)
                     backoff_index += 1
                     self._heartbeat_reconnects += 1
@@ -126,12 +126,12 @@ class FeishuChannel:
                         self._tenant_token = ""
                         self._token_expires = 0
                         await self._refresh_token()
-                        logger.info("💚 飞书通道重连成功 (第 %d 次重连)", self._heartbeat_reconnects)
+                        logger.info("💚 Feishu Channel重连成功 (第 %d 次重连)", self._heartbeat_reconnects)
                         self._heartbeat_failures = 0
                         self._heartbeat_healthy = True
                         backoff_index = 0
                     except Exception as e2:
-                        logger.error("🔴 飞书通道重连失败: %s", e2)
+                        logger.error("🔴 Feishu Channel重连失败: %s", e2)
                         # 继续等待下一轮心跳重试
 
     def set_kernel(self, kernel):
@@ -150,7 +150,7 @@ class FeishuChannel:
         """从飞书下载文件到本地。
 
         使用 GET /im/v1/messages/{message_id}/resources/{file_key}?type=file
-        返回本地保存路径，失败返回 None。
+        返回本地Save路径，失败返回 None。
 
         Note:
             飞说资源下载 API 需要传 type 参数（file/image）否则报 99992402 field validation failed。
@@ -181,7 +181,7 @@ class FeishuChannel:
                         "text/csv": ".csv",
                     }
                     ext = ext_map.get(ct, "")
-                # 保存文件
+                # Save文件
                 save_dir = self._get_download_dir()
                 fname = f"{file_key}{ext}" if ext else file_key
                 save_path = save_dir / fname
@@ -195,7 +195,7 @@ class FeishuChannel:
     async def send_file(self, open_id: str, file_path: str | Path, message_id: str = ""):
         """发送文件到飞书。
 
-        使用飞书文件上传后发送的流程:
+        使用飞书File upload后发送的流程:
         1. POST /im/v1/files 上传文件
         2. 用返回的 file_key 发送消息
         """
@@ -217,13 +217,13 @@ class FeishuChannel:
                     resp = await client.post(upload_url, headers=headers, files=files, data=data, timeout=60)
                 upload_data = resp.json()
                 if upload_data.get("code") != 0:
-                    logger.error("文件上传失败: %s", upload_data)
+                    logger.error("File upload失败: %s", upload_data)
                     return
                 file_key = upload_data.get("data", {}).get("file_key", "")
                 if not file_key:
                     logger.error("上传成功但无 file_key")
                     return
-                logger.info("文件上传成功: %s → file_key=%s", file_path.name, file_key)
+                logger.info("File upload成功: %s → file_key=%s", file_path.name, file_key)
 
                 # 发送文件消息
                 if message_id:
@@ -307,7 +307,7 @@ class FeishuChannel:
 
         return json.loads(plaintext.decode("utf-8"))
 
-    # ── 消息发送 ──
+    # ── Message sending ──
 
     async def _reply_to_message(self, message_id: str, content: str, msg_type: str = "text"):
         """通过 reply API 回复消息（跨 App 可用，不依赖 open_id）。"""
@@ -438,7 +438,7 @@ class FeishuChannel:
             if data.get("code") != 0:
                 logger.error("飞书卡片发送失败: %s", data)
 
-    # ── 事件处理 ──
+    # ── Event handling ──
 
     async def handle_event(self, body: bytes) -> dict:
         """处理飞书 Webhook 事件。
@@ -555,7 +555,7 @@ class FeishuChannel:
                     parts.append(header)
                 elements = content.get("elements", [])
                 for block in elements:
-                    # 飞书某些卡片模块把元素包在嵌套数组里，递归展平
+                    # 飞书某些卡片模块把元素包在嵌套数组里，Recursive flattening
                     worklist = [block]
                     while worklist:
                         item = worklist.pop()
@@ -664,12 +664,12 @@ class FeishuChannel:
                 else:
                     text = "[文件: 无法获取 file_key]"
             elif message_type == "image":
-                # 图片消息:下载后保存路径，LLM 可以自行处理
+                # 图片消息:下载后Save路径，LLM 可以自行处理
                 image_key = content.get("image_key", "")
                 if image_key:
                     save_path = await self._download_file(message_id, image_key, ext=".png")
                     if save_path:
-                        text = f"[图片已保存 | 本地路径: {save_path} | 可用 image 工具查看]"
+                        text = f"[图片已Save | 本地路径: {save_path} | 可用 image 工具查看]"
                     else:
                         text = f"[图片下载失败: key={image_key}]"
                 else:

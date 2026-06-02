@@ -2,7 +2,7 @@
 """
 gbase/lib/skill_router.py
 
-轻量级技能路由引擎 — 根据用户输入自动匹配并加载适用 Skill。
+轻量级Skill Router引擎 — 根据用户输入自动匹配并加载适用 Skill。
 
 与现有的 SkillLoader 配合工作：
 - SkillLoader: 扫描/加载 skills/ 目录中的 SKILL.md
@@ -73,7 +73,7 @@ STOP_WORDS = {
 
 
 class SkillRouter:
-    """轻量级技能路由引擎。
+    """轻量级Skill Router引擎。
 
     与 SkillLoader 配合：
     - SkillLoader 负责扫描/加载 skills/ 目录的 SKILL.md

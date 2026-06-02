@@ -37,3 +37,20 @@ def _check_territory(path: str, my_home: str | None = None) -> None:
     if invader:
         logger.warning("⚠️ 试图操作 %s 的领地: %s", invader, path)
         raise PermissionError(f"[领地安全] {path} 属于 {invader}，不允许操作。")
+
+
+def check_territory_violation(path: str) -> str | None:
+    """Check if path belongs to another agent. Returns agent name if violation, None if safe.
+
+    Unlike _check_territory, this does NOT raise — caller decides how to handle.
+    """
+    invader = _is_other_agent_territory(path)
+    return invader
+
+
+def build_territory_error(violation: str, path: str, action: str = "操作") -> str:
+    """Build a human-readable territory error message."""
+    return (
+        f"领地安全拒绝：路径 {path} 属于 Agent「{violation}」，"
+        f"不允许{action}。如需跨 Agent 协作，请通过共享目录。"
+    )

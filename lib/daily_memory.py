@@ -57,7 +57,7 @@ def extract_key_points_from_session(session_path: str, max_entries: int = 50) ->
     for line in recent:
         try:
             d = json.loads(line)
-        except:
+        except Exception:
             continue
         role = d.get("role", "")
         content = d.get("content", "")

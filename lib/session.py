@@ -13,7 +13,6 @@ Three-layer context compression system (simplified version of Claude Code's 5-la
 
 import json
 import logging
-import threading
 import time
 from pathlib import Path
 
@@ -290,11 +289,11 @@ class JsonlSessionManager:
 
     def get_compaction_context(self, max_messages: int = 15) -> list[dict]:
         """L2: 获取压缩阶段的高层摘要 + 近期轮次。
-        
+
         不同于 build_context（给 LLM 用），这个方法返回：
         - 所有层级的摘要列表（不是只取最高层）
         - 最新 max_messages 轮对话
-        
+
         用于 L2 多层压缩：把旧摘要 + 近期对话 → 新摘要。
         """
         summaries: list[dict] = []

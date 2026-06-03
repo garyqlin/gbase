@@ -10,6 +10,7 @@ gbase_8440.py — GBase 版"高达"飞书入口
 
 import asyncio
 import atexit
+import contextlib
 import logging
 import os
 import sys
@@ -399,10 +400,8 @@ async def run():
 
     @atexit.register
     def _shutdown_checkpoint():
-        try:
+        with contextlib.suppress(Exception):
             storage.close()
-        except Exception:
-            pass
 
     config = uvicorn.Config(app, host="0.0.0.0", port=PORT, log_level="info")
     server = uvicorn.Server(config)

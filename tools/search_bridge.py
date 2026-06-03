@@ -130,7 +130,7 @@ async def handle_search(request: web.Request) -> web.Response:
             }
         )
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("Search timeout: %s", query)
         return web.json_response(
             {

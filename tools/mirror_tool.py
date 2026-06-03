@@ -4,7 +4,6 @@ mirror_tool.py — 高达版记忆工具
 """
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

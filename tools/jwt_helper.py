@@ -53,7 +53,7 @@ async def jwt_decode(token: str) -> dict:
         if proc.returncode != 0:
             return {"error": f"JWT 解码失败: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return {"error": "JWT 解码超时"}
     except FileNotFoundError:
         return {"error": f"找不到 skill 脚本: {script}"}
@@ -87,7 +87,7 @@ async def jwt_verify(token: str, secret: str) -> dict:
         if proc.returncode != 0:
             return {"error": f"JWT 验证失败: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return {"error": "JWT 验证超时"}
     except FileNotFoundError:
         return {"error": f"找不到 skill 脚本: {script}"}

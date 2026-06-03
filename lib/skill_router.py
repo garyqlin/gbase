@@ -22,9 +22,7 @@ gbase/lib/skill_router.py
 
 import json
 import logging
-import re
 from pathlib import Path
-from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +238,7 @@ class SkillRouter:
 
         return unique[:top_k]
 
-    def load_skill_content(self, skill_name: str) -> Optional[str]:
+    def load_skill_content(self, skill_name: str) -> str | None:
         """加载匹配到的 Skill 的完整内容。"""
         # 本地
         content = self.skill_loader.get_skill_content(skill_name)

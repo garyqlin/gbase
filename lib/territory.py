@@ -5,7 +5,8 @@ Configured via environment variables:
   GBASE_AGENT_NAME  — this agent's name
   GBASE_AGENT_HOMES — colon-separated list of agent_name:path pairs
 """
-import os, logging
+import logging
+import os
 
 logger = logging.getLogger(__name__)
 

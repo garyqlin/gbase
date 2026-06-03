@@ -30,6 +30,7 @@
 ╚═══════════════════════════════════════════════════════════╝
 """
 
+import contextlib
 import json
 import time
 from collections.abc import Callable
@@ -154,10 +155,8 @@ class DAGOrchestrator:
                 {"from": "audit", "to": "report"},
             ],
         }
-        try:
+        with contextlib.suppress(Exception):
             self._dag_engine.load_raw(patrol)
-        except Exception:
-            pass
 
         # mail-digest: 邮件摘要
         mail = {
@@ -185,10 +184,8 @@ class DAGOrchestrator:
                 {"from": "classify", "to": "summarize"},
             ],
         }
-        try:
+        with contextlib.suppress(Exception):
             self._dag_engine.load_raw(mail)
-        except Exception:
-            pass
 
         # quality-check: 质检
         quality = {
@@ -222,10 +219,8 @@ class DAGOrchestrator:
                 {"from": "swarm", "to": "summary"},
             ],
         }
-        try:
+        with contextlib.suppress(Exception):
             self._dag_engine.load_raw(quality)
-        except Exception:
-            pass
 
         # mirror-cycle: 鉴面维护
         mirror_wf = {
@@ -253,10 +248,8 @@ class DAGOrchestrator:
                 {"from": "review", "to": "cognifold"},
             ],
         }
-        try:
+        with contextlib.suppress(Exception):
             self._dag_engine.load_raw(mirror_wf)
-        except Exception:
-            pass
 
     def _match_workflow(self, task: str) -> str | None:
         """根据任务描述匹配已知 DAG 工作流。

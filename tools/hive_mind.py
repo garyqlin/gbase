@@ -1184,7 +1184,7 @@ async def hive_mind(mission: str, depth: str = "normal", timeout: int = 180) -> 
         try:
             beam_results = await asyncio.wait_for(handler(query, 10), timeout=25)
             rd.results = beam_results
-        except asyncio.TimeoutError:
+        except TimeoutError:
             rd.error = "超时 (25s)"
             logger.warning("  轮次%d %s 超时", round_num, beam_type)
         except Exception as e:

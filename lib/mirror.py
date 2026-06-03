@@ -1106,7 +1106,7 @@ class Mirror:
                         (now, r[0]))
             self._conn.commit()
         return [
-            dict(zip(["id", "type", "content", "strength", "hits", "verified", "created_at", "last_access", "is_active"], row))
+            dict(zip(["id", "type", "content", "strength", "hits", "verified", "created_at", "last_access", "is_active"], row, strict=False))
             for row in rows
         ]
 

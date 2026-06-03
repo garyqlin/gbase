@@ -47,18 +47,17 @@ class LoopCache:
 
     def find_template(self, task_type: str) -> dict | None:
         """查找指定类型的模板（需 stable 或 verified 状态）。"""
-        for tmpl_id, tmpl in self._templates.items():
-            if tmpl.get("task_type") == task_type:
-                if tmpl.get("status") in ("stable", "verified"):
-                    # 检查 TTL
-                    cached_at = tmpl.get("cached_at", 0)
-                    if time.time() - cached_at < TTL_HOURS * 3600:
-                        return tmpl
-                    else:
-                        # 过期，降级
-                        tmpl["status"] = "expired"
-                        self._save_templates()
-                        return None
+        for _tmpl_id, tmpl in self._templates.items():
+            if tmpl.get("task_type") == task_type and tmpl.get("status") in ("stable", "verified"):
+                # 检查 TTL
+                cached_at = tmpl.get("cached_at", 0)
+                if time.time() - cached_at < TTL_HOURS * 3600:
+                    return tmpl
+                else:
+                    # 过期，降级
+                    tmpl["status"] = "expired"
+                    self._save_templates()
+                    return None
         return None
 
     # ── 轨迹记录 ──

@@ -12,7 +12,7 @@ tools/write_file.py
 import os
 
 from lib.backup import BACKUP_DIR, _is_core_file, backup_file
-from lib.territory import check_territory_violation, build_territory_error
+from lib.territory import build_territory_error, check_territory_violation
 from lib.toolkit import tool
 
 # 允许写入的根目录
@@ -56,7 +56,7 @@ def _resolve_path(filepath: str) -> tuple[str, str]:
         )
 
     # ── 领地检查：不能改其他 Agent 的家 ──
-    violation = check_territory_violation(path)
+    violation = check_territory_violation(expanded)
     if violation:
         return "", build_territory_error(violation, expanded, "写入")
 

@@ -7,6 +7,7 @@ YF-security-scanner 集成：本地安全扫描。
 """
 
 import asyncio
+import contextlib
 import logging
 import os
 import re
@@ -67,10 +68,8 @@ async def security_scan_directory(directory: str, output: str = "") -> dict:
         for line in stdout_text.split("\n"):
             for level in findings:
                 if f"  {level}:" in line:
-                    try:
+                    with contextlib.suppress(Exception):
                         findings[level] = int(line.split(f"{level}:")[1].strip().split()[0])
-                    except Exception:
-                        pass
 
         return {
             "success": proc.returncode == 0,
@@ -79,7 +78,7 @@ async def security_scan_directory(directory: str, output: str = "") -> dict:
             "summary": stdout_text[:3000],
             "errors": stderr_text[:500] if stderr_text else "",
         }
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return {"success": False, "error": "安全扫描超时（60秒）"}
     except Exception as e:
         return {"success": False, "error": str(e)}

@@ -37,6 +37,7 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "ARG", "PIE"]
+
 ignore = [
     "E501",
     "E402",
@@ -45,7 +46,25 @@ ignore = [
     "PLR0911",
     "PLR0912",
 ]
-per-file-ignores = {"lib/dag_agents.py" = ["ARG001", "ARG002"]}
+[tool.ruff.lint.per-file-ignores]
+"lib/dag_agents.py" = ["ARG001", "ARG002"]
+"lib/mirror.py" = ["N806"]
+"lib/archive_store.py" = ["N806"]
+"lib/kernel.py" = ["N806"]
+"lib/sleep_cycle.py" = ["B007", "F841", "ARG001"]
+"lib/loop_cache.py" = ["ARG002", "B007", "SIM102"]
+"lib/daily_memory.py" = ["B007"]
+"lib/identity.py" = ["ARG001"]
+"lib/territory.py" = ["ARG001"]
+"lib/session.py" = ["ARG002"]
+"lib/sandbox_safety.py" = ["SIM110"]
+"tools/hive_mind.py" = ["ARG001", "SIM108"]
+"tools/knowledge.py" = ["F841"]
+"tools/search_bridge.py" = ["ARG001"]
+"tools/self_edit.py" = ["SIM201", "SIM108"]
+"tools/trident_tools.py" = ["SIM108"]
+"tools/security_watch.py" = ["SIM105"]
+"examples/*.py" = ["N999", "W293"]
 
 [tool.ruff.format]
 quote-style = "double"

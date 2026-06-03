@@ -57,18 +57,12 @@ def is_critical(file_path: str) -> bool:
         if str(file_path).startswith(str(Path(__file__).parent.parent))
         else file_path
     )
-    for critical in CRITICAL_FILES:
-        if rel.endswith(critical):
-            return True
-    return False
+    return any(rel.endswith(critical) for critical in CRITICAL_FILES)
 
 
 def has_critical_change(content: str) -> bool:
     """检查变更内容是否包含关键模式。"""
-    for pattern in CRITICAL_PATTERNS:
-        if pattern.search(content):
-            return True
-    return False
+    return any(pattern.search(content) for pattern in CRITICAL_PATTERNS)
 
 
 def check_failure_patterns(file_path: str, new_content: str) -> list[str]:

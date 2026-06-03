@@ -283,7 +283,6 @@ async def search_knowledge_batch(queries: str, limit: int = 3) -> dict:
         queries: 逗号分隔的搜索关键词，例如 "nginx,用户,端口配置,家庭"
         limit: 每个关键词最多返回几条（默认 3，最大 5）
     """
-    results = []
     qlist = [q.strip() for q in queries.split(",") if q.strip()]
     if not qlist:
         return {"result": "没有搜索关键词。", "total": 0}

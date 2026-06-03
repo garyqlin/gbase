@@ -13,10 +13,7 @@
 不经过 Lancer 那套 shared/ 底座，完全独立。
 """
 
-import json
 import logging
-import time
-from typing import Optional
 
 import httpx
 
@@ -95,7 +92,7 @@ async def trident_help() -> dict:
             "role": "实现臂 — 代码生成、修改、探索、项目搭建",
             "best_for": [
                 "实现新功能",
-                "修改现有代码", 
+                "修改现有代码",
                 "项目搭建（从零创建文件目录）",
                 "代码探索（读文件、glob搜索）",
             ],
@@ -136,7 +133,7 @@ async def trident_help() -> dict:
 
 
 @tool()
-async def cc_execute(task: str, project_dir: Optional[str] = None) -> dict:
+async def cc_execute(task: str, project_dir: str | None = None) -> dict:
     """调用 Trident CC 执行代码任务（实现臂）
 
     Args:
@@ -146,10 +143,7 @@ async def cc_execute(task: str, project_dir: Optional[str] = None) -> dict:
     Returns:
         dict: {"response": "...", "tool_calls": N, "tokens": N}
     """
-    if project_dir:
-        full_task = f"项目路径: {project_dir}\n\n任务: {task}"
-    else:
-        full_task = task
+    full_task = f"项目路径: {project_dir}\n\n任务: {task}" if project_dir else task
     return await _ask(TRIDENT_CC, full_task)
 
 

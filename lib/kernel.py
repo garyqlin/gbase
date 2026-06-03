@@ -707,7 +707,7 @@ class Kernel:
                 _db_path = self._archive_store.db_path
                 _keywords = self._archive_store._extract_keywords(user_message)
                 if _keywords:
-                    _kw_conds = " OR ".join(f"content LIKE ? COLLATE NOCASE" for _ in _keywords)
+                    _kw_conds = " OR ".join("content LIKE ? COLLATE NOCASE" for _ in _keywords)
                     _sql = f"""
                         SELECT content, role, timestamp FROM archive_entries
                         WHERE {_kw_conds}
@@ -866,7 +866,7 @@ class Kernel:
         if max_seconds:
             try:
                 reply = await asyncio.wait_for(_loop_coro, timeout=max_seconds)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 timeout_happened = True  # noqa: F841
                 reply = f"[系统] 任务因超时中断（{max_seconds}秒限制）"
                 logger.warning("kernel.run 超时（%d秒），已截断回复", max_seconds)
@@ -933,7 +933,6 @@ class Kernel:
         # ── 存档到 ArchiveStore（替代旧在线压缩） ──
         if self._archive_store and reply and len(reply) > 10:
             try:
-                from datetime import datetime
                 self._archive_store.append("user", user_message[:1000])
                 self._archive_store.append("assistant", reply[:2000])
             except Exception as e:

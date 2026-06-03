@@ -22,6 +22,7 @@ Usage:
   hits = store.search("query keywords")
 """
 
+import contextlib
 import json
 import logging
 import os
@@ -135,10 +136,7 @@ class ArchiveStore:
         if not content:
             return
 
-        if isinstance(content, (list, dict)):
-            content = json.dumps(content, ensure_ascii=False)
-        else:
-            content = str(content)
+        content = json.dumps(content, ensure_ascii=False) if isinstance(content, (list, dict)) else str(content)
 
         if len(content) > _MAX_CONTENT_CHARS:
             content = content[:_MAX_CONTENT_CHARS] + "..."
@@ -522,7 +520,7 @@ class ArchiveStore:
         params: list = [self.session_key]
 
         # 关键词条件
-        kw_conditions = " OR ".join(f"content LIKE ? COLLATE NOCASE" for _ in keywords)
+        kw_conditions = " OR ".join("content LIKE ? COLLATE NOCASE" for _ in keywords)
         where_parts.append(f"({kw_conditions})")
         params.extend(f"%{k}%" for k in keywords)
 
@@ -554,7 +552,7 @@ class ArchiveStore:
 
         # 计算每条记录的命中关键词数（作为粗糙的 BM25 替代）
         scored = []
-        for content, role, ts, priority, source_id, eid in all_rows:
+        for content, role, ts, priority, _source_id, _eid in all_rows:
             if not content:
                 continue
             hits = sum(1 for kw in keywords if kw in content or kw.lower() in content.lower())
@@ -634,11 +632,11 @@ class ArchiveStore:
             "这样", "那样", "可能", "需要", "之后", "之前", "现在",
             "我们", "他们", "你们", "自己", "一些", "这些", "那些",
             "谢谢", "你好", "请问", "好的", "是的", "知道", "觉得",
-            "然后", "或者", "还是", "除了", "不想", "想要", "打算",
-            "看到", "听说", "觉得", "告诉", "我的", "你的", "他的",
+            "然后", "或者", "除了", "不想", "想要", "打算",
+            "看到", "听说", "告诉", "我的", "你的", "他的",
             "大家", "东西", "时候", "不错", "真的", "非常", "很多",
             "工作", "生活", "事情", "感觉", "方面", "一点", "一定",
-            "还有", "因为", "出来",
+            "还有", "出来",
         }
         keywords = [k for k in keywords if k not in _COMMON_BIGRAMS]
 
@@ -728,10 +726,8 @@ class ArchiveStore:
         self.flush()
 
     def __del__(self):
-        try:
+        with contextlib.suppress(Exception):
             self.close()
-        except Exception:
-            pass
 
 
 # ── 旧数据迁移 ─────────────────────────────────────
@@ -783,7 +779,7 @@ def _copy_old_data(dat_db_path: str, archive_db_path: str):
         cursor = conn.cursor()
 
         # 从 entries table 找 experience 和 knowledge
-        for tbl, pri in [("entries", 1)]:
+        for tbl, _pri in [("entries", 1)]:
             try:
                 cursor.execute(f"SELECT content, type FROM {tbl} WHERE content IS NOT NULL AND content != ''")
                 for content, typ in cursor.fetchall():

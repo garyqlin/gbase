@@ -17,14 +17,12 @@ self_edit.py — 波塞冬自修代码工具
   self_edit_rollback(path="tools/exec.py")  ← 回退到最近备份
 """
 
+import ast
+import hashlib
 import os
 import shutil
-import ast
-import re
 import time
-import hashlib
 from pathlib import Path
-from typing import Optional
 
 from lib.toolkit import tool
 
@@ -55,13 +53,10 @@ _ROLLBACK_DIR.mkdir(parents=True, exist_ok=True)
 def _safety_check(path: str) -> tuple[Path, str]:
     """解析并验证路径在安全范围内。返回 (绝对路径, 错误信息)"""
     raw = Path(path)
-    if not raw.suffix == ".py":
+    if raw.suffix != ".py":
         return None, "仅支持 .py 文件修改"
 
-    if raw.is_absolute():
-        abs_path = raw.resolve()
-    else:
-        abs_path = (_INSTANCE_HOME / raw).resolve()
+    abs_path = raw.resolve() if raw.is_absolute() else (_INSTANCE_HOME / raw).resolve()
 
     # 必须在允许目录下
     for allowed in _ALLOWED_DIRS:
@@ -98,7 +93,7 @@ def _backup(path: Path) -> str:
 def _verify_syntax(path: Path) -> tuple[bool, str]:
     """语法检查"""
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             source = f.read()
         ast.parse(source)
         return True, "语法检查通过"
@@ -150,7 +145,7 @@ async def self_edit(
         # A: 精确替换
         count = original.count(old)
         if count == 0:
-            return {"success": False, "error": f"未找到匹配文本（0次匹配）", "path": str(abs_path)}
+            return {"success": False, "error": "未找到匹配文本（0次匹配）", "path": str(abs_path)}
         elif count > 1:
             return {
                 "success": False,
@@ -163,7 +158,7 @@ async def self_edit(
         # B: 整段替换
         count = original.count(search)
         if count == 0:
-            return {"success": False, "error": f"未找到搜索文本（0次匹配）", "path": str(abs_path)}
+            return {"success": False, "error": "未找到搜索文本（0次匹配）", "path": str(abs_path)}
         elif count > 1:
             return {
                 "success": False,

@@ -77,7 +77,7 @@ async def exec_command(command: str, timeout: int = 30, workdir: str = "") -> di
 
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
             await proc.wait()
             return {

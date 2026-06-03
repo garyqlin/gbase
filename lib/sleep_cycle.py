@@ -52,7 +52,7 @@ def run_sleep_cycle(
         "total_time_s": 0.0,
     }
     start_ts = time.time()
-    now = time.time()
+    time.time()
 
     # ── Stage A: Session 压缩 ──
     session_report = _compress_sessions(session_dir, window_hours, dry_run)
@@ -145,7 +145,7 @@ def _compress_sessions(session_dir: str, window_hours: int, dry_run: bool) -> di
             # 按轮分组（简单策略：user + assistant 同属一轮）
             compressed = []
             last_user_idx = -1
-            for i, e in enumerate(entries):
+            for _i, e in enumerate(entries):
                 role = e.get("role", "")
                 if role == "user":
                     compressed.append(e)

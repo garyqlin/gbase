@@ -8,11 +8,10 @@
 
 import json
 import os
-import time
-from datetime import UTC, datetime
 
 # ─── 配置 ──────────────────────────────────────────
-import sys as _sys
+import time
+from datetime import UTC, datetime
 
 # 自动检测运行环境：优先用 gbase-home 本地路径
 _CANDIDATE_DIRS = [
@@ -211,7 +210,7 @@ def get_injection_text(db_path: str = DB_PATH, limit: int = MAX_INJECTION_SUMMAR
         return ""
 
     lines = []
-    for summary, confidence, created_at, hits in rows:
+    for summary, confidence, created_at, _hits in rows:
         dt = datetime.fromtimestamp(created_at, tz=UTC).strftime("%m-%d %H:%M")
         lines.append(f"- [{confidence}] ({dt}) {summary}")
 

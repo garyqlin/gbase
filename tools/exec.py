@@ -4,15 +4,16 @@ tools/exec.py
 
 命令执行工具。使用 lib/safe_shell 底座执行。
 """
-import asyncio
+import logging
 import os
+import re
 from pathlib import Path
 
-import re
-
-from lib.territory import check_territory_violation, build_territory_error
-from lib.toolkit import tool
 from lib.safe_shell import exec_command as _exec_command
+from lib.territory import check_territory_violation
+from lib.toolkit import tool
+
+logger = logging.getLogger(__name__)
 
 _PROJECT_ROOTS = [
     Path(__file__).resolve().parent.parent,

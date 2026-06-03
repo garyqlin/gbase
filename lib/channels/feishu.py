@@ -18,6 +18,8 @@ from pathlib import Path
 
 import httpx
 
+from lib.session import JsonlSessionManager
+
 logger = logging.getLogger(__name__)
 
 # ── Feishu Channel心跳配置 ──

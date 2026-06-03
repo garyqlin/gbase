@@ -14,6 +14,7 @@ lib/safe_shell.py
 """
 
 import asyncio
+import contextlib
 import logging
 import os
 from pathlib import Path
@@ -65,12 +66,10 @@ async def run(
 
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
-        try:
+        with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(proc.wait(), timeout=5)
-        except asyncio.TimeoutError:
-            pass
         _log.warning("[%s] 命令超时 (%ds): %s", cmdname, timeout, command[:120])
         return {
             "success": False,

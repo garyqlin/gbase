@@ -4,13 +4,12 @@ gen_pro_report — 专业企业调研报告生成器
 使用 Playwright HTML→PDF 渲染，输出印刷级报告
 """
 
-from lib.toolkit import tool
-
-import json
 import os
-import tempfile
 from datetime import datetime
+
 from playwright.sync_api import sync_playwright
+
+from lib.toolkit import tool
 
 # ─── HTML 模板 ──────────────────────────────────────────────────────────────
 

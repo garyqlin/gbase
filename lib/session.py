@@ -11,14 +11,13 @@ Session 管理：append-only JSONL 实现。
 - L3: 会话状态追踪 — 动态压缩阈值 + 上下文使用量统计
 """
 
-import asyncio
 import json
 import logging
-import threading
 import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
 
 class JsonlSessionManager:
     """Append-only JSONL 会话管理器，带三层压缩能力。"""
@@ -43,7 +42,6 @@ class JsonlSessionManager:
             except Exception:
                 logger.exception("静默异常")
         self.fh = open(self.filepath, "a+", encoding="utf-8")
-
 
     def _update_adaptive_max(self):
         """L3: 根据压缩层级动态调节上下文保留轮次。"""
@@ -83,7 +81,7 @@ class JsonlSessionManager:
         if isinstance(text, dict):
             flat = str(text)
             return int(len(flat) * 0.35) + 10
-        chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+        chinese_chars = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")
         other_chars = len(text) - chinese_chars
         return int(chinese_chars * 1.5 + other_chars / 4) + 10
 
@@ -267,16 +265,18 @@ class JsonlSessionManager:
 
             inject_content = "\n".join(ctx_parts)
 
-            messages.insert(0, {
-                "role": "system",
-                "content": inject_content,
-            })
+            messages.insert(
+                0,
+                {
+                    "role": "system",
+                    "content": inject_content,
+                },
+            )
         elif highest_summary:
             # 兼容旧格式：只有纯文本
-            messages.insert(0, {
-                "role": "system",
-                "content": f"[会话摘要 - 压缩前的对话历史]:\n{highest_summary[:2000]}"
-            })
+            messages.insert(
+                0, {"role": "system", "content": f"[会话摘要 - 压缩前的对话历史]:\n{highest_summary[:2000]}"}
+            )
 
         # 按轮压缩
         compressed: list[dict] = []
@@ -329,7 +329,7 @@ class JsonlSessionManager:
             # 如果截断后最后两条不是完整的 user+assistant，补回 keep
             if len(keep) >= 2 and len(messages) >= 2:
                 if not (messages[-2]["role"] == "user" and messages[-1]["role"] == "assistant"):
-                    messages = messages[:-len(keep)] + keep
+                    messages = messages[: -len(keep)] + keep
             elif len(keep) >= 2:
                 messages = messages + keep
 
@@ -337,11 +337,11 @@ class JsonlSessionManager:
 
     def get_compaction_context(self, max_messages: int = 15) -> list[dict]:
         """L2: 获取压缩阶段的高层摘要 + 近期轮次。
-        
+
         不同于 build_context（给 LLM 用），这个方法返回：
         - 所有层级的摘要列表（不是只取最高层）
         - 最新 max_messages 轮对话
-        
+
         用于 L2 多层压缩：把旧摘要 + 近期对话 → 新摘要。
         """
         summaries: list[dict] = []
@@ -364,22 +364,26 @@ class JsonlSessionManager:
                     after_last_compact = False  # 重置
                     s = entry.get("summary", "") or entry.get("context", "")
                     if s or entry.get("decisions") or entry.get("key_facts"):
-                        summaries.append({
-                            "level": entry.get("level", 0),
-                            "summary": s,
-                            "decisions": entry.get("decisions", []),
-                            "key_facts": entry.get("key_facts", []),
-                            "pending": entry.get("pending", []),
-                            "context": entry.get("context", ""),
-                            "ts": entry.get("_ts", 0),
-                        })
+                        summaries.append(
+                            {
+                                "level": entry.get("level", 0),
+                                "summary": s,
+                                "decisions": entry.get("decisions", []),
+                                "key_facts": entry.get("key_facts", []),
+                                "pending": entry.get("pending", []),
+                                "context": entry.get("context", ""),
+                                "ts": entry.get("_ts", 0),
+                            }
+                        )
                 elif after_last_compact or etype in ("user", "assistant"):
                     after_last_compact = True
                     if etype in ("user", "assistant"):
-                        recent.append({
-                            "role": entry.get("role", etype),
-                            "content": entry.get("content", "") or "",
-                        })
+                        recent.append(
+                            {
+                                "role": entry.get("role", etype),
+                                "content": entry.get("content", "") or "",
+                            }
+                        )
         except Exception:
             logger.exception("静默异常")
 

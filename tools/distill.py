@@ -76,7 +76,10 @@ def _export_data(force: bool = False) -> tuple[Path, int]:
                     continue
                 if c == "low":
                     continue
-                rc = {"instruction": f"What experience do you have on the following topic?\nTopic: {s}", "output": d if d else s}
+                rc = {
+                    "instruction": f"What experience do you have on the following topic?\nTopic: {s}",
+                    "output": d if d else s,
+                }
                 records.append(rc)
                 # Reverse QA
                 if len(s) > 20:
@@ -306,20 +309,38 @@ def _do_evaluate(model: str = "gbase-7b"):
             "q": "Write an async HTTP client in Python with type annotations, including exception handling and timeout",
             "tags": ["typing", "async", "error_handling"],
         },
-        {"q": "Review this code for me: def add(a,b): return a+b — what's missing?", "tags": ["code_review", "edge_cases"]},
+        {
+            "q": "Review this code for me: def add(a,b): return a+b — what's missing?",
+            "tags": ["code_review", "edge_cases"],
+        },
         # Docker
-        {"q": "Write a docker-compose.yml with Nginx reverse proxy + FastAPI backend + PostgreSQL", "tags": ["docker", "compose"]},
+        {
+            "q": "Write a docker-compose.yml with Nginx reverse proxy + FastAPI backend + PostgreSQL",
+            "tags": ["docker", "compose"],
+        },
         # Exception paths
         {
             "q": "What is the execution order of try/except/finally in Python? What if an exception is thrown inside except?",
             "tags": ["error_handling", "exception"],
         },
         # Logging
-        {"q": "Write a daily rotating log config using Python logging module, keeping 30 days", "tags": ["logging", "best_practice"]},
+        {
+            "q": "Write a daily rotating log config using Python logging module, keeping 30 days",
+            "tags": ["logging", "best_practice"],
+        },
         # Testing
-        {"q": "Write a pytest test, mock external HTTP calls, verify exception retry logic", "tags": ["testing", "pytest", "mock"]},
-        {"q": "SQLAlchemy ORM: what's the most efficient way to batch insert 10000 records at once?", "tags": ["db", "performance"]},
-        {"q": "Explain the difference between FastAPI's BackgroundTasks and Celery, when to use which?", "tags": ["api", "architecture"]},
+        {
+            "q": "Write a pytest test, mock external HTTP calls, verify exception retry logic",
+            "tags": ["testing", "pytest", "mock"],
+        },
+        {
+            "q": "SQLAlchemy ORM: what's the most efficient way to batch insert 10000 records at once?",
+            "tags": ["db", "performance"],
+        },
+        {
+            "q": "Explain the difference between FastAPI's BackgroundTasks and Celery, when to use which?",
+            "tags": ["api", "architecture"],
+        },
     ]
 
     # agent-3 test set (task/automation/quality)
@@ -328,7 +349,10 @@ def _do_evaluate(model: str = "gbase-7b"):
             "q": "Design a file change monitoring task that automatically categorizes and archives new files in a directory, considering duplicates and errors",
             "tags": ["automation", "workflow"],
         },
-        {"q": "How to determine if an API endpoint is healthy? List 5 check dimensions", "tags": ["monitoring", "quality"]},
+        {
+            "q": "How to determine if an API endpoint is healthy? List 5 check dimensions",
+            "tags": ["monitoring", "quality"],
+        },
         {
             "q": "Write a Python function: given multiple tasks and their dependencies, return a reasonable execution order",
             "tags": ["scheduling", "topological_sort"],
@@ -337,8 +361,14 @@ def _do_evaluate(model: str = "gbase-7b"):
             "q": "Log analysis: if a service reports the same warning every 5 minutes, how should it be handled?",
             "tags": ["troubleshooting", "log_analysis"],
         },
-        {"q": "Design a simple retry queue, exponential backoff retry after task failure, max 3 attempts", "tags": ["retry", "queue", "resilience"]},
-        {"q": "How to design monitoring alert thresholds? Which are P0 level that must be handled immediately?", "tags": ["monitoring", "alerting", "priority"]},
+        {
+            "q": "Design a simple retry queue, exponential backoff retry after task failure, max 3 attempts",
+            "tags": ["retry", "queue", "resilience"],
+        },
+        {
+            "q": "How to design monitoring alert thresholds? Which are P0 level that must be handled immediately?",
+            "tags": ["monitoring", "alerting", "priority"],
+        },
     ]
 
     # ── General tests (all models) ──
@@ -481,7 +511,11 @@ async def distill_train(model: str = "gbase-7b", epochs: int = 3) -> dict:
     adapter = _do_train(model=model, epochs=epochs)
     if adapter:
         return {"status": "ok", "adapter": str(adapter), "model": model}
-    return {"status": "warn", "note": "Training not completed (missing mlx-lm or training failed), data exported", "export_dir": str(EXPORT_DIR)}
+    return {
+        "status": "warn",
+        "note": "Training not completed (missing mlx-lm or training failed), data exported",
+        "export_dir": str(EXPORT_DIR),
+    }
 
 
 @tool()

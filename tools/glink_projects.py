@@ -193,8 +193,13 @@ def register():
     register_toolset(
         "glink_projects",
         [
-            "项目", "项目上下文", "项目进度", "项目事件",
-            "project", "context", "glink",
+            "项目",
+            "项目上下文",
+            "项目进度",
+            "项目事件",
+            "project",
+            "context",
+            "glink",
         ],
         [
             "tool_project_init",

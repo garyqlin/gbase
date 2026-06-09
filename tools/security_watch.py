@@ -34,7 +34,7 @@ async def security_scan_directory(directory: str, output: str = "") -> dict:
         扫描结果摘要（高危/中危/低风险数量）
     """
     # Sanitize directory path to prevent injection
-    safe_dir = re.sub(r'[;&|`$]', '', directory.strip())
+    safe_dir = re.sub(r"[;&|`$]", "", directory.strip())
     if not safe_dir:
         return {"error": "Directory path is empty after sanitization"}
     if not os.path.isdir(safe_dir):

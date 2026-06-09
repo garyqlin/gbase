@@ -66,10 +66,7 @@ async def read_file(filepath: str, offset: int = 0, max_chars: int = 0) -> dict:
         # 领地检查（只警告不阻塞——只读不写是安全的）
         violation = check_territory_violation(filepath)
         if violation:
-            logger.warning(
-                "📖 跨越领地读取: %s 读取了 Agent「%s」的文件 %s",
-                abs_path, violation, abs_path
-            )
+            logger.warning("📖 跨越领地读取: %s 读取了 Agent「%s」的文件 %s", abs_path, violation, abs_path)
 
         if not os.path.exists(abs_path):
             return {"error": f"文件不存在: {filepath}", "path": abs_path}

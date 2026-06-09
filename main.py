@@ -48,9 +48,7 @@ PORT = int(os.environ.get("FEISHU_PORT", "8440"))
 
 # 启动时校验必备配置
 if not APP_ID or not APP_SECRET or not ENCRYPT_KEY:
-    logger.warning(
-        "飞书 Bot 配置不完整：请设置 FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_ENCRYPT_KEY 环境变量"
-    )
+    logger.warning("飞书 Bot 配置不完整：请设置 FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_ENCRYPT_KEY 环境变量")
 
 # ── GBase/GBase 内核配置 ──
 IDENTITY_NAME = "gbase"
@@ -65,6 +63,7 @@ def _ensure_dirs():
 
 async def run():
     import uvicorn
+
     os.environ.setdefault("GBASE_DATA_DIR", DATA_DIR)
     from fastapi import FastAPI, Request
     from fastapi.middleware.cors import CORSMiddleware
@@ -82,6 +81,7 @@ async def run():
 
     # ── 日志：按日期切割，保留 90 天 ──
     import logging.handlers
+
     _file_handler = logging.handlers.TimedRotatingFileHandler(
         str(Path(DATA_DIR) / "gbase.log"),
         when="midnight",
@@ -89,10 +89,12 @@ async def run():
         backupCount=90,
         encoding="utf-8",
     )
-    _file_handler.setFormatter(logging.Formatter(
-        "%(asctime)s [%(name)s] %(levelname)s %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    ))
+    _file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(name)s] %(levelname)s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
     _file_handler.suffix = "%Y-%m-%d"
     logger.addHandler(_file_handler)
     logger.setLevel(logging.INFO)
@@ -311,6 +313,7 @@ async def run():
         logger.info("Ask endpoint: %s (session=%s, id=%s)", message[:80], use_session, session_id)
 
         from lib.session import JsonlSessionManager
+
         _session = None
         if use_session:
             safe_id = session_id.replace("/", "_").replace("\\", "_").strip()
@@ -346,6 +349,7 @@ async def run():
             else:
                 errors.append("memory/storage 未初始化")
             import httpx as _httpx
+
             _port_ok = False
             for _retry in range(3):
                 try:
@@ -368,6 +372,7 @@ async def run():
             # 🚀 RSI: 启动后执行一次完整进化周期
             try:
                 from lib.evolution_engine import full_evolution_cycle
+
                 await full_evolution_cycle()
                 logger.info("🚀 RSI 进化周期完成")
             except Exception as _evo_e:

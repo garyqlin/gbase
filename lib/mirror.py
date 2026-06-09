@@ -1022,7 +1022,15 @@ class Mirror:
         result.extend(unique[:8])
         return result
 
-    def recall(self, query: str, limit: int = 10, ebbinghaus: bool = True, include_forgotten: bool = False, open_recall: bool = False, relevance: float = 0.0) -> list:
+    def recall(
+        self,
+        query: str,
+        limit: int = 10,
+        ebbinghaus: bool = True,
+        include_forgotten: bool = False,
+        open_recall: bool = False,
+        relevance: float = 0.0,
+    ) -> list:
         """Search memories with multi-phrase LIKE expansion.
 
         Instead of a single LIKE '%whole sentence%', expands the query
@@ -1094,19 +1102,24 @@ class Mirror:
         if rows:
             boost = 0.05 + relevance * 0.10  # contextual blood return: relevance 0→1 maps to +0.05→+0.15
             for r in rows:
-                was_inactive = (len(r) > 8 and not r[8])  # is_active=0 means archived
+                was_inactive = len(r) > 8 and not r[8]  # is_active=0 means archived
                 if was_inactive and open_recall:
                     # revive: bring archived memory back to active pool
                     self._conn.execute(
                         "UPDATE memories SET strength=MIN(strength + ?, 2.0), hits=hits+1, is_active=1, last_access=? WHERE id=?",
-                        (boost, now, r[0]))
+                        (boost, now, r[0]),
+                    )
                 else:
-                    self._conn.execute(
-                        "UPDATE memories SET hits=hits+1, last_access=? WHERE id=?",
-                        (now, r[0]))
+                    self._conn.execute("UPDATE memories SET hits=hits+1, last_access=? WHERE id=?", (now, r[0]))
             self._conn.commit()
         return [
-            dict(zip(["id", "type", "content", "strength", "hits", "verified", "created_at", "last_access", "is_active"], row, strict=False))
+            dict(
+                zip(
+                    ["id", "type", "content", "strength", "hits", "verified", "created_at", "last_access", "is_active"],
+                    row,
+                    strict=False,
+                )
+            )
             for row in rows
         ]
 

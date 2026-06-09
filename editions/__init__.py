@@ -7,6 +7,7 @@ Each edition is an EditionConfig object defining:
 - default identity
 - resource requirements
 """
+
 from dataclasses import dataclass, field
 
 

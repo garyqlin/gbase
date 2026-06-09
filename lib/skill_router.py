@@ -55,18 +55,113 @@ SYNONYM_MAP = {
 }
 
 STOP_WORDS = {
-    "the", "a", "an", "is", "are", "was", "were", "be", "been",
-    "this", "that", "these", "those", "i", "you", "he", "she", "it",
-    "we", "they", "me", "my", "your", "his", "her", "its", "our",
-    "their", "and", "or", "but", "in", "on", "at", "to", "for",
-    "of", "with", "by", "from", "as", "do", "does", "did", "has",
-    "have", "had", "can", "could", "will", "would", "shall", "should",
-    "may", "might", "no", "not", "nor", "so", "if", "then", "else",
-    "when", "where", "why", "how", "which", "who", "whom",
-    "了", "的", "是", "在", "和", "就", "也", "都", "要", "会",
-    "有", "没", "不", "很", "吧", "吗", "呢", "啊", "哦", "嗯",
-    "请", "帮", "把", "给", "让", "从", "被", "向", "往", "用",
-    "想", "能", "可以", "应该", "需要", "有点", "一些", "这个",
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "this",
+    "that",
+    "these",
+    "those",
+    "i",
+    "you",
+    "he",
+    "she",
+    "it",
+    "we",
+    "they",
+    "me",
+    "my",
+    "your",
+    "his",
+    "her",
+    "its",
+    "our",
+    "their",
+    "and",
+    "or",
+    "but",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "of",
+    "with",
+    "by",
+    "from",
+    "as",
+    "do",
+    "does",
+    "did",
+    "has",
+    "have",
+    "had",
+    "can",
+    "could",
+    "will",
+    "would",
+    "shall",
+    "should",
+    "may",
+    "might",
+    "no",
+    "not",
+    "nor",
+    "so",
+    "if",
+    "then",
+    "else",
+    "when",
+    "where",
+    "why",
+    "how",
+    "which",
+    "who",
+    "whom",
+    "了",
+    "的",
+    "是",
+    "在",
+    "和",
+    "就",
+    "也",
+    "都",
+    "要",
+    "会",
+    "有",
+    "没",
+    "不",
+    "很",
+    "吧",
+    "吗",
+    "呢",
+    "啊",
+    "哦",
+    "嗯",
+    "请",
+    "帮",
+    "把",
+    "给",
+    "让",
+    "从",
+    "被",
+    "向",
+    "往",
+    "用",
+    "想",
+    "能",
+    "可以",
+    "应该",
+    "需要",
+    "有点",
+    "一些",
+    "这个",
 }
 
 
@@ -127,7 +222,7 @@ class SkillRouter:
                 if len(chars) >= 2:
                     # 2-gram 滑动窗口
                     for i in range(len(chars) - 1):
-                        bigram = chars[i] + chars[i+1]
+                        bigram = chars[i] + chars[i + 1]
                         if not all(c in STOP_WORDS for c in bigram):
                             tokens.append(bigram)
                 # 也保留单字（低权重 fallback）
@@ -141,9 +236,7 @@ class SkillRouter:
         """计算 skill 与输入 token 的匹配分数。"""
         score = 0.0
         name = skill.get("name", "").lower()
-        desc = (
-            skill.get("description") or skill.get("desc") or skill.get("short") or ""
-        ).lower()
+        desc = (skill.get("description") or skill.get("desc") or skill.get("short") or "").lower()
         triggers = [t.lower() for t in skill.get("triggers", skill.get("tags", []))]
         full_text = f"{name} {desc} {' '.join(triggers)}"
 
@@ -196,12 +289,14 @@ class SkillRouter:
                 continue
             score = self._match_score(skill, tokens)
             if score > 0:
-                candidates.append({
-                    "name": skill.get("name", "unknown"),
-                    "score": score,
-                    "description": skill.get("description", ""),
-                    "source": "awesome-codex",
-                })
+                candidates.append(
+                    {
+                        "name": skill.get("name", "unknown"),
+                        "score": score,
+                        "description": skill.get("description", ""),
+                        "source": "awesome-codex",
+                    }
+                )
 
         # 2. 匹配本地 skills/ 目录
         try:
@@ -209,13 +304,15 @@ class SkillRouter:
             for skill in local_skills:
                 score = self._match_score(skill, tokens)
                 if score > 0:
-                    candidates.append({
-                        "name": skill.get("name", "unknown"),
-                        "score": score,
-                        "description": skill.get("description", ""),
-                        "source": "local",
-                        "triggers": skill.get("triggers", []),
-                    })
+                    candidates.append(
+                        {
+                            "name": skill.get("name", "unknown"),
+                            "score": score,
+                            "description": skill.get("description", ""),
+                            "source": "local",
+                            "triggers": skill.get("triggers", []),
+                        }
+                    )
         except Exception as e:
             logger.warning("本地 skill 匹配失败: %s", e)
 
@@ -265,17 +362,11 @@ class SkillRouter:
             return ""
 
         lines = ["## Skill Route (auto-matched by input)"]
-        lines.append(
-            "The following skills match your current task. Read the relevant SKILL.md "
-            "before starting work."
-        )
+        lines.append("The following skills match your current task. Read the relevant SKILL.md before starting work.")
         lines.append("")
 
         for m in matches:
-            lines.append(
-                f"- **{m['name']}** (score={m['score']:.1f}, "
-                f"source={m['source']}) — {m['description'][:100]}"
-            )
+            lines.append(f"- **{m['name']}** (score={m['score']:.1f}, source={m['source']}) — {m['description'][:100]}")
             content = self.load_skill_content(m["name"])
             if content:
                 parts = content.split("\n")

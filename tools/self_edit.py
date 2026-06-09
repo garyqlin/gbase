@@ -49,6 +49,7 @@ if _LIB_SHARED.exists():
 _ROLLBACK_DIR = _INSTANCE_HOME / ".gbase_rollback"
 _ROLLBACK_DIR.mkdir(parents=True, exist_ok=True)
 
+
 # ── 路径校验 ──
 def _safety_check(path: str) -> tuple[Path, str]:
     """解析并验证路径在安全范围内。返回 (绝对路径, 错误信息)"""
@@ -104,6 +105,7 @@ def _verify_syntax(path: Path) -> tuple[bool, str]:
 
 
 # ── 工具函数 ──
+
 
 @tool()
 async def self_edit(
@@ -184,7 +186,10 @@ async def self_edit(
         modified = "\n".join(lines)
 
     else:
-        return {"success": False, "error": "请提供 old+new（精确替换）或 search+replace（整段替换）或 insert_after+content（行后插入）"}
+        return {
+            "success": False,
+            "error": "请提供 old+new（精确替换）或 search+replace（整段替换）或 insert_after+content（行后插入）",
+        }
 
     # ── 改前备份 ──
     backup_name = _backup(abs_path)
@@ -295,10 +300,12 @@ async def self_edit_restart() -> dict:
     返回后会延迟 2 秒自杀，launchd 接管自动拉起。
     """
     import threading
+
     current_pid = os.getpid()
 
     def _delayed_exit():
         import time
+
         time.sleep(2.0)
         os._exit(0)
 
@@ -402,6 +409,7 @@ async def self_edit_remember_reason(
     """
     try:
         from lib.storage import Storage
+
         _st = Storage()
         _summary = f"[自修] {root_cause[:80]}"
         _detail = f"类型: {fix_type}"
@@ -428,4 +436,3 @@ async def self_edit_remember_reason(
         return {"success": False, "error": "数据库连接不可用"}
     except Exception as e:
         return {"success": False, "error": f"记录失败: {e}"}
-

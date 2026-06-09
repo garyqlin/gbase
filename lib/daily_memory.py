@@ -322,7 +322,7 @@ def get_cross_session_injections(session_dir: str = None, max_recent: int = 3) -
         except Exception:
             continue
         # 只取最近 max_recent 轮 user↔assistant 对
-        recent_lines = lines[-max_recent * 6:] if len(lines) > max_recent * 6 else lines
+        recent_lines = lines[-max_recent * 6 :] if len(lines) > max_recent * 6 else lines
         pairs = []
         current_q = None
         current_a = None
@@ -366,11 +366,7 @@ def get_cross_session_injections(session_dir: str = None, max_recent: int = 3) -
         return ""
 
     text = "\n".join(snippets)
-    return (
-        "\n## 📜 今日其他会话（跨会话记忆）\n"
-        "以下是你今天在其他会话中聊过的内容摘要，供参考：\n"
-        f"{text}\n"
-    )
+    return f"\n## 📜 今日其他会话（跨会话记忆）\n以下是你今天在其他会话中聊过的内容摘要，供参考：\n{text}\n"
 
 
 if __name__ == "__main__":

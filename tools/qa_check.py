@@ -74,7 +74,9 @@ async def qa_double_check(
             source = f"<unable to read: {e}>"
 
         lines = source.split("\n")
-        white_findings.append({"item": "file structure", "finding": f"{len(lines)} lines, {len(source)} bytes", "status": "info"})
+        white_findings.append(
+            {"item": "file structure", "finding": f"{len(lines)} lines, {len(source)} bytes", "status": "info"}
+        )
 
         # Count functions/classes
         import re
@@ -114,7 +116,9 @@ async def qa_double_check(
 
         # Check type annotations
         typed_funcs = sum(1 for f in func_names if "def " + f in source)
-        white_findings.append({"item": "type annotations", "finding": f"{typed_funcs}/{len(func_names)} functions", "status": "..."})
+        white_findings.append(
+            {"item": "type annotations", "finding": f"{typed_funcs}/{len(func_names)} functions", "status": "..."}
+        )
 
         report["white_box"] = {
             "code_file": code_file,
@@ -127,19 +131,35 @@ async def qa_double_check(
         black_findings = []
 
         black_findings.append(
-            {"item": "API reachability", "finding": f"target: {target[:60]}", "status": "pending (agent-3 external probe)"}
+            {
+                "item": "API reachability",
+                "finding": f"target: {target[:60]}",
+                "status": "pending (agent-3 external probe)",
+            }
         )
 
         black_findings.append(
-            {"item": "input diversity", "finding": "normal input | empty input | oversized input | invalid type", "status": "pending"}
+            {
+                "item": "input diversity",
+                "finding": "normal input | empty input | oversized input | invalid type",
+                "status": "pending",
+            }
         )
 
         black_findings.append(
-            {"item": "output stability", "finding": "error code consistency | response format | no crash on exception", "status": "to verify"}
+            {
+                "item": "output stability",
+                "finding": "error code consistency | response format | no crash on exception",
+                "status": "to verify",
+            }
         )
 
         black_findings.append(
-            {"item": "side-effect check", "finding": "any file writes/network requests/system calls", "status": "check after execution"}
+            {
+                "item": "side-effect check",
+                "finding": "any file writes/network requests/system calls",
+                "status": "check after execution",
+            }
         )
 
         report["black_box"] = {
@@ -286,7 +306,11 @@ async def qa_swarm_test(
             },
             {
                 "name": "AI generated",
-                "input": {"url": "https://medium.com/test", "title": "AI article", "snippet": "Based on my training data"},
+                "input": {
+                    "url": "https://medium.com/test",
+                    "title": "AI article",
+                    "snippet": "Based on my training data",
+                },
             },
             {"name": "empty input", "input": {"url": "", "title": "", "snippet": ""}},
             {"name": "garbage text", "input": {"url": "a" * 1000, "title": "x" * 500, "snippet": "!" * 2000}},
@@ -314,6 +338,7 @@ async def qa_swarm_test(
                     # Call verify_intelligence internal logic
                     try:
                         from tools.verify import _assess_content, _rate_source
+
                         _rate_source(tc["input"].get("url", ""))
                         _assess_content(tc["input"].get("title", "") + " " + tc["input"].get("snippet", ""))
                     except ImportError:

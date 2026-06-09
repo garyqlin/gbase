@@ -4,6 +4,7 @@ tools/exec.py
 
 命令执行工具。使用 lib/safe_shell 底座执行。
 """
+
 import logging
 import os
 import re
@@ -49,17 +50,14 @@ async def exec_command(command: str, timeout: int = 300, workdir: str = "", **_k
 
     # ── 领地检查：命令中显式 cd 到其他 Agent 的家目录 ──
     # 扫描常见的路径操作模式（cd、>重定向、cp、mv、write to）
-    cd_match = re.findall(r'(?:^|;|&&|\|\|)\s*cd\s+(\S+)', command)
-    write_match = re.findall(r'((?:>|>>)\s*/[^\s;|&]+)', command)
+    cd_match = re.findall(r"(?:^|;|&&|\|\|)\s*cd\s+(\S+)", command)
+    write_match = re.findall(r"((?:>|>>)\s*/[^\s;|&]+)", command)
 
     for target_path in cd_match + write_match:
-        stripped = target_path.lstrip('> ').strip()
+        stripped = target_path.lstrip("> ").strip()
         violation = check_territory_violation(stripped)
         if violation:
-            logger.warning(
-                "⚠️ exec_command 检测到领地侵犯嫌疑: 命令目标 "
-                "'%s' 属于 Agent「%s」", stripped, violation
-            )
+            logger.warning("⚠️ exec_command 检测到领地侵犯嫌疑: 命令目标 '%s' 属于 Agent「%s」", stripped, violation)
 
     if workdir:
         target = Path(workdir) if workdir.startswith("/") else _PROJECT_ROOT / workdir

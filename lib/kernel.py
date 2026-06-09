@@ -347,10 +347,12 @@ class Kernel:
 
         # ── ArchiveStore 初始化（无 session 依赖，全局写入 + 全局Search） ──
         from pathlib import Path
+
         self._archive_store = None
         if data_dir:
             try:
                 from .archive_store import ArchiveStore
+
                 _archive_db_path = Path(data_dir) / "archive.db"
                 self._archive_store = ArchiveStore(session_key="global", db_path=_archive_db_path)
                 logger.info("ArchiveStore 初始化完成, db_path=%s", _archive_db_path)
@@ -391,11 +393,12 @@ class Kernel:
         # ── Skill Router（SkillRouter + SkillLoader 双层匹配） ──
         if self.skill_loader:
             from .skill_router import SkillRouter
+
             router = SkillRouter(
                 self.skill_loader,
                 os.path.join(os.getcwd(), "skills-index.json"),
             )
-            user_msg = (self._current_user_message or "")
+            user_msg = self._current_user_message or ""
             route_result = router.get_route_instruction(user_msg, inject_lines=20)
             if route_result:
                 parts.append(route_result)
@@ -457,20 +460,21 @@ class Kernel:
                 logger.info("Knowledge 自动Search: query=%s", _query)
                 # 直接查 SQLite (不走 tool, 直接调 storage)
                 # 中文不分词，改用字符级 n-gram: 单字+双字组合
-                _import_re = __import__('re')
-                _words = _import_re.findall(r'[a-zA-Z0-9_\-]+|[\u4e00-\u9fff]+', _query)
+                _import_re = __import__("re")
+                _words = _import_re.findall(r"[a-zA-Z0-9_\-]+|[\u4e00-\u9fff]+", _query)
                 _fts_tokens = []
                 for _w in _words:
                     _fts_tokens.append(f"{_w}*")
-                    if len(_w) > 1 and _import_re.match(r'^[\u4e00-\u9fff]+$', _w):
+                    if len(_w) > 1 and _import_re.match(r"^[\u4e00-\u9fff]+$", _w):
                         # 中文多字词，拆单字也加进去
                         for _ch in _w:
                             _fts_tokens.append(f"{_ch}*")
                 # FTS5 detail=column 下纯数字/纯单字母 token 会被解析为 column name
-                _fts_tokens = [t for t in _fts_tokens
-                              if not _import_re.match(r'^\d+$', t)
-                              and not _import_re.match(r'^[a-zA-Z]$', t)
-                              and len(t) > 1]
+                _fts_tokens = [
+                    t
+                    for t in _fts_tokens
+                    if not _import_re.match(r"^\d+$", t) and not _import_re.match(r"^[a-zA-Z]$", t) and len(t) > 1
+                ]
                 # 过滤后保底：至少保留原始词保证有查询内容
                 if not _fts_tokens:
                     _fts_tokens = [f"{_w}*" for _w in _words if len(_w) > 1]
@@ -507,8 +511,7 @@ class Kernel:
                     _know_text = (
                         "\n\n## Related Knowledge (pre-loaded)\n"
                         "Knowledge facts related to your current query. "
-                        "If you already know these, ignore.\n"
-                        + "\n".join(_results)
+                        "If you already know these, ignore.\n" + "\n".join(_results)
                     )
                     parts.append(_know_text)
                     # GMem Phase 1A1: 自动检索命中后 record_hit
@@ -584,6 +587,7 @@ class Kernel:
         try:
             # L0: 今天其他 session 的关键摘要（跨会话记忆，等效 cross-session skill）
             from .daily_memory import get_cross_session_injections
+
             _cross = get_cross_session_injections()
             if _cross:
                 _memory_injections.append(("今日其他会话", _cross))
@@ -593,6 +597,7 @@ class Kernel:
         try:
             # L1: daily_memory 会话记忆
             from .daily_memory import get_injection_text as daily_memory_inject
+
             _daily = daily_memory_inject()
             if _daily:
                 _memory_injections.append(("会话记忆摘要", _daily))
@@ -604,6 +609,7 @@ class Kernel:
             _rows = []
             _kn_rows = []
             from .storage import Storage
+
             _st = getattr(self, "_storage_backend", None)
             if _st is None:
                 _st = Storage()
@@ -634,7 +640,9 @@ class Kernel:
                         continue
                     if any(_p in _s for _p in _NOISE_PATTERNS):
                         continue
-                    _dt = datetime.fromtimestamp(_ts, tz=__import__('zoneinfo').ZoneInfo("Asia/Shanghai")).strftime("%m-%d")
+                    _dt = datetime.fromtimestamp(_ts, tz=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")).strftime(
+                        "%m-%d"
+                    )
                     _clean.append(_s[:180])
                     if len(_clean) >= 5:
                         break
@@ -657,7 +665,9 @@ class Kernel:
                 for _s, _ts, _h in _kn_rows[:4]:
                     if not isinstance(_s, str):
                         continue
-                    _dt = datetime.fromtimestamp(_ts, tz=__import__('zoneinfo').ZoneInfo("Asia/Shanghai")).strftime("%m-%d")
+                    _dt = datetime.fromtimestamp(_ts, tz=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")).strftime(
+                        "%m-%d"
+                    )
                     _lines.append(f"  - 💡 {_s[:180]} (hits={_h}, {_dt})")
                 _memory_injections.append(("活跃知识点", "\n".join(_lines)))
         except Exception:
@@ -674,7 +684,9 @@ class Kernel:
                 _seen_prefixes.add(_key)
                 _deduped.append((_label, _text))
             _parts = []
-            _parts.append("## 📜 历史记录摘要\n以下是系统自动提取的过往历史记录摘要，用于辅助参考。注意这些不是当前对话内容，而是之前发生过的事情的记录。请区分使用。\n")
+            _parts.append(
+                "## 📜 历史记录摘要\n以下是系统自动提取的过往历史记录摘要，用于辅助参考。注意这些不是当前对话内容，而是之前发生过的事情的记录。请区分使用。\n"
+            )
             for _label, _text in _deduped:
                 _parts.append(f"### {_label}\n{_text}")
             parts.append("\n".join(_parts))
@@ -718,6 +730,7 @@ class Kernel:
             try:
                 # 全局搜索：不限制 session_key
                 import sqlite3 as _sqlite3
+
                 _db_path = self._archive_store.db_path
                 _keywords = self._archive_store._extract_keywords(user_message)
                 if _keywords:
@@ -856,16 +869,13 @@ class Kernel:
             context = session.build_context()
             messages.extend(context)
             if archive_hits:
-                user_with_archive = (
-                    f"【历史记忆参考】\n{archive_hits}\n\n---\n\n{enriched_message}"
-                )
+                user_with_archive = f"【历史记忆参考】\n{archive_hits}\n\n---\n\n{enriched_message}"
                 session.append_user_message(user_with_archive)
             else:
                 session.append_user_message(enriched_message)
         # 最终 user message（已含 archive Search结果）
         final_user = (
-            f"【历史记忆参考】\n{archive_hits}\n\n---\n\n{enriched_message}"
-            if archive_hits else enriched_message
+            f"【历史记忆参考】\n{archive_hits}\n\n---\n\n{enriched_message}" if archive_hits else enriched_message
         )
         messages.append({"role": "user", "content": final_user})
 
@@ -903,15 +913,17 @@ class Kernel:
             # 🧪 Experiment #2 — Record gradient for this turn
             self._record_gradient(user_message, reply, tc_count)
             # 📊 RSI: 实时工具调用成功率追踪（计数器）
-            self._tool_call_count = getattr(self, '_tool_call_count', 0) + tc_count
-            self._tool_fail_count = getattr(self, '_tool_fail_count', 0)
+            self._tool_call_count = getattr(self, "_tool_call_count", 0) + tc_count
+            self._tool_fail_count = getattr(self, "_tool_fail_count", 0)
             # 每10次对话输出一次性能快照
             if self._tool_call_count % 10 == 0 and self._tool_call_count > 0:
                 fail_rate = self._tool_fail_count / self._tool_call_count * 100
                 logger.info(
                     "📊 RSI Telemetry: %d tool calls, %d fails (%.1f%%), last_task=%s",
-                    self._tool_call_count, self._tool_fail_count, fail_rate,
-                    getattr(self, '_current_task_type', 'unknown')
+                    self._tool_call_count,
+                    self._tool_fail_count,
+                    fail_rate,
+                    getattr(self, "_current_task_type", "unknown"),
                 )
             _engine = self.experience_engine
             # 🔄 反脆弱: 检测是否是失败/Rollback（从 reply 中提取特征）
@@ -1508,7 +1520,9 @@ class Kernel:
             reply = choice0.message.content or ""
             finish_reason = getattr(choice0, "finish_reason", None)
             if finish_reason == "length":
-                logger.warning("⚠️ LLM 输出被截断 (finish_reason=length)！max_tokens=%s Configurable能不够", self.max_tokens)
+                logger.warning(
+                    "⚠️ LLM 输出被截断 (finish_reason=length)！max_tokens=%s Configurable能不够", self.max_tokens
+                )
                 reply += "\n\n[⚠️ 输出被截断，结果Configurable能不完整]"
             if session:
                 session.append({"role": "assistant", "content": reply})
@@ -1611,7 +1625,8 @@ class Kernel:
                     return {
                         "role": "tool",
                         "tool_call_id": tc.id,
-                        "content": f"[自动备用] 工具 {func_name} 熔断，自动切换为 {fb_tool} 执行成功。\n\n" + result_str[:5000],
+                        "content": f"[自动备用] 工具 {func_name} 熔断，自动切换为 {fb_tool} 执行成功。\n\n"
+                        + result_str[:5000],
                     }
                 return {
                     "role": "tool",
@@ -1640,7 +1655,8 @@ class Kernel:
                     return {
                         "role": "tool",
                         "tool_call_id": tc.id,
-                        "content": f"[自动备用·整轮熔断] 工具 {func_name} 熔断，自动切换为 {fb_tool} 执行成功。\n\n" + result_str[:5000],
+                        "content": f"[自动备用·整轮熔断] 工具 {func_name} 熔断，自动切换为 {fb_tool} 执行成功。\n\n"
+                        + result_str[:5000],
                     }
                 return {
                     "role": "tool",
@@ -1699,11 +1715,17 @@ class Kernel:
                     attempts = CIRCUIT_BREAKER["_cooldown_attempts"][func_name]
                     base = CIRCUIT_BREAKER["tool_cooldown_seconds"]
                     cap = CIRCUIT_BREAKER["tool_cooldown_max"]
-                    cooldown = min(base * (2 ** attempts), cap)
+                    cooldown = min(base * (2**attempts), cap)
                     CIRCUIT_BREAKER["_cooldowns"][func_name] = time.time() + cooldown
                     CIRCUIT_BREAKER["_cooldown_attempts"][func_name] = attempts + 1
                     CIRCUIT_BREAKER["_failures"][func_name] = 0  # 重置，冷却期不计数
-                    logger.warning("🔴 工具 %s 连续失败 %d 次，冷却 %ds（第%d次退避）", func_name, consecutive, cooldown, attempts + 1)
+                    logger.warning(
+                        "🔴 工具 %s 连续失败 %d 次，冷却 %ds（第%d次退避）",
+                        func_name,
+                        consecutive,
+                        cooldown,
+                        attempts + 1,
+                    )
                 if CIRCUIT_BREAKER["_round_failure_count"] >= CIRCUIT_BREAKER["max_round_failures"]:
                     CIRCUIT_BREAKER["_breaker_tripped"] = True
                     logger.warning("🔴 整轮熔断触发！累计失败 %d 次", CIRCUIT_BREAKER["_round_failure_count"])
@@ -1738,7 +1760,9 @@ class Kernel:
 def _build_gmem_summary(stats: dict, session) -> str:
     """从 session 统计信息构建压缩摘要文本。"""
     try:
-        parts = [f"上下文压缩 checkpoint — 消息数: {stats.get('messages', 0)}, 压缩次数: {stats.get('compactions', 0)}, 层级: {session.get_compaction_level() if hasattr(session, 'get_compaction_level') else 0}"]
+        parts = [
+            f"上下文压缩 checkpoint — 消息数: {stats.get('messages', 0)}, 压缩次数: {stats.get('compactions', 0)}, 层级: {session.get_compaction_level() if hasattr(session, 'get_compaction_level') else 0}"
+        ]
         # 尝试获取最后几条会话摘要
         if hasattr(session, "get_all_compactions"):
             compactions = session.get_all_compactions()

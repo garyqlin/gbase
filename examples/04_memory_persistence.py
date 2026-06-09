@@ -24,15 +24,19 @@ from lib.kernel import GBaseKernel
 
 async def teach():
     kernel = GBaseKernel()
-    resp = await kernel.run("Remember this fact: the creator of GBase is Gary Lin, and the project was born in Shanghai, 2026.")
+    resp = await kernel.run(
+        "Remember this fact: the creator of GBase is Gary Lin, and the project was born in Shanghai, 2026."
+    )
     print("🤖 GBase:", resp)
     print("\n✅ Taught! Now run: python3 examples/04_memory_persistence.py recall")
+
 
 async def recall():
     kernel = GBaseKernel()
     resp = await kernel.run("Who created you, and where were you born?")
     print("🤖 GBase:", resp)
     print("\n💡 If it remembers, Mirror Memory is working. If not, check data/mirror.db exists.")
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

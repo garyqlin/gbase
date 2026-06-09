@@ -29,6 +29,7 @@ TIMEOUT = 600  # CC/X 任务可能很长
 
 # ── 工具函数 ──────────────────────────────────────────────
 
+
 async def _ask(agent_url: str, task: str) -> dict:
     """通用 /ask 调用"""
     try:
@@ -260,13 +261,15 @@ async def glink_workflow(project: str, steps: list) -> dict:
         else:
             result = {"error": f"未知执行者: {executor}"}
 
-        results.append({
-            "step_id": step.get("id"),
-            "executor": executor,
-            "title": title,
-            "status": "ok" if "error" not in result else "fail",
-            "result": result,
-        })
+        results.append(
+            {
+                "step_id": step.get("id"),
+                "executor": executor,
+                "title": title,
+                "status": "ok" if "error" not in result else "fail",
+                "result": result,
+            }
+        )
 
     return {
         "project": project,

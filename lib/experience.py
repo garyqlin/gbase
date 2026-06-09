@@ -40,7 +40,6 @@ _ANTI_FRAGILE_RULES = [
         "summary": "此次任务工具调用次数偏多（{tool_calls_count}次），下次同类任务应该先规划再调工具",
         "confidence": "medium",
     },
-
     {
         "name": "api_error",
         "check": lambda ctx: ctx.get("has_api_error", False),
@@ -63,9 +62,11 @@ _ANTI_FRAGILE_RULES = [
     # ── 反脆弱: 成功模式提炼（成功比失败更需要分析）──
     {
         "name": "success_pattern",
-        "check": lambda ctx: ctx.get("tool_calls_count", 0) >= 3
-        and not ctx.get("has_api_error", False)
-        and not ctx.get("has_failure", False),
+        "check": lambda ctx: (
+            ctx.get("tool_calls_count", 0) >= 3
+            and not ctx.get("has_api_error", False)
+            and not ctx.get("has_failure", False)
+        ),
         "summary": "有效模式: [{task_theme}] 用 {tool_calls_count} 次工具调用完成",
         "confidence": "medium",
     },
@@ -173,6 +174,7 @@ class ExperienceEngine:
         """从一次对话中提取经验。先跑规则 → 去重 → 写库。"""
         # 提取任务主题（前60字，去标点）
         import re as _re
+
         task_theme = _re.sub(r"[^\u4e00-\u9fff\w\s]", "", user_message[:60]).strip()
 
         context = {
@@ -270,7 +272,7 @@ class ExperienceEngine:
 
             # 类型防御：LLM 可能返回不完整 JSON（被截断的末尾）
             is_clean = False
-            for try_idx in range(3):
+            for _try_idx in range(3):
                 try:
                     result = json.loads(text)
                     is_clean = True
@@ -279,7 +281,7 @@ class ExperienceEngine:
                     # 尝试找到最晚的完整 JSON 截止点
                     last_brace = text.rfind("}")
                     if last_brace > 0:
-                        text = text[:last_brace + 1]
+                        text = text[: last_brace + 1]
                     else:
                         break
             if not is_clean:
@@ -335,7 +337,7 @@ class ExperienceEngine:
                     _record_success_insight(self, context.get("user_message", ""), context["tool_calls_count"])
 
         except (json.JSONDecodeError, KeyError) as e:
-            logger.debug("经验提取（LLM）解析失败: %s | 原始响应: %s", e, text[:200] if 'text' in dir() else "N/A")
+            logger.debug("经验提取（LLM）解析失败: %s | 原始响应: %s", e, text[:200] if "text" in dir() else "N/A")
         except Exception as e:
             logger.debug("经验提取（LLM）异常: %s", e)
 
@@ -370,10 +372,10 @@ class ExperienceEngine:
                     import re as _re
 
                     tokens = _re.sub(r"[^\u4e00-\u9fff\w\s]", " ", query).strip()
-                    fts_query = " OR ".join(
-                        f'"{t}" OR "{t}*"' if len(t) >= 2 else f'"{t}"'
-                        for t in tokens.split()
-                    ) or f'"{query}"'
+                    fts_query = (
+                        " OR ".join(f'"{t}" OR "{t}*"' if len(t) >= 2 else f'"{t}"' for t in tokens.split())
+                        or f'"{query}"'
+                    )
 
                     # FTS5 BM25 排序 + 内容长度惩罚（太长的长篇分析文降级）
                     rows = conn.execute(

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-gbase_8440.py — GBase 飞书 Bot 入口
-接管飞书 Bot (cli_aa843ca68c7a9cba) + 端口 8440，
-用 GBase/GBase Kernel 取代 Hermes CLI 的大脑。
+gbase.py — GBase framework entry point
 
-用法：
-    cd ~/gbase-home && python3 main.py
+Usage:
+    python3 main.py                     # Feishu bot mode (default)
+    python3 main.py --mode web          # Web chat interface (browser)
+    python3 main.py --mode web --port 8765
 """
 
 import asyncio
@@ -413,5 +413,110 @@ async def run():
     await server.serve()
 
 
+async def _run_web():
+    """Web chat mode (browser interface)."""
+    import uvicorn
+
+    os.environ.setdefault("GBASE_DATA_DIR", DATA_DIR)
+    from openai import AsyncOpenAI
+
+    from lib.experience import ExperienceEngine
+    from lib.identity import load_identity
+    from lib.kernel import Kernel
+    from lib.mirror import Mirror
+    from lib.storage import Storage
+    from tools.mirror_tool import set_mirror_instance
+
+    _ensure_dirs()
+
+    # ── Logging ──
+    import logging.handlers
+    _file_handler = logging.handlers.TimedRotatingFileHandler(
+        str(Path(DATA_DIR) / "gbase-web.log"),
+        when="midnight", interval=1, backupCount=90, encoding="utf-8",
+    )
+    _file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(name)s] %(levelname)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    ))
+    _file_handler.suffix = "%Y-%m-%d"
+    logger.addHandler(_file_handler)
+    logger.setLevel(logging.INFO)
+
+    # ── Storage ──
+    storage = Storage(data_dir=DATA_DIR)
+    storage.setup()
+    exp = ExperienceEngine(storage)
+
+    # ── Mirror ──
+    mirror_path = str(Path(DATA_DIR) / "mirror.db")
+    mirror = Mirror(db_path=mirror_path)
+    mirror.setup()
+    set_mirror_instance(mirror)
+    mstats = mirror.get_stats()
+    logger.info("鉴面引擎: %d 活跃记忆, %d 已遗忘", mstats["total_active"], mstats["total_forgotten"])
+
+    # ── LLM client ──
+    api_key = DEEPSEEK_API_KEY
+    client = AsyncOpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+
+    # ── Identity + Kernel ──
+    identity = load_identity(
+        IDENTITY_NAME,
+        root_dir=str(Path(__file__).parent / "identities"),
+        experience_engine=exp,
+    )
+    kernel = Kernel(
+        client=client,
+        model=MODEL,
+        system_prompt=identity.get_system_prompt(),
+        experience_engine=exp,
+        mirror_engine=mirror,
+        data_dir=DATA_DIR,
+    )
+
+    from lib.toolkit import auto_scan
+    from lib.toolkit import set_global as tk_set_global
+    from tools import register_default
+    tk_set_global("storage", storage)
+    tk_set_global("experience", exp)
+    register_default()
+    auto_scan("tools")
+
+    # ── WebChat channel ──
+    from lib.channels.webchat import WebChatChannel
+    channel = WebChatChannel(kernel=kernel, storage=storage, data_dir=DATA_DIR)
+    app = channel.create_app(title="GBase Web Chat")
+
+    logger.info("━━━━━━━━━━━━━━━━━━━")
+    logger.info("GBase Web Chat 启动")
+    logger.info(f"端口: {WEB_PORT}, 模型: {MODEL}")
+    logger.info(f"数据目录: {DATA_DIR}")
+    logger.info(f"访问: http://localhost:{WEB_PORT}")
+    logger.info("━━━━━━━━━━━━━━━━━━━")
+
+    config = uvicorn.Config(app, host="0.0.0.0", port=WEB_PORT, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
 if __name__ == "__main__":
-    asyncio.run(run())
+    import sys
+
+    # Simple CLI arg parsing
+    args = sys.argv[1:]
+    MODE = "feishu"
+    WEB_PORT = int(os.environ.get("GBASE_WEB_PORT", "8765"))
+
+    for i, arg in enumerate(args):
+        if arg == "--mode" and i + 1 < len(args):
+            MODE = args[i + 1]
+        if arg == "--port" and i + 1 < len(args):
+            WEB_PORT = int(args[i + 1])
+        if arg in ("-m", "--mode"):
+            pass  # handled
+
+    if MODE == "web":
+        asyncio.run(_run_web())
+    else:
+        asyncio.run(run())

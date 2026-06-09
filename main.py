@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-gbase_8440.py — GBase 版"高达"飞书入口
-接管原高达的飞书 Bot (cli_aa843ca68c7a9cba) + 端口 8440，
+gbase_8440.py — GBase 飞书 Bot 入口
+接管飞书 Bot (cli_aa843ca68c7a9cba) + 端口 8440，
 用 GBase/GBase Kernel 取代 Hermes CLI 的大脑。
 
 用法：
@@ -40,7 +40,7 @@ if _env_path.exists():
                 os.environ[_key] = _value
     logger.info(".env 已加载 (%s)", _env_path)
 
-# ── 原高达的飞书 Bot 配置（从环境变量读取，不硬编码） ──
+# ── 飞书 Bot 配置（从环境变量读取，不硬编码） ──
 APP_ID = os.environ.get("FEISHU_APP_ID", "")
 APP_SECRET = os.environ.get("FEISHU_APP_SECRET", "")
 ENCRYPT_KEY = os.environ.get("FEISHU_ENCRYPT_KEY", "")
@@ -377,7 +377,7 @@ async def run():
     asyncio.create_task(channel.start_heartbeat())
     asyncio.create_task(_startup_guard())
     logger.info("━━━━━━━━━━━━━━━━━━━")
-    logger.info("GBase 版高达 (Gundam) 飞书通道启动")
+    logger.info("GBase 飞书通道启动")
     logger.info(f"端口: {PORT}, Bot: {APP_ID}")
     logger.info(f"身份: {IDENTITY_NAME}, 模型: {model}")
     logger.info(f"数据目录: {DATA_DIR}")

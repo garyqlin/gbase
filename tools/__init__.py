@@ -34,6 +34,9 @@ from . import (  # noqa: F401
     test_generator,  # noqa: F401
     xlsx_gen,  # noqa: F401
     yf_image_tools,  # noqa: F401
+    archive_search,  # noqa: F401
+    glink_projects,  # noqa: F401
+    remember_info,  # noqa: F401
 )
 
 

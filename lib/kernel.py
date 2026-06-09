@@ -466,6 +466,14 @@ class Kernel:
                         # 中文多字词，拆单字也加进去
                         for _ch in _w:
                             _fts_tokens.append(f"{_ch}*")
+                # FTS5 detail=column 下纯数字/纯单字母 token 会被解析为 column name
+                _fts_tokens = [t for t in _fts_tokens
+                              if not _import_re.match(r'^\d+$', t)
+                              and not _import_re.match(r'^[a-zA-Z]$', t)
+                              and len(t) > 1]
+                # 过滤后保底：至少保留原始词保证有查询内容
+                if not _fts_tokens:
+                    _fts_tokens = [f"{_w}*" for _w in _words if len(_w) > 1]
                 _fts_query = " OR ".join(_fts_tokens)[:500]
                 _results = []
                 with _storage._lock:
@@ -503,6 +511,12 @@ class Kernel:
                         + "\n".join(_results)
                     )
                     parts.append(_know_text)
+                    # GMem Phase 1A1: 自动检索命中后 record_hit
+                    for _hit_r in _rows:
+                        try:
+                            _storage.record_hit(_hit_r[0])
+                        except Exception:
+                            logger.exception("记录 hit 失败 (id=%s)", _hit_r[0])
                     logger.info("Knowledge 自动Search: 命中 %d 条", len(_results))
                 else:
                     logger.info("Knowledge 自动Search: 无命中")
@@ -1711,7 +1725,28 @@ class Kernel:
                 if session:
                     session.append(tr)
 
+        # SkillOpt: 记录本轮工具调用数
+        self._recorded_tc = getattr(self, "_recorded_tc", 0) + len(msg.tool_calls)
+
         # 递归至多 15 层
         if depth + 1 >= MAX_TOOL_DEPTH:
             return await self._loop(messages, tools, depth=depth + 1, session=session)
         return await self._loop(messages, tools, depth=depth + 1, session=session)
+
+
+# ── GMem Phase B1: 构建压缩摘要（供 archive_store 存档） ──
+def _build_gmem_summary(stats: dict, session) -> str:
+    """从 session 统计信息构建压缩摘要文本。"""
+    try:
+        parts = [f"上下文压缩 checkpoint — 消息数: {stats.get('messages', 0)}, 压缩次数: {stats.get('compactions', 0)}, 层级: {session.get_compaction_level() if hasattr(session, 'get_compaction_level') else 0}"]
+        # 尝试获取最后几条会话摘要
+        if hasattr(session, "get_all_compactions"):
+            compactions = session.get_all_compactions()
+            for c in compactions[-3:]:
+                if isinstance(c, str):
+                    parts.append(f"  · {c[:200]}")
+                elif isinstance(c, dict):
+                    parts.append(f"  · {c.get('summary', str(c)[:200])}")
+        return "\n".join(parts)
+    except Exception:
+        return ""

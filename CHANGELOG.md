@@ -1,6 +1,40 @@
 # Changelog
 
+## [0.4.1] - 2026-06-09
+
+### Added
+- FTS5 token filter: fixed `detail=column` issue where pure-digit/alpha tokens were parsed as column names (port from Opprime)
+- Knowledge auto-retrieval: record_hit() on every auto-search hit for cache warmth
+- _recorded_tc: track total tool calls per loop execution for SkillOpt gate integration
+- _build_gmem_summary: standalone helper for archive_store compression summary construction
+- tools/remember_info.py: unified memory route — auto-classifies user content into Knowledge/Notes/Experience
+- tools/archive_search.py: Archive Store search tool for cross-session memory recall
+
+### Changed
+- kernel.py: merged Opprime improvements (FTS5 safety filter + Knowledge hit recording + loop tc tracking)
+- session.py: synchronized with Opprime (fixes for L1 compaction type mismatch, image_url filtering)
+- experience.py: synchronized with Opprime (improved JSON error tolerance)
+- storage.py: synchronized with Opprime (aging mechanism for Knowledge entries)
+- archive_store.py: generalized agent-specific DB fallback paths to `~/gbase-home/` (public-ready)
+
+### Fixed
+- knowledge.py: FTS5 MATCH returning 0 matches due to unpurged detail=column token pollution
+- session.py: content null leading to DeepSeek serde enum variant mismatch (400 error)
+- session.py: L1 compression type mismatch (passing str instead of list[dict])
+
 ## [0.4.0] - 2026-06-02
+
+### Added
+- ArchiveStore: full-text conversation archive with LIKE-based semantic retrieval (replaces LLM compression)
+- Session: removed 3-layer LLM compression, replaced with ArchiveStore append/search
+- Territory safety: cross-agent read/write access control (write blocking, read warning)
+- RSI Dual-Knob: task intent classification → dynamic temperature control
+- Time-decay weighted retrieval: M3 sparse attention inspired (7d full / 7-30d linear / 30d+ exponential)
+- Entity conflict detection: Cosmos 3 inspired, auto-detect contradictions on write
+- Hot query cache (LRU, max 64) for high-frequency entity lookups
+- Archive trash recovery: deleted entries saved to `data/archive_trash/` as grep-able JSONL
+- L4 permanent notes: auto-serialize when tool calls >= 5 or reply >= 500 chars
+- 20+ new tools: self_edit, feishu_send, note_tool, knowledge, mirror_tool, chain, mail, security_watch, etc.
 
 ### Added
 - ArchiveStore: full-text conversation archive with LIKE-based semantic retrieval (replaces LLM compression)

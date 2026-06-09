@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 """
-self_edit.py — 波塞冬自修代码工具
+self_edit.py — Agent 自修代码工具
 
-让波塞冬能安全地修改自己的源代码（tools/、lib/ 下的 .py 文件）。
+让 Agent 能安全地修改自己的源代码（tools/、lib/ 下的 .py 文件）。
 核心安全机制：
   1. 改前自动备份到 ~/.gbase_rollback/
   2. 改后自动语法检查
@@ -288,7 +288,7 @@ async def self_edit_rollback(path: str, version: str = "") -> dict:
 
 @tool()
 async def self_edit_restart() -> dict:
-    """重启波塞冬进程（launchd 自动拉起）
+    """重启 Agent 进程（launchd 自动拉起）
 
     修改 lib/ 下的代码后需要重启才能生效。
     launchd KeepAlive 配置会在进程退出后自动重新拉起。
@@ -315,7 +315,7 @@ async def self_edit_restart() -> dict:
 async def self_edit_read_source(path: str, offset: int = 0, max_chars: int = 8000) -> dict:
     """读取自己的源码文件（tools/、lib/ 下的 .py 文件）
 
-    波塞冬的 read_file 主要用于读外部文件（用户项目、文档等）。
+    Agent 的 read_file 主要用于读外部文件（用户项目、文档等）。
     这个工具专门用于读自己的源码，方便定位和修复 bug。
 
     Args:

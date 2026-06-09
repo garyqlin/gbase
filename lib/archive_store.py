@@ -22,7 +22,6 @@ Usage:
   hits = store.search("query keywords")
 """
 
-import contextlib
 import json
 import logging
 import os
@@ -136,7 +135,10 @@ class ArchiveStore:
         if not content:
             return
 
-        content = json.dumps(content, ensure_ascii=False) if isinstance(content, (list, dict)) else str(content)
+        if isinstance(content, (list, dict)):
+            content = json.dumps(content, ensure_ascii=False)
+        else:
+            content = str(content)
 
         if len(content) > _MAX_CONTENT_CHARS:
             content = content[:_MAX_CONTENT_CHARS] + "..."
@@ -520,7 +522,7 @@ class ArchiveStore:
         params: list = [self.session_key]
 
         # 关键词条件
-        kw_conditions = " OR ".join("content LIKE ? COLLATE NOCASE" for _ in keywords)
+        kw_conditions = " OR ".join(f"content LIKE ? COLLATE NOCASE" for _ in keywords)
         where_parts.append(f"({kw_conditions})")
         params.extend(f"%{k}%" for k in keywords)
 
@@ -552,7 +554,7 @@ class ArchiveStore:
 
         # 计算每条记录的命中关键词数（作为粗糙的 BM25 替代）
         scored = []
-        for content, role, ts, priority, _source_id, _eid in all_rows:
+        for content, role, ts, priority, source_id, eid in all_rows:
             if not content:
                 continue
             hits = sum(1 for kw in keywords if kw in content or kw.lower() in content.lower())
@@ -632,11 +634,11 @@ class ArchiveStore:
             "这样", "那样", "可能", "需要", "之后", "之前", "现在",
             "我们", "他们", "你们", "自己", "一些", "这些", "那些",
             "谢谢", "你好", "请问", "好的", "是的", "知道", "觉得",
-            "然后", "或者", "除了", "不想", "想要", "打算",
-            "看到", "听说", "告诉", "我的", "你的", "他的",
+            "然后", "或者", "还是", "除了", "不想", "想要", "打算",
+            "看到", "听说", "觉得", "告诉", "我的", "你的", "他的",
             "大家", "东西", "时候", "不错", "真的", "非常", "很多",
             "工作", "生活", "事情", "感觉", "方面", "一点", "一定",
-            "还有", "出来",
+            "还有", "因为", "出来",
         }
         keywords = [k for k in keywords if k not in _COMMON_BIGRAMS]
 
@@ -726,8 +728,10 @@ class ArchiveStore:
         self.flush()
 
     def __del__(self):
-        with contextlib.suppress(Exception):
+        try:
             self.close()
+        except Exception:
+            pass
 
 
 # ── 旧数据迁移 ─────────────────────────────────────
@@ -765,6 +769,58 @@ def _save_trash(session_key: str, rows: list[tuple]):
         logger.warning("归档Write失败（不影响主流程）: %s", e)
 
 
+def recent_global(limit: int = 10, hours: int = 72) -> dict:
+    """跨 session 获取最近 N 小时的全局 markers（Phase 4 学用对接）。
+
+    不限制 session_key，只按时间过滤。
+    用于 session 预热时注入同主题历史。
+    """
+    import sqlite3, time, datetime
+
+    # 找 archive.db（尝试多个位置）
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "..", "data", "archive.db"),
+        os.path.expanduser("~/gbase-home/data/archive.db"),
+    ]
+    db_path = None
+    for c in candidates:
+        p = os.path.abspath(c)
+        if os.path.exists(p):
+            db_path = p
+            break
+    if not db_path:
+        return {"markers": [], "count": 0, "db": None}
+
+    cutoff_ts = time.time() - hours * 3600
+
+    with _LOCK:
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.execute(
+                "SELECT marker, timestamp, session_key FROM archive_markers "
+                "WHERE timestamp >= ? "
+                "ORDER BY timestamp DESC LIMIT ?",
+                (cutoff_ts, limit),
+            )
+            rows = cursor.fetchall()
+            conn.close()
+        except Exception:
+            return {"markers": [], "count": 0, "db": db_path}
+
+    result = []
+    for marker, ts, skey in rows:
+        dt = datetime.datetime.fromtimestamp(ts)
+        skey_short = skey.split(":")[-1][:20] if skey else ""
+        result.append({
+            "marker": marker[:120],
+            "timestamp": ts,
+            "time_str": dt.strftime("%m-%d %H:%M"),
+            "session": skey_short,
+        })
+
+    return {"markers": result, "count": len(result), "db": db_path}
+
+
 def _copy_old_data(dat_db_path: str, archive_db_path: str):
     """从 dat.db 导入旧 experience/knowledge 数据到 archive.db（一次性）。"""
     if not os.path.exists(dat_db_path):
@@ -779,7 +835,7 @@ def _copy_old_data(dat_db_path: str, archive_db_path: str):
         cursor = conn.cursor()
 
         # 从 entries table 找 experience 和 knowledge
-        for tbl, _pri in [("entries", 1)]:
+        for tbl, pri in [("entries", 1)]:
             try:
                 cursor.execute(f"SELECT content, type FROM {tbl} WHERE content IS NOT NULL AND content != ''")
                 for content, typ in cursor.fetchall():

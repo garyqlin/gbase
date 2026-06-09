@@ -7,7 +7,7 @@ from tools.pdf_gen import gen_pdf
 
 async def main():
     content = [
-        {'type': 'cover', 'title': '2026年中国人工智能行业研究报告', 'subtitle': 'AI Industry Research Report 2026', 'date': '2026年5月', 'author': '高达研究部'},
+        {'type': 'cover', 'title': '2026年中国人工智能行业研究报告', 'subtitle': 'AI Industry Research Report 2026', 'date': '2026年5月', 'author': 'GBase Research'},
         {'type': 'toc'},
         {'type': 'h1', 'text': '第一章 行业概述'},
         {'type': 'p', 'text': '2025年，中国人工智能产业规模突破2.1万亿元，同比增长32.5%。'},
@@ -44,7 +44,7 @@ async def main():
         title='AI行业研究报告',
         content=content,
         subtitle='2026年中国人工智能行业研究报告',
-        author='高达研究部',
+        author='GBase Research',
         output_path='$HOME/Downloads/AI_Report_2026_v1.pdf',
         color_theme='mckinsey',
         show_toc=True,

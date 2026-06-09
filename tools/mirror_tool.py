@@ -1,5 +1,5 @@
 """
-mirror_tool.py — 高达版记忆工具
+mirror_tool.py — 记忆工具
 独立化的 mirror 工具集
 """
 

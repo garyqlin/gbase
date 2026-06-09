@@ -76,9 +76,14 @@ python3 main.py cli
 ### Web Chat Mode 🆕
 
 ```bash
-# Start the browser interface
+# 1. Install WebSocket support (only once)
+pip install websockets
+
+# 2. Start the browser interface
 python3 main.py --mode web --port 8765
 ```
+
+> ⚠️ If you see "Not connected. Trying to reconnect..." in the UI, you forgot `pip install websockets`.
 
 Then open **http://localhost:8765** — a full cyberpunk-themed chat UI with:
 - Streaming responses (chunk-by-chunk)

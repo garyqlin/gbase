@@ -514,7 +514,7 @@ if __name__ == "__main__":
     # Simple CLI arg parsing
     args = sys.argv[1:]
     MODE = "feishu"
-    WEB_PORT = int(os.environ.get("GBASE_WEB_PORT", "8765"))
+    WEB_PORT = int(os.environ.get("GBASE_WEB_PORT", "8775"))
 
     for i, arg in enumerate(args):
         if arg == "--mode" and i + 1 < len(args):

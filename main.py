@@ -431,14 +431,20 @@ async def _run_web():
 
     # ── Logging ──
     import logging.handlers
+
     _file_handler = logging.handlers.TimedRotatingFileHandler(
         str(Path(DATA_DIR) / "gbase-web.log"),
-        when="midnight", interval=1, backupCount=90, encoding="utf-8",
+        when="midnight",
+        interval=1,
+        backupCount=90,
+        encoding="utf-8",
     )
-    _file_handler.setFormatter(logging.Formatter(
-        "%(asctime)s [%(name)s] %(levelname)s %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    ))
+    _file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(name)s] %(levelname)s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
     _file_handler.suffix = "%Y-%m-%d"
     logger.addHandler(_file_handler)
     logger.setLevel(logging.INFO)
@@ -478,6 +484,7 @@ async def _run_web():
     from lib.toolkit import auto_scan
     from lib.toolkit import set_global as tk_set_global
     from tools import register_default
+
     tk_set_global("storage", storage)
     tk_set_global("experience", exp)
     register_default()
@@ -485,6 +492,7 @@ async def _run_web():
 
     # ── WebChat channel ──
     from lib.channels.webchat import WebChatChannel
+
     channel = WebChatChannel(kernel=kernel, storage=storage, data_dir=DATA_DIR)
     app = channel.create_app(title="GBase Web Chat")
 

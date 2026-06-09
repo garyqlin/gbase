@@ -36,6 +36,7 @@ This is not a library you call. This is the engine your agent calls home.
 
 | | |
 |---|---|
+| 🌐 **Web Chat Interface** | A full cyberpunk-themed browser UI — streaming responses, file uploads, drag & drop, real-time agent mind visibility. `python3 main.py --mode web` and open your browser. |
 | 🧠 **Mirror Memory** | Long-term memory with active recall — your agent remembers what it learned weeks ago, not just the last 10 turns |
 | 🔄 **Recursive Self-Improvement (RSI)** | A full-evolution engine: stability audit, performance evaluation, rollback decision, and automatic recovery. Call `full_evolution_cycle()` to trigger — your agent analyzes its own outputs, detects failure patterns, and rewrites itself for the next round |
 | 🛑 **Quality Gates** | Multi-armed review pipelines: one agent builds, another audits, a third judges. Code that ships is code that survives cross-examination |
@@ -53,7 +54,7 @@ This is not a library you call. This is the engine your agent calls home.
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.9+
 - An OpenAI-compatible API endpoint (OpenAI, DeepSeek, etc.)
 
 ### Setup
@@ -71,6 +72,22 @@ cp .env.example .env
 pip install -r requirements.txt
 python3 main.py cli
 ```
+
+### Web Chat Mode 🆕
+
+```bash
+# Start the browser interface
+python3 main.py --mode web --port 8765
+```
+
+Then open **http://localhost:8765** — a full cyberpunk-themed chat UI with:
+- Streaming responses (chunk-by-chunk)
+- Drag & drop file upload (images, PDFs, DOCX, XLSX, code)
+- Real-time Agent Mind panel (knowledge hits, tool chain, live metrics)
+- Auto-reconnect WebSocket
+
+> **No npm install, no build step, no frontend framework.**
+> One Python process, one `--mode web` flag, and the entire UI is a single HTML file served by FastAPI.
 
 ### One-Liner Demo
 
@@ -103,14 +120,20 @@ python3 main.py --arm ink      # Frontend & design (port 8432)
 
 ```
 GBase
-├── main.py              # CLI + HTTP entry point
+├── main.py              # CLI + HTTP + WebSocket entry point
 ├── .env.example         # Configuration template
 ├── identities/          # One directory per agent persona
 ├── editions/            # Feature toggles (hacker / prime / standard / lite)
+├── webchat/
+│   └── index.html       # 🆕 Single-file browser UI (CSS/JS inline, 0 deps)
 ├── lib/
 │   ├── kernel.py        # LLM kernel — the brain
+│   ├── channels/
+│   │   ├── feishu.py    # Feishu bot channel
+│   │   └── webchat.py   # 🆕 WebSocket chat channel
 │   ├── mirror.py        # Long-term memory with active recall
 │   ├── experience.py    # Learn from past interactions
+│   ├── archive_store.py # 🆕 Session archive with BM25 search
 │   ├── cognifold.py     # Cognitive folding for complex reasoning
 │   ├── pipeline.py      # Quality gate review system
 │   ├── scheduler.py     # Cron jobs inside the agent
@@ -119,7 +142,11 @@ GBase
 │   ├── search.py        # Web search (multi-engine)
 │   ├── read_file.py     # File reading
 │   ├── write_file.py    # Write & backup
+│   ├── remember_info.py # 🆕 Unified knowledge storage
+│   ├── archive_search.py# 🆕 Session archive search
+│   ├── glink_projects.py# 🆕 Project memory system
 │   └── ...              # Code review, testing, data seeding, etc.
+├── rules/               # 🆕 Behavior rules (AGENCY, THINKING, FINISH)
 └── data/                # Runtime data (not tracked in git)
 ```
 

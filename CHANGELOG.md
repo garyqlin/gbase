@@ -2,25 +2,37 @@
 
 ## [0.4.1] - 2026-06-09
 
-### Added
+### Added 🌐
+- **Web Chat Interface**: `python3 main.py --mode web --port 8765` opens a full cyberpunk-themed browser UI
+  - Streaming response (chunk-by-chunk)
+  - File upload: drag & drop or click — images, PDFs, DOCX, XLSX, code files
+  - Agent Mind panel: real-time knowledge hits, tool chain visibility, live metrics
+  - Auto-reconnect WebSocket
+  - Zero external dependencies (single HTML file, all CSS/JS inline)
+- **lib/channels/webchat.py**: WebSocket chat channel with streaming, file processing, knowledge injection
+- **webchat/index.html**: Production-ready frontend (23600 bytes, 0 npm/node/Webpack)
 - FTS5 token filter: fixed `detail=column` issue where pure-digit/alpha tokens were parsed as column names (port from Opprime)
 - Knowledge auto-retrieval: record_hit() on every auto-search hit for cache warmth
 - _recorded_tc: track total tool calls per loop execution for SkillOpt gate integration
 - _build_gmem_summary: standalone helper for archive_store compression summary construction
 - tools/remember_info.py: unified memory route — auto-classifies user content into Knowledge/Notes/Experience
 - tools/archive_search.py: Archive Store search tool for cross-session memory recall
+- tools/glink_projects.py: project-level memory system for long-running tasks
+- rules/AGENCY.md, rules/THINKING.md, rules/FINISH.md: behavior rules for agent autonomy
 
 ### Changed
-- kernel.py: merged Opprime improvements (FTS5 safety filter + Knowledge hit recording + loop tc tracking)
+- kernel.py: merged Opprime improvements (FTS5 safety filter + Knowledge hit recording + loop tc tracking + execution mode detector)
 - session.py: synchronized with Opprime (fixes for L1 compaction type mismatch, image_url filtering)
 - experience.py: synchronized with Opprime (improved JSON error tolerance)
 - storage.py: synchronized with Opprime (aging mechanism for Knowledge entries)
-- archive_store.py: generalized agent-specific DB fallback paths to `~/gbase-home/` (public-ready)
+- archive_store.py: generalized agent-specific DB fallback paths to ~/gbase-home/ (public-ready)
+- main.py: --mode web flag added, shared common infra between Feishu and Web modes
 
 ### Fixed
 - knowledge.py: FTS5 MATCH returning 0 matches due to unpurged detail=column token pollution
 - session.py: content null leading to DeepSeek serde enum variant mismatch (400 error)
 - session.py: L1 compression type mismatch (passing str instead of list[dict])
+- session.py: image_url in V2 Feishu messages not filtered, causing 400 errors
 
 ## [0.4.0] - 2026-06-02
 

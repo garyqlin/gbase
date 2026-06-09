@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-波塞冬 Trident 三叉戟工具集
+Agent Trident 三叉戟工具集
 ────────────────────────────
-让波塞冬可以：
+让 Agent 可以：
 1. 用 Trident CC 写代码（执行实现任务）
 2. 用 Trident X 审查/补刀（代码审计 + ApplyPatch）
 3. 通过 Trident Glink 编排项目工作流
 4. 探查 CC/X 的健康状态
 
-用法：波塞冬直接调以下 @tool 函数。
+用法：Agent直接调以下 @tool 函数。
 底层走 HTTP 直连 Trident CC（8443）/ X（8444）/ Glink（8427），
 不经过 Lancer 那套 shared/ 底座，完全独立。
 """
@@ -29,6 +29,7 @@ TIMEOUT = 600  # CC/X 任务可能很长
 
 # ── 工具函数 ──────────────────────────────────────────────
 
+
 async def _ask(agent_url: str, task: str) -> dict:
     """通用 /ask 调用"""
     try:
@@ -46,7 +47,7 @@ async def _ask(agent_url: str, task: str) -> dict:
         return {"error": str(e)}
 
 
-# ── 波塞冬的经验：如何用好 CC 和 X ──
+# ── 使用经验：如何用好 CC 和 X ──
 #
 # 经验 1：不要把 CC 当搜索用。CC 是代码臂，给它写代码任务。
 #        搜索信息直接用 anysearch_search，CC 只用来看文件和改代码。
@@ -84,7 +85,7 @@ async def _ask(agent_url: str, task: str) -> dict:
 
 @tool()
 async def trident_help() -> dict:
-    """返回 Trident CC/X 的使用指南（波塞冬的备忘录）"""
+    """返回 Trident CC/X 的使用指南（备忘录）"""
     return {
         "cc": {
             "port": 8443,
@@ -240,7 +241,7 @@ async def glink_workflow(project: str, steps: list) -> dict:
     各步骤的 executor 可以是：
     - "Trident-CC" — 代码实现
     - "Trident-X"  — 代码审计
-    - "波塞冬"     — 你自己（用你自己的工具处理）
+    - "your-agent"     — 你自己（用你自己的工具处理）
 
     Returns:
         dict: 工作流状态与各步骤结果
@@ -255,18 +256,20 @@ async def glink_workflow(project: str, steps: list) -> dict:
             result = await cc_execute(task, step.get("project_dir"))
         elif executor == "Trident-X":
             result = await x_audit(task)
-        elif executor == "波塞冬":
+        elif executor == "your-agent":
             result = {"note": f"步骤 '{title}' 分配给自己执行，需要自行处理"}
         else:
             result = {"error": f"未知执行者: {executor}"}
 
-        results.append({
-            "step_id": step.get("id"),
-            "executor": executor,
-            "title": title,
-            "status": "ok" if "error" not in result else "fail",
-            "result": result,
-        })
+        results.append(
+            {
+                "step_id": step.get("id"),
+                "executor": executor,
+                "title": title,
+                "status": "ok" if "error" not in result else "fail",
+                "result": result,
+            }
+        )
 
     return {
         "project": project,

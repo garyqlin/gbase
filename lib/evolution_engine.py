@@ -318,7 +318,11 @@ def decide_rollback(evaluation: dict, filepath: str) -> tuple[bool, str, str | N
         return False, "No available backup found", None
 
     latest = backups[0]
-    return True, f"Evaluation failed (score {evaluation['overall_score']}), rolling back to {latest['id'][:20]}...", latest["id"]
+    return (
+        True,
+        f"Evaluation failed (score {evaluation['overall_score']}), rolling back to {latest['id'][:20]}...",
+        latest["id"],
+    )
 
 
 def execute_rollback_if_needed(evaluation: dict, filepath: str) -> dict:

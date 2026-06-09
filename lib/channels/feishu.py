@@ -112,7 +112,9 @@ class FeishuChannel:
                 break
             except Exception as e:
                 self._heartbeat_failures += 1
-                logger.warning("💔 Feishu Channel心跳失败 (%d/%d): %s", self._heartbeat_failures, _HEARTBEAT_MAX_FAILURES, e)
+                logger.warning(
+                    "💔 Feishu Channel心跳失败 (%d/%d): %s", self._heartbeat_failures, _HEARTBEAT_MAX_FAILURES, e
+                )
 
                 if self._heartbeat_failures >= _HEARTBEAT_MAX_FAILURES:
                     # 触发重连

@@ -5,6 +5,7 @@ Configured via environment variables:
   GBASE_AGENT_NAME  — this agent's name
   GBASE_AGENT_HOMES — colon-separated list of agent_name:path pairs
 """
+
 import logging
 import os
 
@@ -22,6 +23,7 @@ if _agent_homes_raw:
             name, home = pair.split("=", 1)
             AGENT_HOMES[name.strip()] = home.strip()
 
+
 def _is_other_agent_territory(path: str) -> str | None:
     """If path points to another agent's home, return that agent's name."""
     path = os.path.abspath(os.path.expanduser(path))
@@ -31,6 +33,7 @@ def _is_other_agent_territory(path: str) -> str | None:
         if path.startswith(home):
             return name
     return None
+
 
 def _check_territory(path: str, my_home: str | None = None) -> None:
     """Check if path belongs to another agent. Raises PermissionError if write, logs warning if read."""
@@ -51,7 +54,4 @@ def check_territory_violation(path: str) -> str | None:
 
 def build_territory_error(violation: str, path: str, action: str = "操作") -> str:
     """Build a human-readable territory error message."""
-    return (
-        f"领地安全拒绝：路径 {path} 属于 Agent「{violation}」，"
-        f"不允许{action}。如需跨 Agent 协作，请通过共享目录。"
-    )
+    return f"领地安全拒绝：路径 {path} 属于 Agent「{violation}」，不允许{action}。如需跨 Agent 协作，请通过共享目录。"

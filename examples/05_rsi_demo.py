@@ -28,11 +28,12 @@ async def rsi_cycle():
     print(f"📊 Before: {result.get('score_before', 'N/A')}")
     print(f"📊 After:  {result.get('score_after', 'N/A')}")
 
-    if result.get('rollback'):
+    if result.get("rollback"):
         print("↩️  Agent decided to rollback — changes weren't beneficial")
     else:
         print("🎉 Agent found genuine improvements!")
 
     print(f"\n🔬 Details: {result.get('details', '')}")
+
 
 asyncio.run(rsi_cycle())

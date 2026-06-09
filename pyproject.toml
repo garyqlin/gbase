@@ -1,6 +1,6 @@
 [project]
 name = "gbase"
-version = "0.4.0"
+version = "0.4.1"
 description = "Universal AI Agent framework with identity separation, tool auto-registration, and multi-agent orchestration"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -52,6 +52,7 @@ ignore = [
 "lib/archive_store.py" = ["N806"]
 "lib/kernel.py" = ["N806"]
 "lib/sleep_cycle.py" = ["B007", "F841", "ARG001"]
+"lib/storage.py" = ["ARG004"]
 "lib/loop_cache.py" = ["ARG002", "B007", "SIM102"]
 "lib/daily_memory.py" = ["B007"]
 "lib/identity.py" = ["ARG001"]

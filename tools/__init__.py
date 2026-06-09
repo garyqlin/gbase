@@ -12,12 +12,14 @@ from lib.toolkit import register_platform_map, register_toolset
 # YF-image-base and scene skills
 from . import (  # noqa: F401
     anchor_keeper,  # noqa: F401  # noqa: F401
+    archive_search,  # noqa: F401
     commit_helper,  # noqa: F401
     crypto_helper,  # noqa: F401
     cua_tools,  # noqa: F401
     data_seeder,  # noqa: F401
     docx_gen,  # noqa: F401
     file_checker,  # noqa: F401
+    glink_projects,  # noqa: F401
     honeycomb_search,  # noqa: F401
     jwt_helper,  # noqa: F401
     laser_doc,  # noqa: F401
@@ -29,6 +31,7 @@ from . import (  # noqa: F401
     pptx_gen,  # noqa: F401
     prompt_helper,  # noqa: F401
     query_profiler,  # noqa: F401
+    remember_info,  # noqa: F401
     schema_tools,  # noqa: F401
     security_watch,  # noqa: F401
     test_generator,  # noqa: F401

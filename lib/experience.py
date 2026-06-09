@@ -41,18 +41,12 @@ _ANTI_FRAGILE_RULES = [
         "confidence": "medium",
     },
     {
-        "name": "short_reply",
-        "check": lambda ctx: len(ctx.get("reply", "")) < 80,
-        "summary": "回复长度偏短（{reply_len}字），下次应尽量提供更完整的回答",
-        "confidence": "low",
-    },
-    {
         "name": "api_error",
         "check": lambda ctx: ctx.get("has_api_error", False),
         "summary": "工具调用时有 API 错误，下次应注意检查工具是否可用",
         "confidence": "high",
     },
-    # ── 反脆弱: 失败尝试也写入经验，不静默Rollback ──
+    # ── 反脆弱: 失败尝试也写入经验，不静默回滚 ──
     {
         "name": "failed_action",
         "check": lambda ctx: bool(ctx.get("has_failure", False)),
@@ -62,16 +56,18 @@ _ANTI_FRAGILE_RULES = [
     {
         "name": "failed_rollback",
         "check": lambda ctx: bool(ctx.get("rollback_occurred", False)),
-        "summary": "执行Rollback: [{rollback_action}] 验证失败，已Rollback。这条路走不通。",
+        "summary": "执行回滚: [{rollback_action}] 验证失败，已回滚。这条路走不通。",
         "confidence": "medium",
     },
     # ── 反脆弱: 成功模式提炼（成功比失败更需要分析）──
     {
         "name": "success_pattern",
-        "check": lambda ctx: ctx.get("tool_calls_count", 0) > 0
-        and not ctx.get("has_api_error", False)
-        and not ctx.get("has_failure", False),
-        "summary": "成功完成[{task_theme}]，工具调用{successful_calls}次。有效策略：{effective_strategy}",
+        "check": lambda ctx: (
+            ctx.get("tool_calls_count", 0) >= 3
+            and not ctx.get("has_api_error", False)
+            and not ctx.get("has_failure", False)
+        ),
+        "summary": "有效模式: [{task_theme}] 用 {tool_calls_count} 次工具调用完成",
         "confidence": "medium",
     },
 ]
@@ -150,11 +146,11 @@ API 错误: {has_api_error}
 """
 
 
-# ── Experience extraction器 ──────────────────────────────────────────
+# ── 经验提取器 ──────────────────────────────────────────
 
 
 class ExperienceEngine:
-    """Experience Engine。绑定到一个 Storage 实例上运作。"""
+    """经验引擎。绑定到一个 Storage 实例上运作。"""
 
     def __init__(self, storage: store_module.Storage):
         self.storage = storage
@@ -178,6 +174,7 @@ class ExperienceEngine:
         """从一次对话中提取经验。先跑规则 → 去重 → 写库。"""
         # 提取任务主题（前60字，去标点）
         import re as _re
+
         task_theme = _re.sub(r"[^\u4e00-\u9fff\w\s]", "", user_message[:60]).strip()
 
         context = {
@@ -204,10 +201,10 @@ class ExperienceEngine:
 
             if _is_duplicate_rule(self.storage, rule_name):
                 self._skip_count[rule_name] = self._skip_count.get(rule_name, 0) + 1
-                logger.debug("Experience deduplication跳过: rule=%s (已跳过%d次)", rule_name, self._skip_count[rule_name])
+                logger.debug("经验去重跳过: rule=%s (已跳过%d次)", rule_name, self._skip_count[rule_name])
                 return
 
-            logger.info("Experience extraction（规则）: %s", rule_result["summary"][:60])
+            logger.info("经验提取（规则）: %s", rule_result["summary"][:60])
             # --- 如果是成功完成任务自动刻入 insight ---
             if tool_calls_count > 0 and not has_api_error and rule_result["type"] != "insight" and not has_failure:
                 _record_success_insight(self, user_message, tool_calls_count)
@@ -247,7 +244,7 @@ class ExperienceEngine:
             try:
                 await self._llm_extract(context, llm_client)
             except Exception as e:
-                logger.warning("Experience extraction（LLM）失败: %s", e)
+                logger.warning("经验提取（LLM）失败: %s", e)
 
     async def _llm_extract(self, context: dict, client):
         """元认知反思提取 — 从「发生了什么」升级到「为什么发生、如何避免、什么条件下该用不同策略」。
@@ -270,10 +267,27 @@ class ExperienceEngine:
             )
             text = response.choices[0].message.content.strip()
             if text == "null" or not text:
-                logger.debug("Experience extraction（LLM）: 无有价值教训")
+                logger.debug("经验提取（LLM）: 无有价值教训")
                 return
 
-            result = json.loads(text)
+            # 类型防御：LLM 可能返回不完整 JSON（被截断的末尾）
+            is_clean = False
+            for _try_idx in range(3):
+                try:
+                    result = json.loads(text)
+                    is_clean = True
+                    break
+                except json.JSONDecodeError:
+                    # 尝试找到最晚的完整 JSON 截止点
+                    last_brace = text.rfind("}")
+                    if last_brace > 0:
+                        text = text[: last_brace + 1]
+                    else:
+                        break
+            if not is_clean:
+                logger.warning("经验提取（LLM）: JSON 解析失败，跳过")
+                return
+
             if "summary" in result:
                 # 构建结构化 entry
                 summary = result["summary"][:200]
@@ -316,19 +330,19 @@ class ExperienceEngine:
                 except Exception:
                     pass
 
-                logger.info("Experience extraction（元认知反思）: %s", summary[:60])
+                logger.info("经验提取（元认知反思）: %s", summary[:60])
 
                 # --- 自动刻入 insight（成功任务不留空洞） ---
                 if context.get("tool_calls_count", 0) > 0 and not context.get("has_api_error", False):
                     _record_success_insight(self, context.get("user_message", ""), context["tool_calls_count"])
 
         except (json.JSONDecodeError, KeyError) as e:
-            logger.debug("Experience extraction（LLM）解析失败: %s | 原始响应: %s", e, text[:200] if 'text' in dir() else "N/A")
+            logger.debug("经验提取（LLM）解析失败: %s | 原始响应: %s", e, text[:200] if "text" in dir() else "N/A")
         except Exception as e:
-            logger.debug("Experience extraction（LLM）异常: %s", e)
+            logger.debug("经验提取（LLM）异常: %s", e)
 
     def search(self, query: str, limit: int = 5) -> list[dict]:
-        """搜索经验库。优先 FTS5 全文Search，无结果时回退 LIKE 模糊匹配。
+        """搜索经验库。优先 FTS5 全文检索，无结果时回退 LIKE 模糊匹配。
 
         排序逻辑：
         - 先按 BM25 相关性分 + 内容长度惩罚（太长降级）
@@ -358,10 +372,10 @@ class ExperienceEngine:
                     import re as _re
 
                     tokens = _re.sub(r"[^\u4e00-\u9fff\w\s]", " ", query).strip()
-                    fts_query = " OR ".join(
-                        f'"{t}" OR "{t}*"' if len(t) >= 2 else f'"{t}"'
-                        for t in tokens.split()
-                    ) or f'"{query}"'
+                    fts_query = (
+                        " OR ".join(f'"{t}" OR "{t}*"' if len(t) >= 2 else f'"{t}"' for t in tokens.split())
+                        or f'"{query}"'
+                    )
 
                     # FTS5 BM25 排序 + 内容长度惩罚（太长的长篇分析文降级）
                     rows = conn.execute(

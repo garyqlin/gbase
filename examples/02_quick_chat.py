@@ -26,4 +26,5 @@ async def chat():
     response = await kernel.run("Prove you remember: what was my first question?")
     print("🤖 GBase:", response)
 
+
 asyncio.run(chat())

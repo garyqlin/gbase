@@ -63,7 +63,9 @@ async def add_learn_topic(
         srchs = [q.strip() for q in search_queries.split(",") if q.strip()]
 
     if not rss and not srchs:
-        return {"error": "At least one RSS source or search keyword is required. If no known RSS sources, pass at least search_queries."}
+        return {
+            "error": "At least one RSS source or search keyword is required. If no known RSS sources, pass at least search_queries."
+        }
 
     # Determine mode and write to the corresponding config
     if rss:

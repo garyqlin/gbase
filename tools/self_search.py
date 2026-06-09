@@ -95,7 +95,7 @@ Please return the indices of the most relevant experiences (starting from 0), on
             pass
 
     if not matched:
-        return {"result": f"Found no experience relevant to \"{question}\"."}
+        return {"result": f'Found no experience relevant to "{question}".'}
 
     # Record a hit
     for m in matched:

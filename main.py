@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-gbase_8440.py — GBase 版"高达"飞书入口
-接管原高达的飞书 Bot (cli_aa843ca68c7a9cba) + 端口 8440，
-用 GBase/GBase Kernel 取代 Hermes CLI 的大脑。
+gbase.py — GBase framework entry point
 
-用法：
-    cd ~/gbase-home && python3 main.py
+Usage:
+    python3 main.py                     # Feishu bot mode (default)
+    python3 main.py --mode web          # Web chat interface (browser)
+    python3 main.py --mode web --port 8765
 """
 
 import asyncio
@@ -40,7 +40,7 @@ if _env_path.exists():
                 os.environ[_key] = _value
     logger.info(".env 已加载 (%s)", _env_path)
 
-# ── 原高达的飞书 Bot 配置（从环境变量读取，不硬编码） ──
+# ── 飞书 Bot 配置（从环境变量读取，不硬编码） ──
 APP_ID = os.environ.get("FEISHU_APP_ID", "")
 APP_SECRET = os.environ.get("FEISHU_APP_SECRET", "")
 ENCRYPT_KEY = os.environ.get("FEISHU_ENCRYPT_KEY", "")
@@ -48,9 +48,7 @@ PORT = int(os.environ.get("FEISHU_PORT", "8440"))
 
 # 启动时校验必备配置
 if not APP_ID or not APP_SECRET or not ENCRYPT_KEY:
-    logger.warning(
-        "飞书 Bot 配置不完整：请设置 FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_ENCRYPT_KEY 环境变量"
-    )
+    logger.warning("飞书 Bot 配置不完整：请设置 FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_ENCRYPT_KEY 环境变量")
 
 # ── GBase/GBase 内核配置 ──
 IDENTITY_NAME = "gbase"
@@ -65,6 +63,7 @@ def _ensure_dirs():
 
 async def run():
     import uvicorn
+
     os.environ.setdefault("GBASE_DATA_DIR", DATA_DIR)
     from fastapi import FastAPI, Request
     from fastapi.middleware.cors import CORSMiddleware
@@ -82,6 +81,7 @@ async def run():
 
     # ── 日志：按日期切割，保留 90 天 ──
     import logging.handlers
+
     _file_handler = logging.handlers.TimedRotatingFileHandler(
         str(Path(DATA_DIR) / "gbase.log"),
         when="midnight",
@@ -89,10 +89,12 @@ async def run():
         backupCount=90,
         encoding="utf-8",
     )
-    _file_handler.setFormatter(logging.Formatter(
-        "%(asctime)s [%(name)s] %(levelname)s %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    ))
+    _file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(name)s] %(levelname)s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
     _file_handler.suffix = "%Y-%m-%d"
     logger.addHandler(_file_handler)
     logger.setLevel(logging.INFO)
@@ -311,6 +313,7 @@ async def run():
         logger.info("Ask endpoint: %s (session=%s, id=%s)", message[:80], use_session, session_id)
 
         from lib.session import JsonlSessionManager
+
         _session = None
         if use_session:
             safe_id = session_id.replace("/", "_").replace("\\", "_").strip()
@@ -346,6 +349,7 @@ async def run():
             else:
                 errors.append("memory/storage 未初始化")
             import httpx as _httpx
+
             _port_ok = False
             for _retry in range(3):
                 try:
@@ -368,6 +372,7 @@ async def run():
             # 🚀 RSI: 启动后执行一次完整进化周期
             try:
                 from lib.evolution_engine import full_evolution_cycle
+
                 await full_evolution_cycle()
                 logger.info("🚀 RSI 进化周期完成")
             except Exception as _evo_e:
@@ -377,7 +382,7 @@ async def run():
     asyncio.create_task(channel.start_heartbeat())
     asyncio.create_task(_startup_guard())
     logger.info("━━━━━━━━━━━━━━━━━━━")
-    logger.info("GBase 版高达 (Gundam) 飞书通道启动")
+    logger.info("GBase 飞书通道启动")
     logger.info(f"端口: {PORT}, Bot: {APP_ID}")
     logger.info(f"身份: {IDENTITY_NAME}, 模型: {model}")
     logger.info(f"数据目录: {DATA_DIR}")
@@ -408,5 +413,118 @@ async def run():
     await server.serve()
 
 
+async def _run_web():
+    """Web chat mode (browser interface)."""
+    import uvicorn
+
+    os.environ.setdefault("GBASE_DATA_DIR", DATA_DIR)
+    from openai import AsyncOpenAI
+
+    from lib.experience import ExperienceEngine
+    from lib.identity import load_identity
+    from lib.kernel import Kernel
+    from lib.mirror import Mirror
+    from lib.storage import Storage
+    from tools.mirror_tool import set_mirror_instance
+
+    _ensure_dirs()
+
+    # ── Logging ──
+    import logging.handlers
+
+    _file_handler = logging.handlers.TimedRotatingFileHandler(
+        str(Path(DATA_DIR) / "gbase-web.log"),
+        when="midnight",
+        interval=1,
+        backupCount=90,
+        encoding="utf-8",
+    )
+    _file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(name)s] %(levelname)s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    _file_handler.suffix = "%Y-%m-%d"
+    logger.addHandler(_file_handler)
+    logger.setLevel(logging.INFO)
+
+    # ── Storage ──
+    storage = Storage(data_dir=DATA_DIR)
+    storage.setup()
+    exp = ExperienceEngine(storage)
+
+    # ── Mirror ──
+    mirror_path = str(Path(DATA_DIR) / "mirror.db")
+    mirror = Mirror(db_path=mirror_path)
+    mirror.setup()
+    set_mirror_instance(mirror)
+    mstats = mirror.get_stats()
+    logger.info("鉴面引擎: %d 活跃记忆, %d 已遗忘", mstats["total_active"], mstats["total_forgotten"])
+
+    # ── LLM client ──
+    api_key = DEEPSEEK_API_KEY
+    client = AsyncOpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+
+    # ── Identity + Kernel ──
+    identity = load_identity(
+        IDENTITY_NAME,
+        root_dir=str(Path(__file__).parent / "identities"),
+        experience_engine=exp,
+    )
+    kernel = Kernel(
+        client=client,
+        model=MODEL,
+        system_prompt=identity.get_system_prompt(),
+        experience_engine=exp,
+        mirror_engine=mirror,
+        data_dir=DATA_DIR,
+    )
+
+    from lib.toolkit import auto_scan
+    from lib.toolkit import set_global as tk_set_global
+    from tools import register_default
+
+    tk_set_global("storage", storage)
+    tk_set_global("experience", exp)
+    register_default()
+    auto_scan("tools")
+
+    # ── WebChat channel ──
+    from lib.channels.webchat import WebChatChannel
+
+    channel = WebChatChannel(kernel=kernel, storage=storage, data_dir=DATA_DIR)
+    app = channel.create_app(title="GBase Web Chat")
+
+    logger.info("━━━━━━━━━━━━━━━━━━━")
+    logger.info("GBase Web Chat 启动")
+    logger.info(f"端口: {WEB_PORT}, 模型: {MODEL}")
+    logger.info(f"数据目录: {DATA_DIR}")
+    logger.info(f"访问: http://localhost:{WEB_PORT}")
+    logger.info("━━━━━━━━━━━━━━━━━━━")
+
+    config = uvicorn.Config(app, host="0.0.0.0", port=WEB_PORT, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
 if __name__ == "__main__":
-    asyncio.run(run())
+    import sys
+
+    # Simple CLI arg parsing
+    args = sys.argv[1:]
+    MODE = "feishu"
+    WEB_PORT = int(os.environ.get("GBASE_WEB_PORT", "8765"))
+
+    for i, arg in enumerate(args):
+        if arg == "--mode" and i + 1 < len(args):
+            MODE = args[i + 1]
+        if arg == "--port" and i + 1 < len(args):
+            WEB_PORT = int(args[i + 1])
+        if arg in ("-m", "--mode"):
+            pass  # handled
+
+    if MODE == "web":
+        asyncio.run(_run_web())
+    else:
+        asyncio.run(run())

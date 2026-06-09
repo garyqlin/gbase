@@ -20,5 +20,7 @@ from main import run
 if __name__ == "__main__":
     port = sys.argv[1] if len(sys.argv) > 1 else "8420"
     print(f"Starting GBase server on port {port}...")
-    print(f"Try: curl http://localhost:{port}/ask -X POST -H 'Content-Type: application/json' -d '{{\"message\": \"hi\"}}'")
+    print(
+        f"Try: curl http://localhost:{port}/ask -X POST -H 'Content-Type: application/json' -d '{{\"message\": \"hi\"}}'"
+    )
     run(mode="http", port=int(port))

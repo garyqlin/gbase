@@ -377,9 +377,7 @@ def agent_qa_summary(inputs: dict, context: dict) -> dict:
         verdict = "WARN"
 
     report = f"QA Report | Whitebox: {parts.get('whitebox', {}).get('errors', '?')} errors | "
-    report += (
-        f"Blackbox: {parts.get('blackbox', {}).get('reachable', '?')}/{parts.get('blackbox', {}).get('total', '?')} reachable | "
-    )
+    report += f"Blackbox: {parts.get('blackbox', {}).get('reachable', '?')}/{parts.get('blackbox', {}).get('total', '?')} reachable | "
     report += f"Swarm: {len(swarm_rounds)} rounds degradation={degradation} | Verdict: {verdict}"
 
     return {"status": "ok", "verdict": verdict, "report": report, "errors": errors}
@@ -408,7 +406,12 @@ def agent_weekly_stats(inputs: dict, context: dict) -> dict:
 def agent_trend_analysis(inputs: dict, context: dict) -> dict:
     """Trend analysis (simplified version based on weekly_stats)."""
     stats = inputs.get("stats", inputs.get("analysis", {}))
-    return {"status": "ok", "trend": "stable", "detail": "All metrics this week fluctuate within normal range", "data": stats}
+    return {
+        "status": "ok",
+        "trend": "stable",
+        "detail": "All metrics this week fluctuate within normal range",
+        "data": stats,
+    }
 
 
 def agent_weekly_report(inputs: dict, context: dict) -> dict:

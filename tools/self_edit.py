@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 """
-self_edit.py — 波塞冬自修代码工具
+self_edit.py — Agent 自修代码工具
 
-让波塞冬能安全地修改自己的源代码（tools/、lib/ 下的 .py 文件）。
+让 Agent 能安全地修改自己的源代码（tools/、lib/ 下的 .py 文件）。
 核心安全机制：
   1. 改前自动备份到 ~/.gbase_rollback/
   2. 改后自动语法检查
@@ -48,6 +48,7 @@ if _LIB_SHARED.exists():
 
 _ROLLBACK_DIR = _INSTANCE_HOME / ".gbase_rollback"
 _ROLLBACK_DIR.mkdir(parents=True, exist_ok=True)
+
 
 # ── 路径校验 ──
 def _safety_check(path: str) -> tuple[Path, str]:
@@ -104,6 +105,7 @@ def _verify_syntax(path: Path) -> tuple[bool, str]:
 
 
 # ── 工具函数 ──
+
 
 @tool()
 async def self_edit(
@@ -184,7 +186,10 @@ async def self_edit(
         modified = "\n".join(lines)
 
     else:
-        return {"success": False, "error": "请提供 old+new（精确替换）或 search+replace（整段替换）或 insert_after+content（行后插入）"}
+        return {
+            "success": False,
+            "error": "请提供 old+new（精确替换）或 search+replace（整段替换）或 insert_after+content（行后插入）",
+        }
 
     # ── 改前备份 ──
     backup_name = _backup(abs_path)
@@ -288,17 +293,19 @@ async def self_edit_rollback(path: str, version: str = "") -> dict:
 
 @tool()
 async def self_edit_restart() -> dict:
-    """重启波塞冬进程（launchd 自动拉起）
+    """重启 Agent 进程（launchd 自动拉起）
 
     修改 lib/ 下的代码后需要重启才能生效。
     launchd KeepAlive 配置会在进程退出后自动重新拉起。
     返回后会延迟 2 秒自杀，launchd 接管自动拉起。
     """
     import threading
+
     current_pid = os.getpid()
 
     def _delayed_exit():
         import time
+
         time.sleep(2.0)
         os._exit(0)
 
@@ -315,7 +322,7 @@ async def self_edit_restart() -> dict:
 async def self_edit_read_source(path: str, offset: int = 0, max_chars: int = 8000) -> dict:
     """读取自己的源码文件（tools/、lib/ 下的 .py 文件）
 
-    波塞冬的 read_file 主要用于读外部文件（用户项目、文档等）。
+    Agent 的 read_file 主要用于读外部文件（用户项目、文档等）。
     这个工具专门用于读自己的源码，方便定位和修复 bug。
 
     Args:
@@ -402,6 +409,7 @@ async def self_edit_remember_reason(
     """
     try:
         from lib.storage import Storage
+
         _st = Storage()
         _summary = f"[自修] {root_cause[:80]}"
         _detail = f"类型: {fix_type}"
@@ -428,4 +436,3 @@ async def self_edit_remember_reason(
         return {"success": False, "error": "数据库连接不可用"}
     except Exception as e:
         return {"success": False, "error": f"记录失败: {e}"}
-

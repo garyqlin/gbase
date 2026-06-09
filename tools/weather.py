@@ -22,7 +22,8 @@ async def get_weather(city: str) -> dict:
     """Query current weather for a given city."""
     # Sanitize city input to prevent injection into URL
     import re
-    safe_city = re.sub(r'[^a-zA-Z\u4e00-\u9fff\s,.-]', '', city.strip())[:100]
+
+    safe_city = re.sub(r"[^a-zA-Z\u4e00-\u9fff\s,.-]", "", city.strip())[:100]
     if not safe_city:
         return {"error": "Invalid city name"}
     url = WEATHER_API.format(city=safe_city)

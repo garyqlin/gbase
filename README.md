@@ -94,6 +94,8 @@ Then open **http://localhost:8765** — a full cyberpunk-themed chat UI with:
 > **No npm install, no build step, no frontend framework.**
 > One Python process, one `--mode web` flag, and the entire UI is a single HTML file served by FastAPI.
 
+![GBase WebChat](assets/gbase-webchat.png)
+
 ### One-Liner Demo
 
 ```bash

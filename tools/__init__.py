@@ -20,6 +20,7 @@ from . import (  # noqa: F401
     docx_gen,  # noqa: F401
     file_checker,  # noqa: F401
     glink_projects,  # noqa: F401
+    send_file,  # noqa: F401
     honeycomb_search,  # noqa: F401
     jwt_helper,  # noqa: F401
     laser_doc,  # noqa: F401

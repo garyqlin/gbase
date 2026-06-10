@@ -1,51 +1,88 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/lib/session.py
+Gbase session manager module
 
-Session 管理：append-only JSONL 实现。
-永不物理删除旧条目，通过压缩路标跳转。
+Session Manager: append-only JSONL implementation.
+Never physically deletes old entries; navigates via compaction markers.
 
-三层上下文压缩体系（Claude Code 五层压缩的简化版）：
-- L1: 在线实时压缩 — 对话超过阈值时用 LLM 生成摘要
-- L2: 多层摘要进化 — 多个 compaction 合并为更高级摘要
-- L3: 会话状态追踪 — 动态压缩阈值 + 上下文使用量统计
+Three-layer context compression (simplified from Claude Code's 5-layer):
+- L1: Online real-time compression — LLM summaries when threshold exceeded
+- L2: Multi-layer summary evolution — compactions merged into higher-level summaries
+- L3: Session state tracking — dynamic thresholds + context usage stats
 """
 
+import contextlib
 import json
 import logging
+import threading
 import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+_compress_lock = threading.Lock()  # Prevent guard thread and online compress from running concurrently
 
 
 class JsonlSessionManager:
-    """Append-only JSONL 会话管理器，带三层压缩能力。"""
+    """Append-only JSONL session manager with three-layer compression."""
 
-    def __init__(self, filepath: str, max_context: int = 100):
+    def __init__(self, filepath: str, max_context: int = 20):
         self.filepath = Path(filepath)
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
         self.max_context = max_context
-        self._adaptive_max = max_context  # L3: 动态阈值调节
+        self._adaptive_max = max_context  # L3: dynamically adjusted threshold
         self.fh: object | None = None
         self._stats = {"messages": 0, "compactions": 0, "tokens_estimate": 0}
-        self._compacted_up_to = 0  # 压缩路标
-        self._compaction_level = 0  # L2: 当前摘要层级（第几次合并压缩）
+        self._compacted_up_to = 0  # Messages before this entry ID have been compacted
+        self._compaction_level = 0  # L2: current summary level (how many merges)
         self._open()
 
     def _open(self):
-        """打开或创建 JSONL 文件。"""
+        """Open or create the JSONL file."""
         if self.fh:
             try:
                 if hasattr(self.fh, "close"):
                     self.fh.close()
             except Exception:
-                logger.exception("静默异常")
+                pass
         self.fh = open(self.filepath, "a+", encoding="utf-8")
+        self._rebuild_stats()
+
+    def _rebuild_stats(self):
+        """Rebuild stats: recount messages and compaction levels."""
+        count = 0
+        tokens_est = 0
+        self._compacted_up_to = 0
+        self._compaction_level = 0
+        try:
+            self.fh.seek(0)
+            for line in self.fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    etype = entry.get("type", "")
+                    if etype == "compaction":
+                        self._compacted_up_to = entry.get("first_kept_entry_id", 0)
+                        level = entry.get("level", 0)
+                        if level > self._compaction_level:
+                            self._compaction_level = level
+                    elif etype in ("user", "assistant", "tool_call", "tool_result"):
+                        count += 1
+                        content = entry.get("content", "") or ""
+                        tokens_est += len(content) // 4  # rough estimate
+                except json.JSONDecodeError:
+                    continue
+        except Exception:
+            pass
+        self._stats["messages"] = count
+        self._stats["tokens_estimate"] = tokens_est
+        # L3: adjust threshold based on compaction level
+        self._update_adaptive_max()
 
     def _update_adaptive_max(self):
-        """L3: 根据压缩层级动态调节上下文保留轮次。"""
-        # 每层压缩后，保留的轮次缩小，但不低于底线
+        """L3: dynamically adjust max context based on compaction level."""
+        # After each compaction, narrow retained rounds but keep a floor
         base = self.max_context
         level = self._compaction_level
         if level <= 0:
@@ -55,35 +92,7 @@ class JsonlSessionManager:
         elif level == 2:
             self._adaptive_max = max(8, base - 8)
         else:
-            self._adaptive_max = 50  # 第三层及以上，至少保留 3 轮（6 条消息）
-
-    @staticmethod
-    def _estimate_tokens(text: str | list | dict) -> int:
-        """粗略估算 token 数。支持 string / list[dict] / dict 类型。
-
-        中文约 1.5 chars/token，英文约 4 chars/token，加安全边际。
-        """
-        if not text:
-            return 0
-        # 处理多模态消息（list[dict]，含 text/image_url）
-        if isinstance(text, list):
-            total = 0
-            for item in text:
-                if isinstance(item, dict):
-                    for v in item.values():
-                        if isinstance(v, str):
-                            total += len(v)
-                        elif isinstance(v, dict):
-                            total += len(str(v))
-                elif isinstance(item, str):
-                    total += len(item)
-            return int(total * 0.35) + 10
-        if isinstance(text, dict):
-            flat = str(text)
-            return int(len(flat) * 0.35) + 10
-        chinese_chars = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")
-        other_chars = len(text) - chinese_chars
-        return int(chinese_chars * 1.5 + other_chars / 4) + 10
+            self._adaptive_max = 6  # level 3+: at least 3 rounds (6 messages)
 
     def get_stats(self) -> dict:
         return dict(self._stats)
@@ -95,7 +104,7 @@ class JsonlSessionManager:
         return self._adaptive_max
 
     def append(self, entry: dict) -> int:
-        """追加一条记录。entry 是消息字典，必须包含 role 字段。"""
+        """Append a record. Entry is a message dict, must include 'role' field."""
         entry["_id"] = int(time.time() * 1000)
         entry["_ts"] = time.time()
         role = entry.get("role", "unknown")
@@ -112,16 +121,16 @@ class JsonlSessionManager:
         self.fh.flush()
         self._stats["messages"] += 1
         content = entry.get("content", "") or ""
-        self._stats["tokens_estimate"] += int(self._estimate_tokens(content))
+        self._stats["tokens_estimate"] += len(content) // 4
         return entry["_id"]
 
     def append_batch(self, entries: list[dict]):
-        """批量追加。"""
+        """Batch append."""
         for e in entries:
             self.append(e)
 
     def append_user_message(self, content: str, extra: dict | None = None) -> int:
-        """快捷：追加一条用户消息。"""
+        """Convenience: append a user message."""
         entry = {"role": "user", "content": content}
         if extra:
             entry.update(extra)
@@ -130,18 +139,16 @@ class JsonlSessionManager:
     def get_or_create(self, session_key: str) -> "JsonlSessionManager":
         return self
 
-    def build_context(self, max_messages: int | None = None, max_tokens: int = 0) -> list[dict]:
-        """构建 LLM messages 上下文。
+    def build_context(self, max_messages: int | None = None) -> list[dict]:
+        """Build LLM messages context.
 
-        三层过滤：
-        1. compaction entry 跳过旧内容，注入摘要（多层：只有最高层摘要注入）
-        2. 去掉 tool_call / tool_result
-        3. 按轮压缩 + 保留最近 max_messages 轮
+        Three-layer filtering:
+        1. Compaction entries skip old content, inject summary (highest level only)
+        2. Strip tool_call / tool_result entries
+        3. Pair rounds, keep only recent max_messages rounds
 
-        如果 max_tokens > 0，从后往前累计 token，超出则截断前面的内容。
-
-        L2 多层摘要：如果有多个 compaction level，
-        只有最高层的摘要被注入到上下文。
+        L2 multi-layer: when multiple compaction levels exist,
+        only the highest-level summary is injected.
         """
         if max_messages is None:
             max_messages = self._adaptive_max
@@ -149,8 +156,7 @@ class JsonlSessionManager:
         messages: list[dict] = []
         current_assistant_buf: dict | None = None
         skipped_compacted = False
-        highest_summary = ""  # L2: 最高层摘要（用于注入）
-        highest_entry = None  # L2: 最高层完整 entry（结构化字段使用）
+        highest_summary = ""  # L2: highest-level summary
         highest_level = -1
 
         try:
@@ -170,11 +176,12 @@ class JsonlSessionManager:
                     skipped_compacted = True
                     messages.clear()
                     current_assistant_buf = None
-                    # L2: 同层覆盖，高层保留 — 读取结构化字段
+                    # L2: same-level overwrite, higher-level retained
                     level = entry.get("level", 0)
-                    if level >= highest_level:
+                    summary = entry.get("summary", "")
+                    if summary and level >= highest_level:
+                        highest_summary = summary
                         highest_level = level
-                        highest_entry = entry
                     continue
 
                 if skipped_compacted and entry_type in ("user", "assistant"):
@@ -187,98 +194,36 @@ class JsonlSessionManager:
                     if current_assistant_buf is not None:
                         messages.append(current_assistant_buf)
                         current_assistant_buf = None
-                    # 过滤 image_url 结构：部分模型（如 DeepSeek）不支持多模态 content
-                    _raw_content = entry.get("content", "") or ""
-                    if isinstance(_raw_content, list):
-                        # list[dict] 格式（含 text/image_url）转纯文本段
-                        _text_parts = []
-                        for _item in _raw_content:
-                            if isinstance(_item, dict):
-                                if _item.get("type") == "text":
-                                    _text_parts.append(_item.get("text", ""))
-                                elif _item.get("type") == "image_url":
-                                    _text_parts.append("[图片]")
-                                else:
-                                    _text_parts.append(str(_item))
-                            else:
-                                _text_parts.append(str(_item))
-                        _raw_content = "\n".join(_text_parts)
-                    msg = {"role": "user", "content": _raw_content}
+                    msg = {"role": "user", "content": entry.get("content", "")}
                     messages.append(msg)
 
                 elif entry_type == "assistant":
-                    _raw_content = entry.get("content", "") or ""
-                    if isinstance(_raw_content, list):
-                        _text_parts = []
-                        for _item in _raw_content:
-                            if isinstance(_item, dict):
-                                if _item.get("type") == "text":
-                                    _text_parts.append(_item.get("text", ""))
-                                elif _item.get("type") == "image_url":
-                                    _text_parts.append("[图片]")
-                                else:
-                                    _text_parts.append(str(_item))
-                            else:
-                                _text_parts.append(str(_item))
-                        _raw_content = "\n".join(_text_parts)
-                    msg = {"role": "assistant", "content": _raw_content}
+                    msg = {"role": "assistant", "content": entry.get("content", "")}
                     if "reasoning_content" in entry:
                         msg["reasoning_content"] = entry["reasoning_content"]
-                    # 始终保留 assistant 消息（包括 content="" 只有 tool_calls 的情况），
-                    # 避免下一轮 LLM 看不到自己刚说过什么而表现为"失忆"。
-                    # 删除 tool_calls 字段防止 API 400（tool results 已被跳过）
-                    msg.pop("tool_calls", None)
+                                        # 压缩后 tool results 已被跳过，保留 tool_calls 会导致 API 400
+                    if False and "tool_calls" in entry:
+                        msg["tool_calls"] = entry["tool_calls"]
                     current_assistant_buf = msg
 
         except Exception as e:
-            logger.warning("build_context 异常: %s", e)
+            logger.warning("build_context Exception: %s", e)
 
         if current_assistant_buf:
             messages.append(current_assistant_buf)
 
-        # L2: 注入最高层摘要到 messages 开头（结构化注入）
-        if highest_entry:
-            level = highest_entry.get("level", 0)
-            level_label = f"L{level + 1}" if level >= 0 else "L1"
-
-            # 构建结构化摘要文本：读取 decisions / key_facts / pending / context
-            ctx_parts = [f"[会话摘要 - {level_label} 压缩前的对话历史]"]
-            decisions = highest_entry.get("decisions", [])
-            key_facts = highest_entry.get("key_facts", [])
-            pending = highest_entry.get("pending", [])
-            summary_ctx = highest_entry.get("context", "") or highest_entry.get("summary", "")
-
-            if decisions:
-                ctx_parts.append("已完成决策:")
-                for d in decisions[:10]:
-                    ctx_parts.append(f"  - {d}")
-            if key_facts:
-                ctx_parts.append("重要事实/路径/参数:")
-                for f in key_facts[:10]:
-                    ctx_parts.append(f"  - {f}")
-            if pending:
-                ctx_parts.append("待办事项:")
-                for p in pending[:8]:
-                    ctx_parts.append(f"  - {p}")
-            if summary_ctx:
-                ctx_parts.append(f"对话摘要: {summary_ctx[:1500]}")
-
-            inject_content = "\n".join(ctx_parts)
-
+        # L2: inject highest-level summary at start of messages
+        if highest_summary:
+            level_label = f"L{highest_level + 1}" if highest_level >= 0 else "L1"
             messages.insert(
                 0,
                 {
                     "role": "system",
-                    "content": inject_content,
+                    "content": f"[SessionSummary - {level_label} Pre-compression conversation history]:\n{highest_summary[:600]}",
                 },
             )
-        elif highest_summary:
-            # 兼容旧格式：只有纯文本
-            messages.insert(
-                0, {"role": "system", "content": f"[会话摘要 - 压缩前的对话历史]:\n{highest_summary[:2000]}"}
-            )
 
-        # 按轮压缩
+        # Pair messages into rounds
         compressed: list[dict] = []
         i = 0
         while i < len(messages):
@@ -295,54 +240,20 @@ class JsonlSessionManager:
 
         messages = compressed
 
-        # Token 预算截断（从后往前累计，超出则截掉前面的内容）
-        if max_tokens > 0 and messages:
-            total = 0
-            cutoff = 0
-            for i in range(len(messages) - 1, -1, -1):
-                content = messages[i].get("content", "") or ""
-                total += self._estimate_tokens(content) + 5  # 5 tokens overhead per msg
-                if total > max_tokens:
-                    cutoff = i + 1
-                    break
-            if cutoff > 0:
-                # 强制保留最后 1 轮完整 user+assistant
-                keep_last = []
-                for m in reversed(messages):
-                    keep_last.insert(0, m)
-                    if len(keep_last) >= 2 and keep_last[0]["role"] == "user" and keep_last[1]["role"] == "assistant":
-                        break
-                messages = messages[cutoff:]
-                if len(messages) < len(keep_last):
-                    messages = keep_last
-
-        # 保留最近 max_messages 轮
-        # 但强制保留最后 1 轮完整 user+assistant（防止 LLM 忘记自己刚说过什么）
+        # Keep only recent max_messages rounds
         if len(messages) > max_messages:
-            # 截断前保存最后完整的 user+assistant 对
-            keep = []
-            for m in reversed(messages):
-                keep.insert(0, m)
-                if len(keep) >= 2 and keep[0]["role"] == "user" and keep[1]["role"] == "assistant":
-                    break
             messages = messages[-max_messages:]
-            # 如果截断后最后两条不是完整的 user+assistant，补回 keep
-            if len(keep) >= 2 and len(messages) >= 2:
-                if not (messages[-2]["role"] == "user" and messages[-1]["role"] == "assistant"):
-                    messages = messages[: -len(keep)] + keep
-            elif len(keep) >= 2:
-                messages = messages + keep
 
         return messages
 
     def get_compaction_context(self, max_messages: int = 15) -> list[dict]:
-        """L2: 获取压缩阶段的高层摘要 + 近期轮次。
+        """L2: get compaction-stage summaries + recent rounds.
 
-        不同于 build_context（给 LLM 用），这个方法返回：
-        - 所有层级的摘要列表（不是只取最高层）
-        - 最新 max_messages 轮对话
+        Unlike build_context (for LLM consumption), this returns:
+        - All-level summaries (not just highest)
+        - Latest max_messages rounds
 
-        用于 L2 多层压缩：把旧摘要 + 近期对话 → 新摘要。
+        Used by L2 multi-layer compression: old summaries + recent dialogue -> new summary.
         """
         summaries: list[dict] = []
         recent: list[dict] = []
@@ -361,17 +272,13 @@ class JsonlSessionManager:
 
                 etype = entry.get("type", "")
                 if etype == "compaction":
-                    after_last_compact = False  # 重置
-                    s = entry.get("summary", "") or entry.get("context", "")
-                    if s or entry.get("decisions") or entry.get("key_facts"):
+                    after_last_compact = False  # reset
+                    s = entry.get("summary", "")
+                    if s:
                         summaries.append(
                             {
                                 "level": entry.get("level", 0),
                                 "summary": s,
-                                "decisions": entry.get("decisions", []),
-                                "key_facts": entry.get("key_facts", []),
-                                "pending": entry.get("pending", []),
-                                "context": entry.get("context", ""),
                                 "ts": entry.get("_ts", 0),
                             }
                         )
@@ -381,123 +288,177 @@ class JsonlSessionManager:
                         recent.append(
                             {
                                 "role": entry.get("role", etype),
-                                "content": entry.get("content", "") or "",
+                                "content": entry.get("content", ""),
                             }
                         )
         except Exception:
-            logger.exception("静默异常")
+            pass
 
         return {"summaries": summaries, "recent": recent[-max_messages:]}
 
-    def compress(
-        self,
-        compress_fn: callable,
-        threshold: int = 15,
-    ) -> dict | None:
-        """L1 + L2: 同步版上下文压缩（供 asyncio.to_thread 调用）。
+    def compress_l1(self, compress_fn, threshold: int = 20):
+        """L1 online compression: compact old rounds into a summary."""
+        if self._stats["messages"] < threshold:
+            return None
 
-        参数:
-            compress_fn: 接收消息列表，返回摘要文本的回调
-            threshold: 触发 L1 压缩的最小消息轮次（默认 15 轮）
-
-        返回:
-            压缩统计信息，超时时返回 None
-        """
-        # L1: 在线实时压缩 — 对话超过阈值时用 LLM 生成摘要
         try:
-            context_data = self.get_compaction_context(threshold)
-            recent = context_data.get("recent", [])
-            if len(recent) < threshold:
+            context = self.build_context(max_messages=threshold)
+            if not context:
                 return None
 
-            # L1: 新摘要
-            session_text = json.dumps(recent, ensure_ascii=False)[:5000]
-            # 类型防御：传给压缩函数的可能是截断的 JSON 字符串
-            # compress_fn 在 kernel 层加了解析恢复逻辑
-            summary = compress_fn(session_text)
+            summary = compress_fn(context)
             if not summary:
                 return None
 
-            entry = {
-                "type": "compaction",
-                "level": 0,
-                "summary": summary,
-                "decisions": [],
-                "key_facts": [],
-                "pending": [],
-                "context": summary[:500],
-                "messages_since_last": len(recent),
-                "_ts": int(time.time()),
-            }
-            self.append(entry)
-            self._compacted_up_to = self._stats["messages"]
-            self._compaction_level = 0
-            self._update_adaptive_max()
-            self._stats["compactions"] += 1
-
-            # L2: 多层摘要进化 — 已有 compaction 时合并升级
-            summaries = context_data.get("summaries", [])
-            old_summaries = [s for s in summaries if s.get("level", 0) < 2]
-            if len(old_summaries) >= 2:
-                merge_text = json.dumps(old_summaries[-3:], ensure_ascii=False)[:4000]
-                merged = compress_fn(merge_text)
-                if merged:
-                    entry = {
-                        "type": "compaction",
-                        "level": 2,
-                        "summary": merged,
-                        "decisions": [],
-                        "key_facts": [],
-                        "pending": [],
-                        "context": merged[:500],
-                        "messages_since_last": 0,
-                        "_ts": int(time.time()),
-                    }
-                    self.append(entry)
-                    self._compaction_level = 2
-                    self._stats["compactions"] += 1
-
-            return self._stats.copy()
-
-        except Exception:
-            logger.exception("L1/L2 压缩异常（静默）")
+            first_kept_id = self._find_first_kept_id()
+            self._write_compaction(summary, first_kept_id, level=0)
+            logger.info("L1 compression done: %d msgs -> %d chars (level=%d)", self._stats["messages"], len(summary), 0)
+            return summary
+        except Exception as e:
+            logger.warning("L1 compression failed: %s", e)
             return None
 
-    def start_async_compress(
-        self,
-        compress_fn: callable,
-        interval_sec: int = 600,
-        threshold: int = 25,
-    ):
-        """P2-3: 启动后台异步压缩守护线程。
+    def compress_l2(self, compress_fn):
+        """L2 multi-layer compression: merge summaries + recent dialogue into higher-level summary."""
+        try:
+            ctx = self.get_compaction_context(max_messages=10)
+            if not ctx["summaries"] and len(ctx["recent"]) < 10:
+                return None
 
-        在守护线程中循环调用 compress()，失败后等待 10 分钟重试。
+            # Only bottom-level summaries, don't rush upgrade
+            if len(ctx["summaries"]) <= 1 and len(ctx["recent"]) < 20:
+                return None
 
-        参数:
-            compress_fn: 压缩回调（同步）
-            interval_sec: 压缩间隔（秒）
-            threshold: 触发压缩的最小消息轮次
+            # Build merge context (all summaries + recent dialogue)
+            merge_input = []
+            for s in sorted(ctx["summaries"], key=lambda x: x.get("level", 0), reverse=True):
+                merge_input.append(f"[L{s.get('level', 0) + 1} Summary]: {s['summary'][:400]}")
+            if ctx["recent"]:
+                merge_input.append("[Recent dialogue]:")
+                for m in ctx["recent"][-5:]:
+                    role = m.get("role", "user")
+                    content = m.get("content", "")[:200]
+                    merge_input.append(f"  {role}: {content}")
+
+            merge_text = "\n".join(merge_input)
+            if len(merge_text) < 100:
+                return None
+
+            summary = compress_fn([{"role": "user", "content": merge_text}])
+            if not summary:
+                return None
+
+            new_level = self._compaction_level + 1
+            first_kept_id = self._find_first_kept_id()
+            self._write_compaction(summary, first_kept_id, level=new_level)
+            self._compaction_level = new_level
+            self._update_adaptive_max()
+
+            logger.info(
+                "L2 multi-layer compression done: %d summaries + %d rounds -> L%d summary (%d chars)",
+                len(ctx["summaries"]),
+                len(ctx["recent"]),
+                new_level + 1,
+                len(summary),
+            )
+            return summary
+        except Exception as e:
+            logger.warning("L2 multi-layer compression failed: %s", e)
+            return None
+
+    def compress(self, compress_fn, threshold: int = 20):
+        """Compatible old interface: auto-select L1 or L2. Lock to prevent race conditions."""
+        acquired = _compress_lock.acquire(blocking=False)
+        if not acquired:
+            logger.info("Compression skipped: another task is in progress")
+            return None
+        try:
+            l1_result = self.compress_l1(compress_fn, threshold)
+            if l1_result:
+                if self._compaction_level >= 1 or self._stats.get("compactions", 0) >= 2:
+                    self.compress_l2(compress_fn)
+                return l1_result
+            return None
+        finally:
+            _compress_lock.release()
+
+    def _find_first_kept_id(self) -> int:
+        """Find the first un-compacted entry ID."""
+        try:
+            self.fh.seek(0)
+            for line in self.fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    eid = entry.get("_id", 0)
+                    if eid > self._compacted_up_to:
+                        return eid
+                except json.JSONDecodeError:
+                    continue
+        except Exception:
+            pass
+        return 0
+
+    def _write_compaction(self, summary: str, first_kept_entry_id: int, level: int = 0):
+        """Write a compaction marker to JSONL."""
+        compaction_entry = {
+            "type": "compaction",
+            "level": level,
+            "summary": summary[:1200],
+            "first_kept_entry_id": first_kept_entry_id,
+            "_ts": time.time(),
+        }
+        self.fh.write(json.dumps(compaction_entry, ensure_ascii=False) + "\n")
+        self.fh.flush()
+        self._compacted_up_to = first_kept_entry_id
+        self._stats["compactions"] += 1
+
+    def start_async_compress(self, compress_fn, interval_sec=600, threshold=25):
+        """Start async compression guard thread.
+
+        Checks session size every interval_sec, triggers compression when threshold exceeded.
+        Uses daemon thread (auto-dies with main process).
+        Built-in retry: restarts guard 60s after crash, exponential backoff.
         """
-        import threading as _threading
+        import threading
 
-        def _worker():
+        def _guard():
+            retry_delay = 60
+            consecutive_fails = 0
             while True:
                 try:
-                    self.compress(compress_fn, threshold=threshold)
-                except Exception as e:
-                    logger.exception("Async compress failed: %s", e)
-                time.sleep(interval_sec)
+                    time.sleep(interval_sec)
+                    self._rebuild_stats()
+                    msg_count = self._stats.get("messages", 0)
+                    if msg_count < threshold:
+                        consecutive_fails = 0
+                        continue
+                    # Try L1 first
+                    l1 = self.compress_l1(compress_fn, threshold)
+                    if l1 and self._compaction_level >= 1:
+                        self.compress_l2(compress_fn)
+                    consecutive_fails = 0
+                except Exception as _exc:
+                    consecutive_fails += 1
+                    logger.warning("Async compress attempt %d failed: %s, retrying in %ds", consecutive_fails, _exc, retry_delay)
+                    with contextlib.suppress(Exception):
+                        self.max_context = 20
+                    if consecutive_fails >= 5:
+                        logger.error("Async compress failed 5 consecutive times, waiting longer before retry")
+                        retry_delay = 300
+                    time.sleep(retry_delay)
+                    retry_delay = min(retry_delay * 2, 600)
 
-        thread = _threading.Thread(target=_worker, daemon=True)
-        thread.start()
-        logger.info("后台异步压缩守护已启动 (interval=%ds, threshold=%d)", interval_sec, threshold)
+        t = threading.Thread(target=_guard, daemon=True, name="async-compress")
+        t.start()
+        logger.info("Async compression guard started (interval=%ds, threshold=%d msgs)", interval_sec, threshold)
 
     def close(self):
         if self.fh:
-            try:
+            with contextlib.suppress(Exception):
                 self.fh.close()
-            except Exception:
-                logger.exception("静默异常")
 
     def __del__(self):
         self.close()

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/lib/toolkit.py
+opprime-core-v2/lib/toolkit.py
 
 工具注册系统：
 - @tool 装饰器自动注册
@@ -13,6 +13,22 @@ gbase/lib/toolkit.py
 import asyncio
 import hashlib
 import inspect
+
+
+# ── 统一返回协议 ────────────────────────────────────────
+def _standard_return(ok: bool, data: str = "", error: str = "") -> dict:
+    """所有工具调用最终输出的标准格式。
+
+    统一约定（2026-06-06）：
+      成功 -> {"ok": true, "result": "..."}
+      失败 -> {"ok": false, "error": "..."}
+
+    任何工具（feishu.py 通道层、工具层 @tool 函数）
+    都应遵循这个格式，避免 kernel execute_tool 误解。
+    """
+    if ok:
+        return {"ok": True, "result": data or ""}
+    return {"ok": False, "error": error or "未知错误"}
 import json
 import logging
 import time
@@ -259,7 +275,7 @@ _GMEM_SEARCH_DEPTH = 0
 
 
 async def _async_record_search(mirror, query: str, _tool_name: str, args: dict):
-    """后台Save搜索结果到 mirror。"""
+    """后台保存搜索结果到 mirror。"""
     global _GMEM_SEARCH_DEPTH
     try:
         summary = str(args.get("query", "") or args.get("url", ""))[:200]
@@ -283,7 +299,7 @@ async def execute(tool_name: str, args: dict, use_cache: bool = False) -> dict:
     # GMem P0: 模式观察（跟踪高频调用）
     hot_pattern_observe(tool_name, args)
 
-    # GMem P0: 搜索结果Auto sedimentation到 memory
+    # GMem P0: 搜索结果自动沉淀到 memory
     search_tools = {
         "anysearch_search",
         "anysearch_batch_search",
@@ -309,7 +325,7 @@ async def execute(tool_name: str, args: dict, use_cache: bool = False) -> dict:
 
     func = _tool_registry.get(tool_name)
     if not func:
-        return {"error": f"未知工具: {tool_name}"}
+        return _standard_return(False, error=f"未知工具: {tool_name}")
     try:
         if asyncio.iscoroutinefunction(func):
             result = await func(**args)
@@ -317,22 +333,27 @@ async def execute(tool_name: str, args: dict, use_cache: bool = False) -> dict:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(None, lambda: func(**args))
         if result is None:
-            return {"error": f"工具 {tool_name} 返回 None"}
+            return _standard_return(False, error=f"工具 {tool_name} 返回 None")
         if isinstance(result, dict):
             # GMem P1: HotCache 写缓存（仅成功的读操作）
-            if use_cache and "error" not in result:
+            if use_cache and result.get("error") is None:
                 hot_cache_set(tool_name, args, result)
+            # 标准化输出：已有的 dict 尽量保留内容，但确保有 ok 字段
+            if "ok" not in result:
+                result["ok"] = result.get("error") is None
+            if result.get("error"):
+                result["ok"] = False
             return result
-        return {"result": str(result)}
+        return _standard_return(True, data=str(result))
     except Exception as e:
         logger.error("工具执行失败 %s: %s", tool_name, e)
-        return {"error": f"工具执行失败: {str(e)}"}
+        return _standard_return(False, error=f"工具执行失败: {str(e)}")
 
 
 # ── 工具路由 ────────────────────────────────────────────
 
 
-def resolve_tools(platform: str, user_message: str) -> list[dict]:
+def resolve_tools(platform: str, user_message: str | list | dict) -> list[dict]:
     """根据平台和用户消息关键词，解析可用的工具定义列表（OpenAI format）。
 
     流程：
@@ -348,7 +369,19 @@ def resolve_tools(platform: str, user_message: str) -> list[dict]:
 
     matched_tools: set[str] = set()
 
-    user_lower = user_message.lower()
+    # 多模态消息（list[dict]）转文本用于关键词匹配
+    if isinstance(user_message, list):
+        msg_text = ""
+        for item in user_message:
+            if isinstance(item, dict):
+                msg_text += item.get("text", "") or str(item.get("image_url", ""))
+            else:
+                msg_text += str(item)
+    elif isinstance(user_message, dict):
+        msg_text = str(user_message)
+    else:
+        msg_text = user_message
+    user_lower = msg_text.lower()
 
     for ts_name in allowed_toolsets:
         ts = _toolsets.get(ts_name)
@@ -450,26 +483,157 @@ def get_tool_metadata(name: str) -> dict | None:
     return _tool_metadata.get(name)
 
 
-def tool_list_compact() -> str:
-    """Generate a compact tool list for system prompt injection.
+# ── 能力目录（语义化注入） ────────────────────────────────
 
-    Returns a single line with all tool names grouped by category,
-    instead of expanding full descriptions and schemas.
+_CAPABILITY_REGISTRY: dict[str, list[str]] = {}
+"""
+能力目录：{能力分类: [工具名, ...]}
+
+自动从 _tool_metadata 的 description 中识别归类。
+之所以不走硬编码是因为工具是自动注册的，加新工具自动归入对应类别。
+"""
+
+# 能力分类关键词映射
+_CAPABILITY_MAP: dict[str, set[str]] = {
+    "文档生成": {"gen_pdf", "gen_docx", "gen_pptx", "gen_xlsx", "ocr_pdf"},
+    "文档加工": {"yf_create_ppt", "author_doc", "author_test_plan"},
+    "图像视觉": {"analyze_image", "ocr_image", "vision", "yf_generate_image",
+                 "yf_create", "yf_recognize", "vision_inspect", "vision_local"},
+    "搜索检索": {"search", "fetch", "anysearch", "honeycomb", "note_search"},
+    "文件操作": {"read_file", "write_file", "file_", "my_path", "note_write"},
+    "命令执行": {"exec_command"},
+    "消息通讯": {"send_feishu_card", "send_file", "send_mail", "mail", "check_inbox"},
+    "学习记忆": {"learn", "memory", "mirror", "knowledge", "remember",
+                 "add_learn_topic", "list_learn_topics", "remove_learn_topic"},
+    "编程工程": {"self_edit", "editor", "test", "verify", "distill",
+                 "scan_project", "forge_verify", "health_check",
+                 "anchor_keeper", "qa_"},
+    "AI 进化": {"best_skill", "distill", "hive_mind", "optimize_prompt"},
+}
+
+# 各类别的说明文案
+_CAPABILITY_BLURBS: dict[str, str] = {
+    "文档生成": (
+        "你可以直接生成 PDF 报告（大厂咨询风格，含图表/卡片/色块，支持10+配色主题）、"
+        "Word(.docx) 文档、Excel(.xlsx) 表格（含公式支持）、PPT(.pptx) 演示文稿。"
+        "生成后直接调 `send_file` 发送文件到飞书，无需人工转存。"
+    ),
+    "图像视觉": (
+        "支持中文 OCR（本地/云端）、图像理解与分析（豆包VLM）、AI 图像生成（文生图）、"
+        "视觉缺陷检测。"
+    ),
+    "搜索检索": (
+        "多引擎搜索引擎（AnySearch）、结构化知识库检索（Knowledge/Self）、"
+        "笔记搜索、网页一键抓取转换。"
+    ),
+    "消息通讯": (
+        "飞书发送富文本卡片消息、邮箱收发件箱查询与发送。"
+    ),
+    "学习记忆": (
+        "可自主录入新知识（remember_fact/remember_info）、"
+        "管理学习主题、自动知识老化去噪。"
+    ),
+    "编程工程": (
+        "代码编辑/重构/回滚、自动生成测试用例、黑盒冒烟测试、"
+        "工程健康检查、项目结构扫描。"
+    ),
+    "命令执行": (
+        "直接执行 Shell 命令，可完成文件操作/服务管理/系统指令等。"
+    ),
+    "文件操作": (
+        "读取/写入任意本地文件，支持文件哈希校验与完整性验证。"
+    ),
+    "AI 进化": (
+        "经验蒸馏（从对话提取best practice）、蜂群思维（多视角交叉验证）、"
+        "提示词自动优化。"
+    ),
+}
+
+
+def _classify_tools() -> dict[str, list[str]]:
+    """根据 _tool_metadata 的 description 和名称，将工具自动归类到能力分类。
+
+    每次调用时重建，确保添加新工具后自动归入正确类别。
+    """
+    categories: dict[str, list[str]] = {}
+    used: set[str] = set()
+
+    # 第一轮：按 _CAPABILITY_MAP 精确匹配
+    for cat, patterns in _CAPABILITY_MAP.items():
+        matched = []
+        for name in sorted(_tool_registry):
+            if name in used:
+                continue
+            for p in patterns:
+                if name.startswith(p) or name.endswith(p):
+                    matched.append(name)
+                    break
+        if matched:
+            categories[cat] = matched
+            used.update(matched)
+
+    # 第二轮：剩余工具按 description 关键词
+    for name in sorted(_tool_registry):
+        if name in used:
+            continue
+        meta = _tool_metadata.get(name)
+        if not meta:
+            continue
+        desc = (meta.get("description") or "").lower()
+        # 尝试归类
+        assigned = False
+        for cat, patterns in _CAPABILITY_MAP.items():
+            if cat in categories and name in categories[cat]:
+                continue
+            # 检查 description 中的关键词
+            for p in patterns:
+                p_clean = p.rstrip("_").replace("_", " ")
+                if p_clean in desc and len(p_clean) > 3:
+                    if cat not in categories:
+                        categories[cat] = []
+                    categories[cat].append(name)
+                    used.add(name)
+                    assigned = True
+                    break
+            if assigned:
+                break
+
+    # 第三轮：未归类的放"其他工具"
+    unassigned = [n for n in sorted(_tool_registry) if n not in used]
+    if unassigned:
+        categories["其他工具"] = unassigned
+
+    return categories
+
+
+def tool_list_compact() -> str:
+    """按能力分类生成语义化工具清单，用于 system prompt 注入。
+
+    每次调用动态重建。加新工具后自动归类到正确的能力类别。
+    格式对标 OpenClaw 的 `<available_skills>` 模式：
+    LLM 一眼知道每个分类能干什么，而不是看工具名列表。
     """
     if not _tool_registry:
         return ""
-    # Group by category (first word of tool name, or first segment before _)
-    from collections import defaultdict
 
-    categories = defaultdict(list)
-    for name in sorted(_tool_registry):
-        # Extract category prefix
-        prefix = name.split("_")[0] if "_" in name else name
-        categories[prefix].append(name)
-    lines = [f"## Available Tools ({len(_tool_registry)} total)", ""]
+    categories = _classify_tools()
+    lines = [f"## 可用能力 ({len(_tool_registry)} 个工具)", ""]
+    lines.append("以下是你的全部能力。根据当前任务选择合适的工具，工具 schema 由系统自动解析。")
+    lines.append("")
+
     for cat in sorted(categories):
         tools = categories[cat]
-        lines.append(f"- {cat}: {', '.join(tools)}")
-    lines.append("")
-    lines.append("(Call any tool — schema is auto-resolved by the system)")
+        tools_str = ", ".join(tools)
+        blurb = _CAPABILITY_BLURBS.get(cat, "")
+        if blurb:
+            lines.append(f"### {cat}")
+            lines.append(f"{blurb}")
+            lines.append(f"工具: `{tools_str}`")
+        else:
+            lines.append(f"### {cat}")
+            lines.append(f"工具: `{tools_str}`")
+        lines.append("")
+
+    lines.append("---")
+    lines.append("需要某个能力时直接调用对应工具即可，无需提前加载。")
     return "\n".join(lines)

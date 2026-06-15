@@ -547,16 +547,18 @@ async def search_web(query: str, engines: list[str] | None = None) -> dict:
                 payload = _json.dumps({"query": query, "count": 8}).encode()
                 body = await asyncio.get_event_loop().run_in_executor(
                     None,
-                    lambda: _ur.urlopen(
-                        _ur.Request(
-                            "http://127.0.0.1:8430/search",
-                            data=payload,
-                            headers={"Content-Type": "application/json"},
-                        ),
-                        timeout=10,
-                    )
-                    .read()
-                    .decode("utf-8", errors="replace"),
+                    lambda: (
+                        _ur.urlopen(
+                            _ur.Request(
+                                "http://127.0.0.1:8430/search",
+                                data=payload,
+                                headers={"Content-Type": "application/json"},
+                            ),
+                            timeout=10,
+                        )
+                        .read()
+                        .decode("utf-8", errors="replace")
+                    ),
                 )
                 if body:
                     bdata = _json.loads(body)

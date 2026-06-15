@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.5.2] - 2026-06-16
+
+### Fixed
+- CI pipeline: lint/format/test all green
+- Lazy imports for playwright and other optional dependencies
+- Removed opprime-specific tools (board_tool, tavily_search, etc.)
+- Added missing dependencies (reportlab, python-docx) to pyproject.toml
+- Created requirements.txt for CI test job
+- Ruff version pinned to match CI (0.15.17)
+
 ## [v0.4.1] - 2026-06-15
 
 ### Added

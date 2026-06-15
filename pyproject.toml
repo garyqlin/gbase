@@ -1,10 +1,10 @@
 [project]
 name = "gbase"
-version = "0.5.1"
+version = "0.5.2"
 description = "Universal AI Agent framework with identity separation, tool auto-registration, and multi-agent orchestration"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = {text = "MIT"}
 keywords = ["ai", "agent", "framework", "workflow", "orchestration"]
 authors = [{ name = "Gary Lin" }]
 classifiers = [

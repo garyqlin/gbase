@@ -7,8 +7,6 @@ gen_pro_report — 专业企业调研报告生成器
 import os
 from datetime import datetime
 
-from playwright.sync_api import sync_playwright
-
 from lib.toolkit import tool
 
 # ─── HTML 模板 ──────────────────────────────────────────────────────────────
@@ -392,6 +390,8 @@ def generate_report(
         f.write(html)
 
     # Playwright 渲染
+    from playwright.sync_api import sync_playwright
+
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()

@@ -8,7 +8,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import Any
 
 
 class CognitionType(Enum):
@@ -29,21 +29,23 @@ class FeedbackType(Enum):
 
 
 class SentimentLevel(Enum):
-    MILD = "MILD"       # 轻微纠正
+    MILD = "MILD"  # 轻微纠正
     MODERATE = "MODERATE"  # 一般纠正
-    SEVERE = "SEVERE"   # 强烈纠正
+    SEVERE = "SEVERE"  # 强烈纠正
 
 
 @dataclass
 class LayerSignal:
     """信号层：从原始对话中提取的关键词与匹配模式"""
-    keywords: List[str]
+
+    keywords: list[str]
     pattern: str  # 正则表达式
 
 
 @dataclass
 class LayerConcept:
     """概念层：信号归纳到的场景、Agent、任务类型"""
+
     scene: str
     agent: str
     task_type: str
@@ -52,18 +54,20 @@ class LayerConcept:
 @dataclass
 class LayerStrategy:
     """策略层：可复用的经验，及适用 Agent 列表"""
+
     lesson: str
-    applicable_agents: List[str]
+    applicable_agents: list[str]
 
 
 @dataclass
 class CognitionSlice:
     """认知切片 — 认知新皮质核心单元"""
+
     id: int = 0
     cognition_type: CognitionType = CognitionType.SELF_REFLECTION
-    signal_layer: Optional[LayerSignal] = None
-    concept_layer: Optional[LayerConcept] = None
-    strategy_layer: Optional[LayerStrategy] = None
+    signal_layer: LayerSignal | None = None
+    concept_layer: LayerConcept | None = None
+    strategy_layer: LayerStrategy | None = None
     confidence: float = 0.5
     access_count: int = 0
     created_at: str = ""
@@ -75,19 +79,20 @@ class CognitionSlice:
 class ApprenticeLogEntry:
     """
     学徒日志条目 — 匹配现有 JSONL 格式
-    
+
     与现有 apprentice-juzi.jsonl 的 schema 对应:
     schema/meta/scene/input/thinking/action/output/reflection
     加上新增的 user_feedback_raw/user_feedback_type/user_sentiment/scene_context
     """
+
     schema: str = "apprentice-log-v1"
-    meta: Dict[str, Any] = field(default_factory=dict)
-    scene: Dict[str, Any] = field(default_factory=dict)
-    input_data: Dict[str, Any] = field(default_factory=dict)
-    thinking: Dict[str, Any] = field(default_factory=dict)
-    action: Dict[str, Any] = field(default_factory=dict)
-    output: Dict[str, Any] = field(default_factory=dict)
-    reflection: Dict[str, Any] = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)
+    scene: dict[str, Any] = field(default_factory=dict)
+    input_data: dict[str, Any] = field(default_factory=dict)
+    thinking: dict[str, Any] = field(default_factory=dict)
+    action: dict[str, Any] = field(default_factory=dict)
+    output: dict[str, Any] = field(default_factory=dict)
+    reflection: dict[str, Any] = field(default_factory=dict)
     # 新增字段 — 记录羽非原始反馈
     user_feedback_raw: str = ""
     user_feedback_type: str = ""
@@ -98,6 +103,7 @@ class ApprenticeLogEntry:
 @dataclass
 class ApprenticeConfig:
     """学徒配置"""
+
     observer_id: str = "橘"
     agent_name: str = "橘子"
     logs_dir: str = "/opt/orange-arm-v2/apprentice/logs/"

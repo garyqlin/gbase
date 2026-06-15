@@ -15,7 +15,6 @@ import json
 import logging
 import os
 import sqlite3
-import subprocess
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -78,7 +77,7 @@ def _cron_match(expr: str, dt: datetime) -> bool:
     if len(fields) != 5:
         return False
 
-    def _field_match(field: str, value: int, max_val: int) -> bool:
+    def _field_match(field: str, value: int, _max_val: int) -> bool:
         if field == "*":
             return True
         for part in field.split(","):
@@ -216,7 +215,9 @@ class CronScheduler:
         On trigger, calls callback directly, skips sender/learner/kernel.
         """
         self._callbacks[action] = callback
-        logger.info("Scheduler registered callback: action=%s function=%s", action, getattr(callback, "__name__", "unknown"))
+        logger.info(
+            "Scheduler registered callback: action=%s function=%s", action, getattr(callback, "__name__", "unknown")
+        )
 
     def add_job(self, schedule: dict, message: str, owner_id: str = "", action: str = "send") -> dict:
         next_ts = _next_run(schedule)
@@ -319,7 +320,6 @@ class CronScheduler:
         finally:
             _fix_conn.close()
 
-        heartbeat_interval = 5  # write heartbeat every 5s
         tick_count = 0
 
         while self._running:
@@ -355,7 +355,7 @@ class CronScheduler:
             return
 
         for row in rows:
-            job_id, schedule_json, message, owner_id, action, enabled, is_rec = (
+            job_id, schedule_json, message, owner_id, action, _enabled, is_rec = (
                 row[0],
                 row[1],
                 row[2],
@@ -434,7 +434,7 @@ class CronScheduler:
         Otherwise submit the message to kernel as a cron task.
         """
         if message.startswith("!script:"):
-            script_path_raw = message[len("!script:"):].strip()
+            script_path_raw = message[len("!script:") :].strip()
             # Security: restrict scripts to the cron/ directory
             script_base = os.path.join(os.path.dirname(__file__), "..", "cron")
             script_path = os.path.abspath(os.path.join(script_base, script_path_raw))
@@ -447,7 +447,8 @@ class CronScheduler:
             logger.info("Cron job %d executing script: %s", job_id, script_path)
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    "python3", script_path,
+                    "python3",
+                    script_path,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -461,7 +462,7 @@ class CronScheduler:
 
                 if exit_code != 0 and owner_id and self._sender:
                     await self._sender(owner_id, f"[Health Check] Script exit code {exit_code}\n{err_text[:500]}")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.error("Script timeout (job=%d): %s", job_id, script_path)
             except Exception as e:
                 logger.error("Script exception (job=%d): %s", job_id, e)

@@ -58,14 +58,13 @@ def _export_data(force: bool = False) -> tuple[Path, int]:
 
     # 0. 加载各战甲自我学习目标作为前缀 context
     learn_status = _load_self_learn_status()
-    learn_context = ""
     if learn_status:
         parts = []
         for name, info in learn_status.items():
             if info.get("active") and info.get("focus"):
                 parts.append(f"- {name}: {' → '.join(info['focus'])}")
         if parts:
-            learn_context = "当前学习方向:\n" + "\n".join(parts)
+            "当前学习方向:\n" + "\n".join(parts)
 
     # 1. 经验库
     for fname in ["experience.jsonl", "knowledge.jsonl"]:
@@ -84,7 +83,6 @@ def _export_data(force: bool = False) -> tuple[Path, int]:
                 s = obj.get("summary", "") or ""
                 d = obj.get("detail", "") or ""
                 c = obj.get("confidence", "low")
-                tag = f"{fname}_{c}"
                 if not s:
                     continue
                 if c == "low":
@@ -448,8 +446,8 @@ def _load_self_learn_status() -> dict:
             with open(path, encoding="utf-8") as f:
                 content = f.read()
             # 提取学习方向
-            lines = [l.strip() for l in content.split("\n") if l.strip().startswith("##")]
-            focus = [l.lstrip("# ").strip() for l in lines if l.startswith("##") and "学习" in l]
+            lines = [line.strip() for line in content.split("\n") if line.strip().startswith("##")]
+            focus = [line.lstrip("# ").strip() for line in lines if line.startswith("##") and "学习" in line]
             result[name] = {
                 "file": path,
                 "active": True,

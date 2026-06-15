@@ -15,8 +15,20 @@ import json
 import logging
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
+
+if TYPE_CHECKING:
+    from lib.session import JsonlSessionManager
+
+if TYPE_CHECKING:
+    from lib.session import JsonlSessionManager
+
+
+if TYPE_CHECKING:
+    from lib.session import JsonlSessionManager
+from typing import TYPE_CHECKING
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +60,8 @@ class FeishuChannel:
         # per-user 串行锁
         self._user_locks: dict[str, asyncio.Lock] = {}
 
-        # 用户会话(open_id → JsonlSessionManager)
+    @property
+    def default_url(self) -> str:
         self.sessions: dict[str, JsonlSessionManager] = {}
         self._session_base_dir = Path("data/sessions")
         self._session_base_dir.mkdir(parents=True, exist_ok=True)
@@ -351,18 +364,28 @@ class FeishuChannel:
             except (httpx.TimeoutException, httpx.ConnectError, httpx.RemoteProtocolError) as e:
                 last_exc = e
                 if attempt < self._send_retry_max:
-                    delay = self._send_retry_delay * (2 ** attempt)
-                    logger.warning("飞书发送网络错误 (attempt %d/%d): %s，%.1fs 后重试",
-                                   attempt + 1, self._send_retry_max + 1, e, delay)
+                    delay = self._send_retry_delay * (2**attempt)
+                    logger.warning(
+                        "飞书发送网络错误 (attempt %d/%d): %s，%.1fs 后重试",
+                        attempt + 1,
+                        self._send_retry_max + 1,
+                        e,
+                        delay,
+                    )
                     await asyncio.sleep(delay)
                 else:
                     logger.error("飞书发送网络错误，已重试 %d 次: %s", self._send_retry_max, e)
             except httpx.HTTPStatusError as e:
                 if e.response.status_code >= 500 and attempt < self._send_retry_max:
                     last_exc = e
-                    delay = self._send_retry_delay * (2 ** attempt)
-                    logger.warning("飞书发送 5xx (attempt %d/%d): %s，%.1fs 后重试",
-                                   attempt + 1, self._send_retry_max + 1, e.response.status_code, delay)
+                    delay = self._send_retry_delay * (2**attempt)
+                    logger.warning(
+                        "飞书发送 5xx (attempt %d/%d): %s，%.1fs 后重试",
+                        attempt + 1,
+                        self._send_retry_max + 1,
+                        e.response.status_code,
+                        delay,
+                    )
                     await asyncio.sleep(delay)
                 else:
                     raise
@@ -493,7 +516,7 @@ class FeishuChannel:
         - 加密模式:body 中有 "encrypt" 字段
         - 明文模式:直接解析事件
         """
-        if isinstance(body, (bytes, bytearray)):
+        if isinstance(body, bytes | bytearray):
             body = json.loads(body)
 
         # 解密
@@ -718,7 +741,10 @@ class FeishuChannel:
                         # 自动调豆包 VLM 预分析图片
                         try:
                             from tools.analyze_image_doubao import analyze_image_doubao
-                            result = await analyze_image_doubao(str(save_path), "请详细描述这张图片的内容，包括其中的物体、文字、颜色、场景等")
+
+                            result = await analyze_image_doubao(
+                                str(save_path), "请详细描述这张图片的内容，包括其中的物体、文字、颜色、场景等"
+                            )
                             if result.get("success"):
                                 text = f"[用户发了一张图片]\n\n图片分析结果（预分析）:\n{result['description']}"
                             else:
@@ -768,15 +794,19 @@ class FeishuChannel:
                 _pending_file = _pending_dir / f"{message_id}.json"
                 try:
                     with open(_pending_file, "w") as _pf:
-                        json.dump({
-                            "message_id": message_id,
-                            "open_id": sender_id,
-                            "chat_id": chat_id,
-                            "chat_type": chat_type,
-                            "text": text[:200],
-                            "timestamp": time.time(),
-                            "status": "pending"
-                        }, _pf, ensure_ascii=False)
+                        json.dump(
+                            {
+                                "message_id": message_id,
+                                "open_id": sender_id,
+                                "chat_id": chat_id,
+                                "chat_type": chat_type,
+                                "text": text[:200],
+                                "timestamp": time.time(),
+                                "status": "pending",
+                            },
+                            _pf,
+                            ensure_ascii=False,
+                        )
                 except Exception as _pe:
                     logger.warning("Pendling 写入失败: %s", _pe)
 
@@ -1012,12 +1042,12 @@ def _extract_card_text(block) -> list[str]:
 
     elif tag == "column_set":
         for col in block.get("columns", []):
-            if isinstance(col, (dict, list)):
+            if isinstance(col, dict | list):
                 texts.extend(_extract_card_text(col))
 
     elif tag == "column":
         for elem in block.get("elements", []):
-            if isinstance(elem, (dict, list)):
+            if isinstance(elem, dict | list):
                 texts.extend(_extract_card_text(elem))
 
     elif tag == "action":

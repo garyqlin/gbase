@@ -58,7 +58,7 @@ async def security_scan_directory(directory: str, output: str = "") -> dict:
                 if f"  {level}:" in line:
                     try:
                         findings[level] = int(line.split(f"{level}:")[1].strip().split()[0])
-                    except:
+                    except Exception:
                         pass
 
         return {

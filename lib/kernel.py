@@ -14,7 +14,6 @@ import asyncio
 import json
 import logging
 import time
-from collections import defaultdict
 
 from openai import AsyncOpenAI
 
@@ -112,11 +111,12 @@ async def _auto_persist_experience(mirror_engine, user_message: str, reply: str,
     if not mirror_engine:
         return
     try:
-        import re, time
+        import re
+
         title = (user_message[:60].replace("\n", " ").strip())[:60]
         if len(title) < 5:
             title = "无标题任务"
-        file_paths = re.findall(r'(?:[\w/-]+\.[\w]{2,4})', reply)
+        file_paths = re.findall(r"(?:[\w/-]+\.[\w]{2,4})", reply)
         file_hint = ""
         if file_paths:
             file_hint = ", 产出: " + ", ".join(file_paths[:5])
@@ -124,11 +124,13 @@ async def _auto_persist_experience(mirror_engine, user_message: str, reply: str,
         src = "experience" if completed_ok else "experience-failed"
         mirror_engine.record("experience", content, tags=["auto-persist"], source=src)
         import logging as _lg
+
         _lg.getLogger(__name__).info(
             "🧠 Experience auto-persisted via record(): %s (%d chars, completed=%s)", title, len(content), completed_ok
         )
     except Exception as e:
         import logging as _lg
+
         _lg.getLogger(__name__).debug("Experience auto-persist skipped: %s", e)
 
 
@@ -140,9 +142,6 @@ async def _async_deep_search_save(mirror_engine, query: str, tool_name: str, _ar
         mirror_engine.record_search(query, summary, depth=5)
     except Exception:
         pass
-
-
-
 
 
 def _is_retryable_error(result: dict) -> bool:
@@ -168,8 +167,6 @@ def _is_retryable_error(result: dict) -> bool:
 # 可通过Modify config.yaml limits.max_tool_depth 调整
 _NO_CONFIG = None
 try:
-    from main import _cfg_get
-
     _NO_CONFIG = False
 except ImportError:
     _NO_CONFIG = True
@@ -181,8 +178,6 @@ except ImportError:
 """单次 run() 中最多允许的Tools调用层数。"""
 
 
-
-
 # ── Tools参数提示（ToolsError时Injected，帮助 LLM 修正参数） ──
 _tool_parameter_hints = {
     "write_file": '参数格式: {"filepath": "/path/to/file", "content": "File内容"}。'
@@ -192,17 +187,13 @@ _tool_parameter_hints = {
 }
 
 
-
-
-
-
 # ═══ 阶梯降级：工具 Fallback 映射表 ═══
 # 当 Retry 后工具仍然失败时，尝试语义等价的替代工具。
 # Key = 原始工具名，Value = 备选工具名 (需参数兼容)
 # 注：exec_command 和 read_file/write_file 参数结构不同，不直接映射
 
 # ── 工具结果截断 ──
-TOOL_RESULT_MAX_CHARS = 5000         # 单次工具结果最大字符数
+TOOL_RESULT_MAX_CHARS = 5000  # 单次工具结果最大字符数
 
 # ── 上下文保护开关 ──
 _ENABLE_CONTEXT_PROTECTION = False
@@ -447,16 +438,16 @@ class Kernel:
                 logger.info("Knowledge 自动检索: query=%s", _query)
                 # 直接查 SQLite (不走 tool, 直接调 storage)
                 # 中文不分词，改用字符级 n-gram: 单字+双字组合
-                _import_re = __import__('re')
-                _words = _import_re.findall(r'[a-zA-Z0-9_\-]+|[\u4e00-\u9fff]+', _query)
+                _import_re = __import__("re")
+                _words = _import_re.findall(r"[a-zA-Z0-9_\-]+|[\u4e00-\u9fff]+", _query)
                 _fts_tokens = []
                 for _w in _words:
                     # 含连字符的 token 会被 FTS5 unicode61 拆成两个词 -> no such column
-                    if '-' in _w:
+                    if "-" in _w:
                         _fts_tokens.append(f'"{_w}"')
                     else:
-                        _fts_tokens.append(f'{_w}*')
-                    if len(_w) > 1 and _import_re.match(r'^[\u4e00-\u9fff]+$', _w):
+                        _fts_tokens.append(f"{_w}*")
+                    if len(_w) > 1 and _import_re.match(r"^[\u4e00-\u9fff]+$", _w):
                         # 中文多字词，拆单字也加进去
                         for _ch in _w:
                             _fts_tokens.append(f"{_ch}*")
@@ -493,8 +484,7 @@ class Kernel:
                     _know_text = (
                         "\n\n## Related Knowledge (pre-loaded)\n"
                         "Knowledge facts related to your current query. "
-                        "If you already know these, ignore.\n"
-                        + "\n".join(_results)
+                        "If you already know these, ignore.\n" + "\n".join(_results)
                     )
                     parts.append(_know_text)
                     logger.info("Knowledge 自动检索: 命中 %d 条", len(_results))
@@ -544,6 +534,7 @@ class Kernel:
         try:
             # L0: 今天其他 session 的关键Summary（跨Session记忆，等效 cross-session skill）
             from .daily_memory import get_cross_session_injections
+
             _cross = get_cross_session_injections()
             if _cross:
                 _memory_injections.append(("今日其他Session", _cross))
@@ -553,6 +544,7 @@ class Kernel:
         try:
             # L1: daily_memory Session记忆
             from .daily_memory import get_injection_text as daily_memory_inject
+
             _daily = daily_memory_inject()
             if _daily:
                 _memory_injections.append(("Session记忆Summary", _daily))
@@ -562,6 +554,7 @@ class Kernel:
         try:
             # L2: 活跃经验Injected（按 hits 排序 + 最近7天中置信度过滤）
             from .storage import Storage
+
             _st = getattr(self, "_storage_backend", None) or Storage()
             _week_ago = time.time() - 7 * 86400
             _rows = []
@@ -591,7 +584,9 @@ class Kernel:
                         continue
                     if any(_p in _s for _p in _NOISE_PATTERNS):
                         continue
-                    _dt = datetime.fromtimestamp(_ts, tz=__import__('zoneinfo').ZoneInfo("Asia/Shanghai")).strftime("%m-%d")
+                    _dt = datetime.fromtimestamp(_ts, tz=__import__("zoneinfo").ZoneInfo("Asia/Shanghai")).strftime(
+                        "%m-%d"
+                    )
                     _clean.append(_s[:180])
                     if len(_clean) >= 5:
                         break
@@ -607,6 +602,7 @@ class Kernel:
         if self._archive_store and self._current_user_message:
             try:
                 from datetime import datetime as _archive_dt
+
                 _q = self._current_user_message.strip()
                 if len(_q) > 3:
                     _hits = self._archive_store.search(_q, top_k=3)
@@ -621,8 +617,7 @@ class Kernel:
                         if _lines:
                             parts.append(
                                 "## 📚 过往对话相关记录\n"
-                                "以下是当前话题在历史存档中匹配到的相关内容（原始对话全文）：\n"
-                                + "\n".join(_lines)
+                                "以下是当前话题在历史存档中匹配到的相关内容（原始对话全文）：\n" + "\n".join(_lines)
                             )
             except Exception:
                 logger.exception("Archive search failed (non-blocking)")
@@ -638,7 +633,9 @@ class Kernel:
                 _seen_prefixes.add(_key)
                 _deduped.append((_label, _text))
             _parts = []
-            _parts.append("## 📜 历史记录Summary\n以下是系统自动提取的过往历史记录Summary，用于辅助参考。注意这些不是当前对话内容，而是之前发生过的事情的记录。请区分使用。\n")
+            _parts.append(
+                "## 📜 历史记录Summary\n以下是系统自动提取的过往历史记录Summary，用于辅助参考。注意这些不是当前对话内容，而是之前发生过的事情的记录。请区分使用。\n"
+            )
             for _label, _text in _deduped:
                 _parts.append(f"### {_label}\n{_text}")
             parts.append("\n".join(_parts))
@@ -722,15 +719,11 @@ class Kernel:
         # 保留：_classify_task_intent（任务类型影响mirrorInjected量，有用）
         enriched_message = user_message
 
-
-
-
         # ── 1. Skill 匹配Injected（Hermes 双通道方案） ──
         # system prompt 已有 skill 索引，这里清空旧预Injected逻辑，
         # 改为 LLM 自行决定是否用 read_file 加载完整 SKILL.md
 
         _timings.append(("pre_process", time.time()))
-
 
         # ── 1.5 搜索预Execute ──
         # User message含搜索指令词时，不等 LLM 判断，先自动搜一次
@@ -790,7 +783,6 @@ class Kernel:
             session.append_user_message(enriched_message)
         messages.append({"role": "user", "content": enriched_message})
 
-
         # ── Tools路由 ──
         tools = toolkit.resolve_tools(platform, enriched_message)
 
@@ -844,7 +836,6 @@ class Kernel:
         if self._round_count % 50 == 0:
             _ = self._framework_self_check()
 
-
         # ── 6. 关闭 trace ──
         failure = get_failure_analysis()
         if failure and failure.get("has_failure"):
@@ -859,8 +850,6 @@ class Kernel:
             for i, (step, t) in enumerate(_timings)
         )
         logger.info("📊 Run timing: %s", _timing_report)
-
-
 
         return reply
 
@@ -1084,8 +1073,12 @@ class Kernel:
             if result and isinstance(result, dict) and bool(result.get("error")):
                 fb_name = _FALLBACK_TOOL.get(func_name)
                 if fb_name and fb_name != func_name:
-                    logger.info("Tools %s Retry后仍失败(%s)，尝试 Fallback: %s",
-                                func_name, str(result.get("error", ""))[:80], fb_name)
+                    logger.info(
+                        "Tools %s Retry后仍失败(%s)，尝试 Fallback: %s",
+                        func_name,
+                        str(result.get("error", ""))[:80],
+                        fb_name,
+                    )
                     fb_result = await toolkit.execute(fb_name, func_args)
                     if fb_result and isinstance(fb_result, dict):
                         fb_err = bool(fb_result.get("error"))
@@ -1099,7 +1092,9 @@ class Kernel:
             _trace_elapsed = (time.time() - _trace_start) * 1000
 
             result_str = json.dumps(result, ensure_ascii=False)
-            logger.info("Tools返回 %s: %s 字, 前300=%s", func_name, len(result_str), result_str[:300].replace("\n", " "))
+            logger.info(
+                "Tools返回 %s: %s 字, 前300=%s", func_name, len(result_str), result_str[:300].replace("\n", " ")
+            )
 
             # ── Error检测 ──
             has_error = bool(result.get("error")) if isinstance(result, dict) else False
@@ -1149,9 +1144,13 @@ class Kernel:
                     f"\n\n[⚠️ 收敛警告：工具 {func_name} 已用相同参数调用 {_call_count} 次。"
                     f"请立即换方案或基于已有结果回答，不要再调此工具。]"
                 )
-                logger.warning("门控⑦ 重复调用收敛: %s 已调用 %s 次 (args=%s)",
-                               func_name, _call_count, json.dumps(func_args, ensure_ascii=False)[:100])
-            
+                logger.warning(
+                    "门控⑦ 重复调用收敛: %s 已调用 %s 次 (args=%s)",
+                    func_name,
+                    _call_count,
+                    json.dumps(func_args, ensure_ascii=False)[:100],
+                )
+
             # ── 收敛警告即为注入文本 ──
             _budget_note = _convergence_note
 
@@ -1189,7 +1188,6 @@ class Kernel:
                 messages.append(tr)
                 if session:
                     session.append(tr)
-
 
         # 递归至多 15 层
         if depth + 1 >= MAX_TOOL_DEPTH:

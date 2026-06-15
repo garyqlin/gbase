@@ -327,10 +327,7 @@ CODE_PATTERNS = [
 def is_code_file(filepath: str) -> bool:
     """判断一个文件路径是否属于代码/配置类文件"""
     fp = filepath.replace("\\", "/")
-    for pat in CODE_PATTERNS:
-        if pat in fp:
-            return True
-    return False
+    return any(pat in fp for pat in CODE_PATTERNS)
 
 
 def snapshot_before_edit(filepath: str, reason: str = "") -> dict:

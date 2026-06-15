@@ -257,11 +257,11 @@ def _auto_verdict(hammer_summary, ink_summary) -> dict:
     }
 
 
-def _llm_verdict(pipeline_id: str, hammer_summary: str, ink_reply: str) -> dict:
+def _llm_verdict(_: str, hammer_summary: str, ink_reply: str) -> dict:
     """基于绘墨完整回复做语义裁决（关键词+规则混合）。"""
     import re
 
-    reply_lower = ink_reply.lower()
+    ink_reply.lower()
     combined_lower = (hammer_summary + ink_reply).lower()
 
     # 失败信号（严格版）
@@ -272,7 +272,7 @@ def _llm_verdict(pipeline_id: str, hammer_summary: str, ink_reply: str) -> dict:
     soft_count = sum(1 for s in soft_fails if s in combined_lower)
 
     # 是否明确写了 "通过" 或 "pass" 且没有 hard_fail
-    has_pass_signal = (
+    (
         bool(re.search(r"(?:^|[\n。])[^。]*?(?:通过|完全?正确|all\s*pass|test\s*ok)", combined_lower[:2000]))
         if False
         else False

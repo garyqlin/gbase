@@ -72,6 +72,7 @@ def get_agent_name() -> str | None:
 # 🚧 领地侵犯检测
 # ──────────────────────────────────────────────
 
+
 def check_territory_violation(target_path: str) -> str | None:
     """检查目标路径是否属于其他 Agent 的领地。
 
@@ -199,11 +200,7 @@ def check_rescue_permission(
     agent_rules = RESCUE_WHITELIST.get(target_agent, {})
     allowed_paths = agent_rules.get(operation, [])
 
-    for allowed in allowed_paths:
-        if rel_path == allowed or rel_path.startswith(allowed):
-            return True
-
-    return False
+    return any(rel_path == allowed or rel_path.startswith(allowed) for allowed in allowed_paths)
 
 
 # ──────────────────────────────────────────────

@@ -148,10 +148,7 @@ def yf_create_infographic(
             "--system-prompt",
             "You are an infographic layout expert. Return only the template name.",
         )
-        if analysis.get("status") == "ok":
-            layout = analysis["result"].strip().lower()
-        else:
-            layout = "comparison_side_by_side"
+        layout = analysis["result"].strip().lower() if analysis.get("status") == "ok" else "comparison_side_by_side"
 
     # Stage 2: Build the T2I prompt
     prompt_text = (
@@ -328,9 +325,6 @@ def yf_create_ppt(
     else:
         # Standard mode: PPTX via docx skill
         try:
-            from . import docx_gen
-
-            output_path = f"/tmp/yf-ppt-{int(__import__('time').time())}.pptx"
             # docx_gen handles the actual PPTX generation
             return json.dumps(
                 {

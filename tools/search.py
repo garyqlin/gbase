@@ -78,7 +78,7 @@ def _parse_common(
     result_selector: str,
     title_selector: str,
     url_attr: str = "href",
-    title_attr: str | None = None,
+    _title_attr: str | None = None,
     snippet_selector: str | None = None,
     max_results: int = 5,
 ) -> list[dict]:
@@ -541,8 +541,10 @@ async def search_web(query: str, engines: list[str] | None = None) -> dict:
         # ── 桥接回退：自爬无效时调本地 search_bridge ──
         if len(results) < 3:
             try:
+                import json as _json
                 import urllib.request as _ur
-                payload = json.dumps({"query": query, "count": 8}).encode()
+
+                payload = _json.dumps({"query": query, "count": 8}).encode()
                 body = await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: _ur.urlopen(
@@ -552,10 +554,12 @@ async def search_web(query: str, engines: list[str] | None = None) -> dict:
                             headers={"Content-Type": "application/json"},
                         ),
                         timeout=10,
-                    ).read().decode("utf-8", errors="replace"),
+                    )
+                    .read()
+                    .decode("utf-8", errors="replace"),
                 )
                 if body:
-                    bdata = json.loads(body)
+                    bdata = _json.loads(body)
                     bresults = bdata.get("results", [])
                     if bresults:
                         logger.info("桥回退命中: %s (%d 条)", query, len(bresults))
@@ -631,7 +635,7 @@ async def fetch_page(url: str) -> dict:
             tag.decompose()
         body = soup.get_text(separator="\n", strip=True)
 
-        lines = [l.strip() for l in body.split("\n") if l.strip()]
+        lines = [line.strip() for line in body.split("\n") if line.strip()]
         text = "\n".join(lines)[:4000]
 
         return {"url": url, "content": text[:3000]}
@@ -678,7 +682,7 @@ async def search_main(query: str) -> dict:
     }
     """
     logger.info("search_main: %s", query)
-    is_cn = _is_chinese(query)
+    _is_chinese(query)
 
     # 中英文各一批引擎
     cn_engines = ZH_ENGINES  # bing_cn + so + baidu
@@ -703,7 +707,7 @@ async def search_main(query: str) -> dict:
                 by_engine[eng] = []
             if len(by_engine[eng]) < 3:
                 by_engine[eng].append(r)
-        for eng, items in by_engine.items():
+        for _eng, items in by_engine.items():
             for r in items:
                 s = r.get("snippet", "") or ""
                 if s and len(s) > 10:

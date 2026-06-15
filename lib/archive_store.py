@@ -22,6 +22,7 @@ Usage:
   hits = store.search("query keywords")
 """
 
+import contextlib
 import json
 import logging
 import os
@@ -35,26 +36,26 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # ─── Default configuration ──────────────────────────────────────
-_DEFAULT_BATCH_SIZE = 5          # Write to DB every N rounds
-_DEFAULT_BM25_THRESHOLD = 1.0    # Return when 1+ keywords are hit
-_DEFAULT_SEARCH_TOP_K = 4        # Maximum number of results to return
-_MAX_CONTENT_CHARS = 2000        # Single content truncation length
-_MAX_ENTRIES_PER_SESSION = 50000 # Single session archive limit
+_DEFAULT_BATCH_SIZE = 5  # Write to DB every N rounds
+_DEFAULT_BM25_THRESHOLD = 1.0  # Return when 1+ keywords are hit
+_DEFAULT_SEARCH_TOP_K = 4  # Maximum number of results to return
+_MAX_CONTENT_CHARS = 2000  # Single content truncation length
+_MAX_ENTRIES_PER_SESSION = 50000  # Single session archive limit
 _LOCK = threading.Lock()
 
 # ── M3 sparse attention inspired: Time decay segmentation strategy ──
 # Within 7 days (hot zone): Full weight, no decay
 # 7-30 days (warm zone): Linear decay from 1.0 to 0.5
 # 30+ days (cold zone): Exponential decay, ×0.5 every 30 days
-_TIME_DECAY_WARM_HOURS = 168     # 7 * 24
-_TIME_DECAY_COLD_HOURS = 720     # 30 * 24
+_TIME_DECAY_WARM_HOURS = 168  # 7 * 24
+_TIME_DECAY_COLD_HOURS = 720  # 30 * 24
 
 # ── Cosmos 3 inspired: Entity conflict detection configuration ──
-_CONFLICT_SENSITIVITY = 0.8      # Conflict determination threshold
+_CONFLICT_SENSITIVITY = 0.8  # Conflict determination threshold
 
 # ── Hot cache (LRU)───
-_HOT_CACHE_MAX_SIZE = 64         # Cache up to 64 entity queries
-_HOT_CACHE_TTL_SEC = 3600         # Cache validity period 1 hour
+_HOT_CACHE_MAX_SIZE = 64  # Cache up to 64 entity queries
+_HOT_CACHE_TTL_SEC = 3600  # Cache validity period 1 hour
 
 
 class ArchiveStore:
@@ -135,10 +136,7 @@ class ArchiveStore:
         if not content:
             return
 
-        if isinstance(content, (list, dict)):
-            content = json.dumps(content, ensure_ascii=False)
-        else:
-            content = str(content)
+        content = json.dumps(content, ensure_ascii=False) if isinstance(content, list | dict) else str(content)
 
         if len(content) > _MAX_CONTENT_CHARS:
             content = content[:_MAX_CONTENT_CHARS] + "..."
@@ -150,27 +148,31 @@ class ArchiveStore:
             conflict = self._check_conflict(content)
             if conflict:
                 conflict_note = f"[⚠️ 与前文记录矛盾] {conflict}"
-                self._pending.append({
-                    "content": conflict_note,
-                    "role": "system",
-                    "session_key": self.session_key,
-                    "timestamp": time.time(),
-                    "priority": 1,
-                    "source_id": "conflict_detector",
-                })
+                self._pending.append(
+                    {
+                        "content": conflict_note,
+                        "role": "system",
+                        "session_key": self.session_key,
+                        "timestamp": time.time(),
+                        "priority": 1,
+                        "source_id": "conflict_detector",
+                    }
+                )
                 logger.info("archive_store 检测到实体矛盾: %s", conflict)
             prefix = content.strip()[:40]
             if prefix:
                 self._last_user_prefix = prefix
 
-        self._pending.append({
-            "content": content,
-            "role": role,
-            "session_key": self.session_key,
-            "timestamp": ts,
-            "priority": priority,
-            "source_id": source_id,
-        })
+        self._pending.append(
+            {
+                "content": content,
+                "role": role,
+                "session_key": self.session_key,
+                "timestamp": ts,
+                "priority": priority,
+                "source_id": source_id,
+            }
+        )
         self._batch_count += 1
         self._turn_count += 1
 
@@ -199,10 +201,43 @@ class ArchiveStore:
     }
 
     # 停用词列表（不提取为实体）
-    _STOP_WORDS = {"这个", "那个", "什么", "怎么", "哪里", "为什么", "可以", "应该", "已经",
-                    "一个", "一些", "这些", "那些", "没有", "不是", "就是", "但是", "然后",
-                    "因为", "所以", "如果", "还是", "或者", "不过", "虽然", "而且", "除了",
-                    "这样", "那样", "可能", "需要", "之后", "之前", "现在", "晚上"}
+    _STOP_WORDS = {
+        "这个",
+        "那个",
+        "什么",
+        "怎么",
+        "哪里",
+        "为什么",
+        "可以",
+        "应该",
+        "已经",
+        "一个",
+        "一些",
+        "这些",
+        "那些",
+        "没有",
+        "不是",
+        "就是",
+        "但是",
+        "然后",
+        "因为",
+        "所以",
+        "如果",
+        "还是",
+        "或者",
+        "不过",
+        "虽然",
+        "而且",
+        "除了",
+        "这样",
+        "那样",
+        "可能",
+        "需要",
+        "之后",
+        "之前",
+        "现在",
+        "晚上",
+    }
 
     @staticmethod
     def _detect_event_type(text: str) -> str:
@@ -232,48 +267,107 @@ class ArchiveStore:
             if e in seen:
                 return
             L = e.lower()
-            if L in ("the", "this", "that", "what", "how", "why", "can",
-                     "not", "all", "for", "are", "was", "now", "yes",
-                     "has", "got", "get", "did", "had", "but", "you",
-                     "one", "two", "way", "use", "set", "new", "old",
-                     "any", "see", "say", "get", "its", "via"):
+            if L in (
+                "the",
+                "this",
+                "that",
+                "what",
+                "how",
+                "why",
+                "can",
+                "not",
+                "all",
+                "for",
+                "are",
+                "was",
+                "now",
+                "yes",
+                "has",
+                "got",
+                "get",
+                "did",
+                "had",
+                "but",
+                "you",
+                "one",
+                "two",
+                "way",
+                "use",
+                "set",
+                "new",
+                "old",
+                "any",
+                "see",
+                "say",
+                "get",
+                "its",
+                "via",
+            ):
                 return
             if e in ArchiveStore._STOP_WORDS:
                 return
             # 纯数字
-            if e.replace('.','').replace('-','').replace('v','').isdigit():
+            if e.replace(".", "").replace("-", "").replace("v", "").isdigit():
                 return
             # 口语/非实体后缀（单字）
             if len(e) >= 3 and e[-1] in "的是有能会要去了来在和着过吧呢么没用可吗嘛":
                 return
             # 口语/非实体后缀（双字）
-            _BAD_2 = frozenset(["什么", "怎么", "哪里", "哪个", "哪种", "多久", "多大",
-                                "实现", "解决", "完成", "处理", "采用", "使用",
-                                "连接", "传入", "上传", "下单", "登录", "注册",
-                                "一样", "这么", "那么", "这样", "那样",
-                                "参数", "功能", "方式", "方法", "问题"])
+            _BAD_2 = frozenset(
+                [
+                    "什么",
+                    "怎么",
+                    "哪里",
+                    "哪个",
+                    "哪种",
+                    "多久",
+                    "多大",
+                    "实现",
+                    "解决",
+                    "完成",
+                    "处理",
+                    "采用",
+                    "使用",
+                    "连接",
+                    "传入",
+                    "上传",
+                    "下单",
+                    "登录",
+                    "注册",
+                    "一样",
+                    "这么",
+                    "那么",
+                    "这样",
+                    "那样",
+                    "参数",
+                    "功能",
+                    "方式",
+                    "方法",
+                    "问题",
+                ]
+            )
             if len(e) >= 4 and e[-2:] in _BAD_2:
                 return
             # 中文不能以虚词开头（从英文后缀提取时常见）
-            if len(e) >= 2 and e[0] in "的是" :
+            if len(e) >= 2 and e[0] in "的是":
                 return
             seen.add(e)
             candidates.append(e)
 
         # 全大写缩略词（用 (?<![A-Z]) 代替 \b，避免中文干扰）
-        for ac in re.findall(r'(?<![A-Z])[A-Z]{3,8}(?![A-Z])', text):
+        for ac in re.findall(r"(?<![A-Z])[A-Z]{3,8}(?![A-Z])", text):
             _add(ac)
         # 驼峰式技术名
-        for t in re.findall(r'(?<![A-Za-z])[A-Z][a-z]{2,}(?:[A-Z][A-Za-z0-9]+)+(?![A-Za-z])', text):
+        for t in re.findall(r"(?<![A-Za-z])[A-Z][a-z]{2,}(?:[A-Z][A-Za-z0-9]+)+(?![A-Za-z])", text):
             _add(t)
-        for t in re.findall(r'(?<![A-Za-z])[A-Z][a-z]{2,}(?![A-Za-z])', text):
+        for t in re.findall(r"(?<![A-Za-z])[A-Z][a-z]{2,}(?![A-Za-z])", text):
             _add(t)
         # 带点/连字符的技术名：Three.js、box-shadow
-        for t in re.findall(r'(?<![A-Za-z0-9])[A-Za-z][A-Za-z0-9]*[.\-/][A-Za-z][A-Za-z0-9]*(?![A-Za-z0-9])', text):
+        for t in re.findall(r"(?<![A-Za-z0-9])[A-Za-z][A-Za-z0-9]*[.\-/][A-Za-z][A-Za-z0-9]*(?![A-Za-z0-9])", text):
             _add(t)
 
         # ── 版本号 ──
-        for v in re.findall(r'v?\d+\.\d+(?:\.\d+)?', text):
+        for v in re.findall(r"v?\d+\.\d+(?:\.\d+)?", text):
             _add(v)
 
         # ── 引号内 ──
@@ -282,10 +376,10 @@ class ArchiveStore:
 
         # ── 中文专名 ──
         # 冒号前以完整词起始（非在句中截断），取最多5字
-        for c in re.findall(r'(?:^|[\s，。；])([\u4e00-\u9fff]{2,5})：', text):
+        for c in re.findall(r"(?:^|[\s，。；])([\u4e00-\u9fff]{2,5})：", text):
             _add(c)
         # 跟在纯英文字母后面的中文（技术实体，如 session压缩）
-        for m in re.finditer(r'\b[A-Za-z]{2,}([一-鿿]{2,6})', text):
+        for m in re.finditer(r"\b[A-Za-z]{2,}([一-鿿]{2,6})", text):
             c = m.group(1)
             _add(c)
 
@@ -321,13 +415,13 @@ class ArchiveStore:
     def _get_subject_entity(text: str) -> str | None:
         """提取一句话中最可能的"主题实体"（被陈述的对象）。"""
         # 《》引用的实体
-        for q in re.findall(r'[\u300a\u300b]\s*([^\u300a\u300b]{2,20})\s*[\u300a\u300b]', text):
+        for q in re.findall(r"[\u300a\u300b]\s*([^\u300a\u300b]{2,20})\s*[\u300a\u300b]", text):
             return q.strip()
         # 冒号前的中文专名
-        for c in re.findall(r'([\u4e00-\u9fff]{2,5})：', text):
+        for c in re.findall(r"([\u4e00-\u9fff]{2,5})：", text):
             return c.strip()
         # "主题实体是…"句型
-        for m in re.findall(r'([\u4e00-\u9fff]{2,6})(?:的(?:生日|电话|地址|公司|爱好|名字|手机号))', text):
+        for m in re.findall(r"([\u4e00-\u9fff]{2,6})(?:的(?:生日|电话|地址|公司|爱好|名字|手机号))", text):
             return m
         return None
 
@@ -365,13 +459,11 @@ class ArchiveStore:
                 return ""
         # 浅层冲突检测：同一实体出现但数值不同
         # 提取当前值
-        _val_pattern = re.compile(
-            rf'{re.escape(subject)}[：:是有的为]' + r'(.{2,40}?)(?:[。！？!?]|$)'
-        )
+        _val_pattern = re.compile(rf"{re.escape(subject)}[：:是有的为]" + r"(.{2,40}?)(?:[。！？!?]|$)")
         current_match = _val_pattern.search(content)
         if not current_match:
             # 再试试"是"句型的变体
-            _val2 = re.compile(r'(.{2,30})' + re.escape(subject))
+            _val2 = re.compile(r"(.{2,30})" + re.escape(subject))
             current_match = _val2.search(content)
         if not current_match:
             return ""
@@ -382,12 +474,12 @@ class ArchiveStore:
                 old_val = old_match.group(1).strip()[:40]
                 if old_val and current_val and old_val != current_val:
                     # 过滤问句假阳性：当前值含疑问词
-                    if any(q in current_val for q in ['？', '?', '几号', '什么', '哪天', '吗？']):
+                    if any(q in current_val for q in ["？", "?", "几号", "什么", "哪天", "吗？"]):
                         continue
                     # 去重：同样冲突不重复标记
-                    if old_val + current_val in getattr(self, '_recent_conflicts', set()):
+                    if old_val + current_val in getattr(self, "_recent_conflicts", set()):
                         continue
-                    self._recent_conflicts = getattr(self, '_recent_conflicts', set())
+                    self._recent_conflicts = getattr(self, "_recent_conflicts", set())
                     self._recent_conflicts.add(old_val + current_val)
                     return f"之前记录的「{subject}」是「{old_val}」，现在是「{current_val}」，请确认是否更新"
         return ""
@@ -398,9 +490,10 @@ class ArchiveStore:
             conn = sqlite3.connect(self.db_path)
             try:
                 if self._pending:
-                    rows = [(e["content"], e["role"], e["session_key"],
-                             e["timestamp"], e["priority"], e["source_id"])
-                            for e in self._pending]
+                    rows = [
+                        (e["content"], e["role"], e["session_key"], e["timestamp"], e["priority"], e["source_id"])
+                        for e in self._pending
+                    ]
                     conn.executemany(
                         "INSERT INTO archive_entries (content, role, session_key, timestamp, priority, source_id) VALUES (?, ?, ?, ?, ?, ?)",
                         rows,
@@ -449,7 +542,10 @@ class ArchiveStore:
                             # 同步清理对应的 marker（按相同比例）
                             cursor = conn.execute(
                                 "SELECT id FROM archive_markers WHERE session_key = ? ORDER BY id DESC LIMIT ? OFFSET ?",
-                                (self.session_key, int(keep * 0.02) or 1,),
+                                (
+                                    self.session_key,
+                                    int(keep * 0.02) or 1,
+                                ),
                             )
                             marker_row = cursor.fetchone()
                             if marker_row:
@@ -461,7 +557,11 @@ class ArchiveStore:
                             conn.commit()
                             logger.info(
                                 "📐 archive_store: %s 超限 %d，保留 %d (70%%)，归档 %d 条 -> trash，删除了 %d 条",
-                                self.session_key, count, keep, len(trash), deleted,
+                                self.session_key,
+                                count,
+                                keep,
+                                len(trash),
+                                deleted,
                             )
 
                 if self._pending:
@@ -482,8 +582,13 @@ class ArchiveStore:
 
     # ── Search（语义桥）─────────────────────────────────
 
-    def search(self, query: str, top_k: int = _DEFAULT_SEARCH_TOP_K,
-               time_from: float | None = None, time_to: float | None = None) -> list[dict]:
+    def search(
+        self,
+        query: str,
+        top_k: int = _DEFAULT_SEARCH_TOP_K,
+        time_from: float | None = None,
+        time_to: float | None = None,
+    ) -> list[dict]:
         """Search当期会话中与 query 相关的历史记录。
 
         支持多维弱线索Search：
@@ -522,7 +627,7 @@ class ArchiveStore:
         params: list = [self.session_key]
 
         # 关键词条件
-        kw_conditions = " OR ".join(f"content LIKE ? COLLATE NOCASE" for _ in keywords)
+        kw_conditions = " OR ".join("content LIKE ? COLLATE NOCASE" for _ in keywords)
         where_parts.append(f"({kw_conditions})")
         params.extend(f"%{k}%" for k in keywords)
 
@@ -537,7 +642,7 @@ class ArchiveStore:
         sql = f"""
             SELECT content, role, timestamp, priority, source_id, id
             FROM archive_entries
-            WHERE {' AND '.join(where_parts)}
+            WHERE {" AND ".join(where_parts)}
             ORDER BY timestamp DESC
         """
 
@@ -554,7 +659,7 @@ class ArchiveStore:
 
         # 计算每条记录的命中关键词数（作为粗糙的 BM25 替代）
         scored = []
-        for content, role, ts, priority, source_id, eid in all_rows:
+        for content, role, ts, priority, _source_id, _eid in all_rows:
             if not content:
                 continue
             hits = sum(1 for kw in keywords if kw in content or kw.lower() in content.lower())
@@ -573,18 +678,20 @@ class ArchiveStore:
             else:
                 # 冷区：每30天半衰
                 extra_months = (age_hours - _TIME_DECAY_COLD_HOURS) / 720.0
-                score *= max(0.1, 0.5 ** extra_months)
+                score *= max(0.1, 0.5**extra_months)
 
             if score < _DEFAULT_BM25_THRESHOLD:
                 continue
 
-            scored.append({
-                "content": content,
-                "role": role,
-                "timestamp": ts or 0,
-                "priority": priority or 0,
-                "score": round(score, 2),
-            })
+            scored.append(
+                {
+                    "content": content,
+                    "role": role,
+                    "timestamp": ts or 0,
+                    "priority": priority or 0,
+                    "score": round(score, 2),
+                }
+            )
 
         scored.sort(key=lambda r: (-r["priority"], -r["score"]))
         result = scored[:top_k]
@@ -627,18 +734,83 @@ class ArchiveStore:
 
         # 过滤 2-gram 通用词（减少杂音匹配）
         _COMMON_BIGRAMS = {
-            "今天", "明天", "昨天", "晚上", "早上", "中午", "下午",
-            "一个", "这个", "那个", "什么", "怎么", "哪里", "为什么",
-            "可以", "应该", "已经", "没有", "不是", "就是", "还是",
-            "因为", "所以", "如果", "但是", "不过", "虽然", "而且",
-            "这样", "那样", "可能", "需要", "之后", "之前", "现在",
-            "我们", "他们", "你们", "自己", "一些", "这些", "那些",
-            "谢谢", "你好", "请问", "好的", "是的", "知道", "觉得",
-            "然后", "或者", "还是", "除了", "不想", "想要", "打算",
-            "看到", "听说", "觉得", "告诉", "我的", "你的", "他的",
-            "大家", "东西", "时候", "不错", "真的", "非常", "很多",
-            "工作", "生活", "事情", "感觉", "方面", "一点", "一定",
-            "还有", "因为", "出来",
+            "今天",
+            "明天",
+            "昨天",
+            "晚上",
+            "早上",
+            "中午",
+            "下午",
+            "一个",
+            "这个",
+            "那个",
+            "什么",
+            "怎么",
+            "哪里",
+            "为什么",
+            "可以",
+            "应该",
+            "已经",
+            "没有",
+            "不是",
+            "就是",
+            "还是",
+            "因为",
+            "所以",
+            "如果",
+            "但是",
+            "不过",
+            "虽然",
+            "而且",
+            "这样",
+            "那样",
+            "可能",
+            "需要",
+            "之后",
+            "之前",
+            "现在",
+            "我们",
+            "他们",
+            "你们",
+            "自己",
+            "一些",
+            "这些",
+            "那些",
+            "谢谢",
+            "你好",
+            "请问",
+            "好的",
+            "是的",
+            "知道",
+            "觉得",
+            "然后",
+            "或者",
+            "除了",
+            "不想",
+            "想要",
+            "打算",
+            "看到",
+            "听说",
+            "告诉",
+            "我的",
+            "你的",
+            "他的",
+            "大家",
+            "东西",
+            "时候",
+            "不错",
+            "真的",
+            "非常",
+            "很多",
+            "工作",
+            "生活",
+            "事情",
+            "感觉",
+            "方面",
+            "一点",
+            "一定",
+            "还有",
+            "出来",
         }
         keywords = [k for k in keywords if k not in _COMMON_BIGRAMS]
 
@@ -708,14 +880,17 @@ class ArchiveStore:
                 conn.close()
 
         import datetime
+
         result = []
         for marker, ts in rows:
             dt = datetime.datetime.fromtimestamp(ts)
-            result.append({
-                "marker": marker,
-                "timestamp": ts,
-                "time_str": dt.strftime("%Y-%m-%d %H:%M"),
-            })
+            result.append(
+                {
+                    "marker": marker,
+                    "timestamp": ts,
+                    "time_str": dt.strftime("%Y-%m-%d %H:%M"),
+                }
+            )
 
         return {
             "total": total,
@@ -728,15 +903,14 @@ class ArchiveStore:
         self.flush()
 
     def __del__(self):
-        try:
+        with contextlib.suppress(Exception):
             self.close()
-        except Exception:
-            pass
 
 
 # ── 旧数据迁移 ─────────────────────────────────────
 
 # ── 归档（超限清理时保留被删数据）───────────────
+
 
 def _save_trash(session_key: str, rows: list[tuple]):
     """将 archive 清理掉的旧记录存入 trash JSONL（纯文本，可 grep）。
@@ -745,6 +919,7 @@ def _save_trash(session_key: str, rows: list[tuple]):
     文件：data/archive_trash/{sanitized_key}.jsonl
     """
     from pathlib import Path as _Path
+
     trash_dir = _Path(__file__).parent.parent / "data" / "archive_trash"
     trash_dir.mkdir(parents=True, exist_ok=True)
 
@@ -775,7 +950,9 @@ def recent_global(limit: int = 10, hours: int = 72) -> dict:
     不限制 session_key，只按时间过滤。
     用于 session 预热时注入同主题历史。
     """
-    import sqlite3, time, datetime
+    import datetime
+    import sqlite3
+    import time
 
     # 找 archive.db（尝试多个位置）
     candidates = [
@@ -812,12 +989,14 @@ def recent_global(limit: int = 10, hours: int = 72) -> dict:
     for marker, ts, skey in rows:
         dt = datetime.datetime.fromtimestamp(ts)
         skey_short = skey.split(":")[-1][:20] if skey else ""
-        result.append({
-            "marker": marker[:120],
-            "timestamp": ts,
-            "time_str": dt.strftime("%m-%d %H:%M"),
-            "session": skey_short,
-        })
+        result.append(
+            {
+                "marker": marker[:120],
+                "timestamp": ts,
+                "time_str": dt.strftime("%m-%d %H:%M"),
+                "session": skey_short,
+            }
+        )
 
     return {"markers": result, "count": len(result), "db": db_path}
 
@@ -836,7 +1015,7 @@ def _copy_old_data(dat_db_path: str, archive_db_path: str):
         cursor = conn.cursor()
 
         # 从 entries table 找 experience 和 knowledge
-        for tbl, pri in [("entries", 1)]:
+        for tbl, _pri in [("entries", 1)]:
             try:
                 cursor.execute(f"SELECT content, type FROM {tbl} WHERE content IS NOT NULL AND content != ''")
                 for content, typ in cursor.fetchall():

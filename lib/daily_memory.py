@@ -1,3 +1,5 @@
+import hashlib
+
 # SPDX-License-Identifier: MIT
 """
 每日记忆引擎 - DailyMemoryEngine
@@ -6,13 +8,13 @@
 2. 启动时注入"最近重要事项"摘要到 system prompt
 """
 
+import contextlib
 import json
 import os
-import time
-from datetime import UTC, datetime
 
 # ─── 配置 ──────────────────────────────────────────
-import sys as _sys
+import time
+from datetime import UTC, datetime
 
 # 自动检测运行环境：优先用 poseidon-home 本地路径
 _CANDIDATE_DIRS = [
@@ -287,10 +289,10 @@ def run_daily_extraction(session_path: str = None, db_path: str = DB_PATH):
 def inject_cross_session_to_mirror(mirror_engine=None):
     """将今日跨 session 关键对话对写入 mirror，供 recall 使用。
 
-    让每天的重要对话不只是通过 `get_cross_session_injections()` 
+    让每天的重要对话不只是通过 `get_cross_session_injections()`
     （纯文本注入，24小时内有效），还能持久化到 mirror 的 Ebbinghaus 衰减体系。
     """
-    from .mirror import Mirror
+
     me = mirror_engine or globals().get("_mirror_instance")
     if me is None:
         return 0
@@ -416,7 +418,7 @@ def get_cross_session_injections(session_dir: str = None, max_recent: int = 3) -
         except Exception:
             continue
         # 只取最近 max_recent 轮 user↔assistant 对
-        recent_lines = lines[-max_recent * 6:] if len(lines) > max_recent * 6 else lines
+        recent_lines = lines[-max_recent * 6 :] if len(lines) > max_recent * 6 else lines
         pairs = []
         current_q = None
         current_a = None
@@ -457,20 +459,14 @@ def get_cross_session_injections(session_dir: str = None, max_recent: int = 3) -
             break
 
     # 同时写入 mirror（如果可用）
-    try:
+    with contextlib.suppress(Exception):
         inject_cross_session_to_mirror()
-    except Exception:
-        pass
 
     if not snippets:
         return ""
 
     text = "\n".join(snippets)
-    return (
-        "\n## 📜 今日其他会话（跨会话记忆）\n"
-        "以下是你今天在其他会话中聊过的内容摘要，供参考：\n"
-        f"{text}\n"
-    )
+    return f"\n## 📜 今日其他会话（跨会话记忆）\n以下是你今天在其他会话中聊过的内容摘要，供参考：\n{text}\n"
 
 
 if __name__ == "__main__":

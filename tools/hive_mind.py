@@ -197,8 +197,6 @@ async def _llm_analyze_gaps(mission: str, accumulated_text: str) -> dict:
         return _rule_analyze_gaps(mission, accumulated_text)
 
 
-
-
 # ════════════════════════════════════════════════════
 # 数据模型
 # ════════════════════════════════════════════════════
@@ -398,21 +396,25 @@ def _auto_split_mission(mission: str, depth: str) -> list[dict]:
             if len(parts) >= 2:
                 plan = []
                 for i, part in enumerate(parts):
-                    plan.append({
-                        "round": i + 1,
-                        "beam": "sharp",
-                        "query": part,
-                        "max_results": 8,
-                        "sub_mission": True,
-                    })
+                    plan.append(
+                        {
+                            "round": i + 1,
+                            "beam": "sharp",
+                            "query": part,
+                            "max_results": 8,
+                            "sub_mission": True,
+                        }
+                    )
                 # 加一轮综合作对比
-                plan.append({
-                    "round": len(parts) + 1,
-                    "beam": "broad",
-                    "query": mission,
-                    "max_results": 10,
-                    "sub_mission": False,
-                })
+                plan.append(
+                    {
+                        "round": len(parts) + 1,
+                        "beam": "broad",
+                        "query": mission,
+                        "max_results": 10,
+                        "sub_mission": False,
+                    }
+                )
                 return plan
     # 拆不了就返回空，让主函数兜底
     return []
@@ -437,11 +439,20 @@ def _plan_mission(mission: str, depth: str) -> list[dict]:
 
     if any(kw in mission for kw in ["具体", "指定", "固定", "准确", "exact", "specific", "site:"]):
         beams_to_use.append("sharp")
-    if any(kw in mission_lower for kw in ["内容", "页面", "文章", "博客", "文档", "page", "content", "article", "blog", "doc", "read"]):
+    if any(
+        kw in mission_lower
+        for kw in ["内容", "页面", "文章", "博客", "文档", "page", "content", "article", "blog", "doc", "read"]
+    ):
         beams_to_use.append("crawl")
-    if depth == "full" or any(kw in mission_lower for kw in ["分析", "对比", "比较", "研究", "深入", "全面", "探", "deep", "research", "analysis", "compare"]):
+    if depth == "full" or any(
+        kw in mission_lower
+        for kw in ["分析", "对比", "比较", "研究", "深入", "全面", "探", "deep", "research", "analysis", "compare"]
+    ):
         beams_to_use.append("deep")
-    if any(kw in mission_lower for kw in ["讨论", "舆论", "社区", "论坛", "social", "discussion", "community", "reddit", "twitter", "X"]):
+    if any(
+        kw in mission_lower
+        for kw in ["讨论", "舆论", "社区", "论坛", "social", "discussion", "community", "reddit", "twitter", "X"]
+    ):
         beams_to_use.append("social")
     if any(kw in mission_lower for kw in ["来源", "引用", "溯源", "source", "origin", "trace", "cited", "reference"]):
         beams_to_use.append("trace")
@@ -469,7 +480,9 @@ def _plan_mission(mission: str, depth: str) -> list[dict]:
             beam = "sharp" if ("sharp" in used_beams or depth != "quick") else "broad"
             plan.append({"round": r, "beam": beam, "query": mission, "max_results": 10})
         elif r == 3:
-            beam = "crawl" if "crawl" in used_beams else ("deep" if ("deep" in used_beams or depth == "full") else "broad")
+            beam = (
+                "crawl" if "crawl" in used_beams else ("deep" if ("deep" in used_beams or depth == "full") else "broad")
+            )
             plan.append({"round": r, "beam": beam, "query": mission, "max_results": 8})
         else:
             beam = "trace" if "trace" in used_beams else "crawl"
@@ -484,6 +497,7 @@ def _plan_mission(mission: str, depth: str) -> list[dict]:
 
 
 # ─── 导入现有搜索能力 ───
+
 
 async def _beam_broad(query: str, max_results: int = 10) -> list[dict]:
     """
@@ -500,13 +514,15 @@ async def _beam_broad(query: str, max_results: int = 10) -> list[dict]:
         hr = await honeycomb_search(query, depth="quick" if max_results <= 8 else "normal")
         for dim_name, items in hr.get("results", {}).get("by_dimension", {}).items():
             for item in items:
-                results.append({
-                    "title": item.get("title", ""),
-                    "url": item.get("url", ""),
-                    "snippet": item.get("snippet", ""),
-                    "source": f"honeycomb/{dim_name}",
-                    "beam": "broad",
-                })
+                results.append(
+                    {
+                        "title": item.get("title", ""),
+                        "url": item.get("url", ""),
+                        "snippet": item.get("snippet", ""),
+                        "source": f"honeycomb/{dim_name}",
+                        "beam": "broad",
+                    }
+                )
     except Exception as e:
         logger.warning("honeycomb_search 不可用: %s", e)
 
@@ -514,17 +530,20 @@ async def _beam_broad(query: str, max_results: int = 10) -> list[dict]:
     if not results:
         try:
             from tools.anysearch_tool import anysearch_search
+
             raw = await anysearch_search(query)
             if raw:
                 data = json.loads(raw) if isinstance(raw, str) else raw
                 for item in data.get("results", data.get("items", [])):
-                    results.append({
-                        "title": item.get("title", ""),
-                        "url": item.get("url", item.get("link", "")),
-                        "snippet": item.get("snippet", item.get("description", "")),
-                        "source": "anysearch",
-                        "beam": "broad",
-                    })
+                    results.append(
+                        {
+                            "title": item.get("title", ""),
+                            "url": item.get("url", item.get("link", "")),
+                            "snippet": item.get("snippet", item.get("description", "")),
+                            "source": "anysearch",
+                            "beam": "broad",
+                        }
+                    )
         except Exception as e:
             logger.warning("anysearch 兜底也失败: %s", e)
 
@@ -554,13 +573,15 @@ async def _beam_sharp(query: str, max_results: int = 8) -> list[dict]:
             data = json.loads(stdout.decode("utf-8", errors="replace"))
             docs = data.get("data", {}).get("docs", [])
             for doc in docs:
-                results.append({
-                    "title": doc.get("title", ""),
-                    "url": doc.get("url", ""),
-                    "snippet": doc.get("passage", "")[:300],
-                    "source": "prosearch",
-                    "beam": "sharp",
-                })
+                results.append(
+                    {
+                        "title": doc.get("title", ""),
+                        "url": doc.get("url", ""),
+                        "snippet": doc.get("passage", "")[:300],
+                        "source": "prosearch",
+                        "beam": "sharp",
+                    }
+                )
         except Exception as e:
             logger.warning("prosearch 精搜失败: %s", e)
 
@@ -575,7 +596,7 @@ async def _beam_crawl(url_or_query: str, max_chars: int = 8000) -> list[dict]:
     logger.info("🕷️ 爬取: %s", url_or_query[:80])
 
     # 判断是 URL 还是关键词
-    if url_or_query.startswith("http://") or url_or_query.startswith("https://"):
+    if url_or_query.startswith(("http://", "https://")):
         urls_to_crawl = [url_or_query]
     else:
         # 先搜出 URL
@@ -612,13 +633,15 @@ async def _beam_crawl(url_or_query: str, max_chars: int = 8000) -> list[dict]:
                 title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.DOTALL)
                 title = title_match.group(1).strip() if title_match else url
 
-                results.append({
-                    "title": title,
-                    "url": url,
-                    "content": text,
-                    "source": "crawl",
-                    "beam": "crawl",
-                })
+                results.append(
+                    {
+                        "title": title,
+                        "url": url,
+                        "content": text,
+                        "source": "crawl",
+                        "beam": "crawl",
+                    }
+                )
                 logger.info("  爬取完成: %s (%d chars)", url, len(text))
             except Exception as e:
                 logger.debug("  爬取失败 %s: %s", url, str(e)[:50])
@@ -645,8 +668,10 @@ async def _beam_deep(query: str, max_depth: int = 2) -> list[dict]:
         urls_to_crawl = []
         for r in results_l1:
             url = r.get("url", "")
-            if url and url not in crawled_urls and not any(
-                skip in url for skip in ["facebook.com", "twitter.com", "youtube.com", "instagram.com"]
+            if (
+                url
+                and url not in crawled_urls
+                and not any(skip in url for skip in ["facebook.com", "twitter.com", "youtube.com", "instagram.com"])
             ):
                 urls_to_crawl.append(url)
                 crawled_urls.add(url)
@@ -676,18 +701,20 @@ async def _beam_social_direct(platform: str, query: str, max_results: int = 5) -
                 data = resp.json()
                 for child in data.get("data", {}).get("children", []):
                     d = child.get("data", {})
-                    results.append({
-                        "title": d.get("title", ""),
-                        "url": f"https://www.reddit.com{d.get('permalink', '')}",
-                        "snippet": (d.get("selftext", "") or d.get("title", ""))[:300],
-                        "content": d.get("selftext", ""),
-                        "source": "reddit_direct",
-                        "platform": platform,
-                        "beam": "social",
-                        "score": d.get("score", 0),
-                        "num_comments": d.get("num_comments", 0),
-                        "author": d.get("author", ""),
-                    })
+                    results.append(
+                        {
+                            "title": d.get("title", ""),
+                            "url": f"https://www.reddit.com{d.get('permalink', '')}",
+                            "snippet": (d.get("selftext", "") or d.get("title", ""))[:300],
+                            "content": d.get("selftext", ""),
+                            "source": "reddit_direct",
+                            "platform": platform,
+                            "beam": "social",
+                            "score": d.get("score", 0),
+                            "num_comments": d.get("num_comments", 0),
+                            "author": d.get("author", ""),
+                        }
+                    )
         except Exception as e:
             logger.debug("Reddit 直搜失败: %s", str(e)[:60])
 
@@ -700,17 +727,19 @@ async def _beam_social_direct(platform: str, query: str, max_results: int = 5) -
             if resp.status_code == 200:
                 data = resp.json()
                 for hit in data.get("hits", []):
-                    results.append({
-                        "title": hit.get("title", ""),
-                        "url": hit.get("url", f"https://news.ycombinator.com/item?id={hit.get('objectID', '')}"),
-                        "snippet": (hit.get("story_title", "") or "")[:300],
-                        "source": "hackernews_direct",
-                        "platform": platform,
-                        "beam": "social",
-                        "points": hit.get("points", 0),
-                        "num_comments": hit.get("num_comments", 0),
-                        "author": hit.get("author", ""),
-                    })
+                    results.append(
+                        {
+                            "title": hit.get("title", ""),
+                            "url": hit.get("url", f"https://news.ycombinator.com/item?id={hit.get('objectID', '')}"),
+                            "snippet": (hit.get("story_title", "") or "")[:300],
+                            "source": "hackernews_direct",
+                            "platform": platform,
+                            "beam": "social",
+                            "points": hit.get("points", 0),
+                            "num_comments": hit.get("num_comments", 0),
+                            "author": hit.get("author", ""),
+                        }
+                    )
         except Exception as e:
             logger.debug("HN 直搜失败: %s", str(e)[:60])
 
@@ -723,20 +752,22 @@ async def _beam_social_direct(platform: str, query: str, max_results: int = 5) -
             )
             if resp.status_code == 200:
                 html = resp.text
-                titles = re.findall(r'<h2[^>]*>.*?<a[^>]*>(.*?)</a>', html, re.DOTALL)[:max_results]
+                titles = re.findall(r"<h2[^>]*>.*?<a[^>]*>(.*?)</a>", html, re.DOTALL)[:max_results]
                 urls = re.findall(r'<a[^>]*href="(//zhuanlan\\.zhihu\\.com[^"]+)"', html)[:max_results]
                 for i, t in enumerate(titles):
-                    clean = re.sub(r'<[^>]+>', '', t).strip()
+                    clean = re.sub(r"<[^>]+>", "", t).strip()
                     u = f"https:{urls[i]}" if i < len(urls) and urls[i] else ""
                     if clean and u:
-                        results.append({
-                            "title": clean,
-                            "url": u,
-                            "snippet": clean[:200],
-                            "source": "zhihu_direct",
-                            "platform": platform,
-                            "beam": "social",
-                        })
+                        results.append(
+                            {
+                                "title": clean,
+                                "url": u,
+                                "snippet": clean[:200],
+                                "source": "zhihu_direct",
+                                "platform": platform,
+                                "beam": "social",
+                            }
+                        )
         except Exception as e:
             logger.debug("知乎直搜失败: %s", str(e)[:60])
 
@@ -833,12 +864,13 @@ async def _beam_trace(query: str, max_depth: int = 2) -> list[dict]:
         for r in layer1[:3]:
             snippet = r.get("snippet", "") + " " + r.get("content", "")
             # 找引用的来源和被引用内容
-            refs = re.findall(r'(?:via|引自|来源|source|cited from|reference)[:\s]*((?:https?://)?[^\s,;。]+)', snippet, re.IGNORECASE)
+            refs = re.findall(
+                r"(?:via|引自|来源|source|cited from|reference)[:\s]*((?:https?://)?[^\s,;。]+)", snippet, re.IGNORECASE
+            )
             refs += re.findall(r'https?://[^\s,;。"\')]+', snippet)
 
-
             for ref in refs[:2]:
-                ref_url = ref if ref.startswith('http') else f'https://{ref}'
+                ref_url = ref if ref.startswith("http") else f"https://{ref}"
                 if ref_url not in seen_urls:
                     seen_urls.add(ref_url)
                     ref_result = await _beam_crawl(ref_url, max_chars=3000)
@@ -879,13 +911,15 @@ async def _beam_cua(query: str) -> list[dict]:
             )
             if resp.status_code == 200:
                 data = resp.json()
-                results.append({
-                    "title": f"CUA 搜索结果: {query}",
-                    "url": f"https://www.google.com/search?q={quote_plus(query)}",
-                    "snippet": data.get("text", data.get("result", "CUA 执行完成"))[:500],
-                    "source": "cua",
-                    "beam": "cua",
-                })
+                results.append(
+                    {
+                        "title": f"CUA 搜索结果: {query}",
+                        "url": f"https://www.google.com/search?q={quote_plus(query)}",
+                        "snippet": data.get("text", data.get("result", "CUA 执行完成"))[:500],
+                        "source": "cua",
+                        "beam": "cua",
+                    }
+                )
     except Exception as e:
         logger.warning("CUA 波束不可用: %s", e)
 
@@ -946,7 +980,11 @@ def _fuse_round_results(rounds: list[SearchRound], mission_keywords: set | None 
         "by_source": by_source,
         "by_beam": {b: len(items) for b, items in by_beam.items()},
         "results_by_beam": {
-            b: [{"title": item.get("title", ""), "url": item.get("url", ""), "snippet": item.get("snippet", "")[:150]} for item in items[:8]] for b, items in by_beam.items()
+            b: [
+                {"title": item.get("title", ""), "url": item.get("url", ""), "snippet": item.get("snippet", "")[:150]}
+                for item in items[:8]
+            ]
+            for b, items in by_beam.items()
         },
     }
 
@@ -964,13 +1002,15 @@ def _generate_report(mission: str, rounds: list[SearchRound], coverage: Coverage
         emoji = BEAM_EMOJI.get(rd.beam_type, "🔍")
         n = len(rd.results)
         elapsed = f"{rd.elapsed_ms / 1000:.1f}s" if rd.elapsed_ms else "-"
-        round_summaries.append({
-            "round": rd.round_num,
-            "beam": f"{emoji} {rd.beam_type}",
-            "results": n,
-            "elapsed": elapsed,
-            "error": rd.error or None,
-        })
+        round_summaries.append(
+            {
+                "round": rd.round_num,
+                "beam": f"{emoji} {rd.beam_type}",
+                "results": n,
+                "elapsed": elapsed,
+                "error": rd.error or None,
+            }
+        )
 
     confidence = round(coverage.coverage_rate / 100 * 0.7 + min(fused["total_unique"] / 20, 1) * 0.3, 2)
 
@@ -1029,20 +1069,39 @@ async def hive_mind(mission: str, depth: str = "normal", timeout: int = 180) -> 
 
     # ── 提取任务关键词用于相关性评分（jieba 分词 + 中英混合） ──
     import re
-    mission_clean = re.sub(r'[.,!?，。！？、：；（）()\[\]「」"\'\'\u00a0]', ' ', mission)
+
+    mission_clean = re.sub(r'[.,!?，。！？、：；（）()\[\]「」"\'\'\u00a0]', " ", mission)
     raw_tokens = mission_clean.split()
     mission_keywords = set()
     try:
         import jieba
+
         for token in raw_tokens:
             # 纯英文/数字token直接加入
-            if re.match(r'^[a-zA-Z0-9._-]+$', token) and len(token) > 0:
+            if re.match(r"^[a-zA-Z0-9._-]+$", token) and len(token) > 0:
                 mission_keywords.add(token.lower())
             else:
                 # 中文或中英混 — jieba 分词
                 for w in jieba.cut(token, cut_all=False):
                     w = w.strip().lower()
-                    if len(w) > 1 and w not in ('的', '了', '是', '在', '和', '也', '就', '都', '而', '且', '有', '与', '或', '对', '被', '中'):
+                    if len(w) > 1 and w not in (
+                        "的",
+                        "了",
+                        "是",
+                        "在",
+                        "和",
+                        "也",
+                        "就",
+                        "都",
+                        "而",
+                        "且",
+                        "有",
+                        "与",
+                        "或",
+                        "对",
+                        "被",
+                        "中",
+                    ):
                         mission_keywords.add(w)
     except ImportError:
         # 无 jieba 时回退: 中文按字符 bigram
@@ -1053,10 +1112,10 @@ async def hive_mind(mission: str, depth: str = "normal", timeout: int = 180) -> 
                 if len(token) >= 4:
                     # 中文2字片段
                     for i in range(len(token) - 1):
-                        pair = token[i:i+2]
-                        if any('a' <= c <= 'z' for c in pair):  # 有英文不做
+                        pair = token[i : i + 2]
+                        if any("a" <= c <= "z" for c in pair):  # 有英文不做
                             continue
-                        if len(pair) == 2 and pair not in ('的', '了'):
+                        if len(pair) == 2 and pair not in ("的", "了"):
                             mission_keywords.add(pair)
     # ── 第1步：分析任务，生成初始计划 → 策略自进化（Phase 5） ──
     base_plan = _plan_mission(mission, depth)
@@ -1144,8 +1203,13 @@ async def hive_mind(mission: str, depth: str = "normal", timeout: int = 180) -> 
         emoji = BEAM_EMOJI.get(beam_type, "🔍")
         logger.info(
             "  轮次%d %s %s: %d 条 (%dms) | 覆盖=%s%% | 饱和=%s",
-            round_num, emoji, beam_type, len(rd.results), rd.elapsed_ms,
-            last_analysis.coverage_rate, last_analysis.is_saturated,
+            round_num,
+            emoji,
+            beam_type,
+            len(rd.results),
+            rd.elapsed_ms,
+            last_analysis.coverage_rate,
+            last_analysis.is_saturated,
         )
 
     # ── 最终分析 + 融合（含信源质量 Phase 5） ──
@@ -1171,7 +1235,13 @@ async def hive_mind(mission: str, depth: str = "normal", timeout: int = 180) -> 
             "total_scored": len(relevances),
             "high_pct": round(high_relevance / len(relevances) * 100, 1) if relevances else 0,
         }
-        logger.info("  📈 相关性评分: avg=%.2f, high=%d/%d (%.1f%%)", avg_relevance, high_relevance, len(relevances), high_relevance / len(relevances) * 100 if relevances else 0)
+        logger.info(
+            "  📈 相关性评分: avg=%.2f, high=%d/%d (%.1f%%)",
+            avg_relevance,
+            high_relevance,
+            len(relevances),
+            high_relevance / len(relevances) * 100 if relevances else 0,
+        )
 
     report["elapsed_s"] = round(elapsed_total, 1)
     report["rounds_executed"] = len(rounds)
@@ -1199,7 +1269,9 @@ async def hive_mind(mission: str, depth: str = "normal", timeout: int = 180) -> 
             "avg_grade": fq.get("avg_grade", 0.5),
             "avg_combined": fq.get("avg_combined", 0.5),
         }
-        logger.info("  📊 信源质量: avg_grade=%.2f, avg_combined=%.2f", fq.get("avg_grade", 0.5), fq.get("avg_combined", 0.5))
+        logger.info(
+            "  📊 信源质量: avg_grade=%.2f, avg_combined=%.2f", fq.get("avg_grade", 0.5), fq.get("avg_combined", 0.5)
+        )
 
     # ── 方向3：自动 note 归档（含质量评分） ──
     _ = await _archive_to_notes(mission, report)
@@ -1235,11 +1307,11 @@ def _evaluate_search_quality(report: dict) -> dict:
 
     # 综合分
     score = (
-        min(metrics["source_diversity"] / 10, 1) * 0.15 +
-        min(metrics["beam_diversity"] / 5, 1) * 0.10 +
-        metrics["coverage_rate"] / 100 * 0.40 +
-        min(metrics["result_count"] / 20, 1) * 0.20 +
-        min(metrics["rounds_executed"] / 4, 1) * 0.15
+        min(metrics["source_diversity"] / 10, 1) * 0.15
+        + min(metrics["beam_diversity"] / 5, 1) * 0.10
+        + metrics["coverage_rate"] / 100 * 0.40
+        + min(metrics["result_count"] / 20, 1) * 0.20
+        + min(metrics["rounds_executed"] / 4, 1) * 0.15
     ) * 100
 
     metrics["overall_score"] = round(score, 1)
@@ -1267,6 +1339,7 @@ def _diagnose_failure(metrics: dict) -> list[dict]:
 # 方向3：自动 note 归档
 # ════════════════════════════════════════════════════
 
+
 async def _archive_to_notes(mission: str, report: dict) -> bool:
     """hive_mind 搜索结果自动写入 L4 笔记系统"""
     try:
@@ -1277,8 +1350,7 @@ async def _archive_to_notes(mission: str, report: dict) -> bool:
 
         content_parts = [
             "## 搜索结果摘要",
-            f"- 覆盖度: {report.get('coverage_rate', 'N/A')}%"
-            f"- 置信度: {report.get('confidence', 'N/A')}",
+            f"- 覆盖度: {report.get('coverage_rate', 'N/A')}%- 置信度: {report.get('confidence', 'N/A')}",
             f"- 独立信源: {report.get('total_unique_sources', 'N/A')}",
             f"- 执行轮次: {report.get('rounds_executed', 'N/A')}",
             f"- 耗时: {report.get('elapsed_s', 'N/A')}s",
@@ -1356,7 +1428,13 @@ async def _archive_search_knowledge(mission: str, report: dict, quality: dict) -
                 summary = f"搜索策略: [{mission[:50]}] 有效波束: {','.join(effective_beams[:4])} | 覆盖度 {coverage}% | 信源 {sources}"
                 conn.execute(
                     "INSERT INTO entries (type, content, summary, created_at, confidence) VALUES (?, ?, ?, ?, ?)",
-                    ("knowledge", json.dumps(entry, ensure_ascii=False), summary, now, "high" if score >= 70 else "medium"),
+                    (
+                        "knowledge",
+                        json.dumps(entry, ensure_ascii=False),
+                        summary,
+                        now,
+                        "high" if score >= 70 else "medium",
+                    ),
                 )
                 count += 1
                 logger.info("  🧠 Phase 3: 有效策略写入 knowledge (score=%.0f)", score)
@@ -1389,7 +1467,7 @@ async def _archive_search_knowledge(mission: str, report: dict, quality: dict) -
             mirror_dir = data_dir / "knowledge"
             mirror_dir.mkdir(parents=True, exist_ok=True)
             mirror_path = mirror_dir / "opprime.jsonl"
-            with open(mirror_path, "a", encoding="utf-8") as f:
+            with open(mirror_path, "a", encoding="utf-8"):
                 pass  # 保持文件存在即可
 
         logger.info("  🧠 Phase 3: 共写入 %d 条 knowledge", count)
@@ -1397,6 +1475,7 @@ async def _archive_search_knowledge(mission: str, report: dict, quality: dict) -
 
     except Exception as e:
         import traceback
+
         logger.warning("  Phase 3 知识归档失败: %s\n%s", str(e), traceback.format_exc()[:500])
         return False
 
@@ -1408,11 +1487,13 @@ async def _archive_search_knowledge(mission: str, report: dict, quality: dict) -
 # ——— 信源质量分级 ———
 SOURCE_QUALITY_DB = {}  # domain -> {hits, good, bad, score}
 
+
 def _grade_source(url: str) -> float:
     """对单个信源打分 0.0~1.0"""
     if not url:
         return 0.5
     from urllib.parse import urlparse
+
     try:
         domain = urlparse(url).netloc.lower()
     except Exception:
@@ -1423,11 +1504,14 @@ def _grade_source(url: str) -> float:
     blacklist = {
         "zhuanlan.zhihu.com": 0.7,  # 知乎专栏还不错
         "baijiahao.baidu.com": 0.4,
-        "sohu.com": 0.5, "it.sohu.com": 0.5,
-        "163.com": 0.5, "dy.163.com": 0.4,
+        "sohu.com": 0.5,
+        "it.sohu.com": 0.5,
+        "163.com": 0.5,
+        "dy.163.com": 0.4,
         "toutiao.com": 0.3,
         "36kr.com": 0.6,  # 还行
-        "csdn.net": 0.5, "blog.csdn.net": 0.5,
+        "csdn.net": 0.5,
+        "blog.csdn.net": 0.5,
         "cnblogs.com": 0.7,  # 博客园不错
         "jianshu.com": 0.5,
         "segmentfault.com": 0.8,
@@ -1464,9 +1548,9 @@ def _grade_source(url: str) -> float:
         if domain == d or domain.endswith("." + d):
             return score
     # 未知站点：用 TLD 做粗略判断
-    if domain.endswith(".edu") or domain.endswith(".edu.cn"):
+    if domain.endswith((".edu", ".edu.cn")):
         return 0.85
-    if domain.endswith(".gov") or domain.endswith(".gov.cn"):
+    if domain.endswith((".gov", ".gov.cn")):
         return 0.85
     if domain.endswith(".org"):
         return 0.65
@@ -1494,7 +1578,9 @@ def _fuse_with_quality(rounds: list[SearchRound], mission_keywords: set) -> dict
             rel = _score_result_relevance(r, mission_keywords)
             combined = q * 0.4 + rel * 0.6
 
-            quality_scores.append({"url": url, "grade": round(q, 2), "relevance": round(rel, 2), "combined": round(combined, 2)})
+            quality_scores.append(
+                {"url": url, "grade": round(q, 2), "relevance": round(rel, 2), "combined": round(combined, 2)}
+            )
 
             r["_quality"] = round(q, 2)
             r["_relevance"] = round(rel, 2)
@@ -1509,7 +1595,10 @@ def _fuse_with_quality(rounds: list[SearchRound], mission_keywords: set) -> dict
 
     source_details = {}
     for s, v in by_source.items():
-        source_details[s] = {"count": v["count"], "avg_quality": round(v["quality_sum"] / v["count"], 2) if v["count"] else 0}
+        source_details[s] = {
+            "count": v["count"],
+            "avg_quality": round(v["quality_sum"] / v["count"], 2) if v["count"] else 0,
+        }
 
     avg_quality = round(sum(q["grade"] for q in quality_scores) / len(quality_scores), 2) if quality_scores else 0.5
     avg_combined = round(sum(q["combined"] for q in quality_scores) / len(quality_scores), 2) if quality_scores else 0.5
@@ -1535,12 +1624,14 @@ def _fuse_with_quality(rounds: list[SearchRound], mission_keywords: set) -> dict
 
 # ——— 搜索策略自进化 ———
 
+
 def _load_strategy_history() -> list[dict]:
     """从 knowledge 表读取历史有效波束策略"""
     try:
         import json
         import sqlite3
         from pathlib import Path
+
         db_path = Path(__file__).resolve().parent.parent / "data" / "entries.db"
         if not db_path.exists():
             return []
@@ -1595,8 +1686,9 @@ def _self_evolve_plan(mission: str, depth: str, base_plan: list) -> list:
     if not beams:
         return base_plan
 
-    logger.info("  🔄 策略自进化: 从历史匹配 %s 覆盖 %d 词 → 使用波束 %s",
-                best.get("mission", "")[:30], best_overlap, beams)
+    logger.info(
+        "  🔄 策略自进化: 从历史匹配 %s 覆盖 %d 词 → 使用波束 %s", best.get("mission", "")[:30], best_overlap, beams
+    )
 
     # 替换 base_plan 的波束序列
     evolved = []
@@ -1611,6 +1703,7 @@ def _self_evolve_plan(mission: str, depth: str, base_plan: list) -> list:
 # ════════════════════════════════════════════════════
 # 方向4：多频时序扫描
 # ════════════════════════════════════════════════════
+
 
 async def _check_timing(mission: str, report: dict) -> dict | None:
     """检查同一任务是否有历史搜索记录，做时序对比"""
@@ -1670,7 +1763,9 @@ if __name__ == "__main__":
         print(f"任务: {result['mission']}")
         print(f"状态: {result['status']}")
         print(f"覆盖度: {result['coverage_rate']}% | 置信度: {result['confidence']}")
-        print(f"轮次: {result['rounds_executed']} | 信源: {result['total_unique_sources']} | 耗时: {result['elapsed_s']}s")
+        print(
+            f"轮次: {result['rounds_executed']} | 信源: {result['total_unique_sources']} | 耗时: {result['elapsed_s']}s"
+        )
         print(f"{'=' * 60}")
 
         print(f"\n📊 波束分布: {result['beam_summary']}")

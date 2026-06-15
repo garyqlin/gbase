@@ -46,8 +46,9 @@ def _parse_datetime(dt: str, fmt: str = "%Y-%m-%d %H:%M:%S") -> datetime | None:
 
 
 @tool()
-async def note_write(title: str = "", content: str = "", tags: str = "", source: str = "",
-                     filename: str = "", note: str = ""):
+async def note_write(
+    title: str = "", content: str = "", tags: str = "", source: str = "", filename: str = "", note: str = ""
+):
     """写一条笔记到 L4 笔记系统。笔记不会被 strength 衰减，写入后永不遗忘。
 
     Args:

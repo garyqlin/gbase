@@ -24,9 +24,9 @@ async def qa_double_check(
     target: str,
     check_type: str = "both",
     code_file: str = "",
-    white_params: str = "",
-    black_params: str = "",
-    criteria: str = "",
+    _white_params: str = "",
+    _black_params: str = "",
+    _criteria: str = "",
 ) -> dict:
     """对目标进行双战甲质检——白盒重锤 + 黑盒大黄蜂交叉验证。
 
@@ -306,7 +306,7 @@ async def qa_swarm_test(
         bee_label = "+".join(bee_ids)
 
         # 并行测试
-        for bee in bee_ids:
+        for _bee in bee_ids:
             for tc in test_cases:
                 total_requests += 1
                 start = time.time()
@@ -314,8 +314,8 @@ async def qa_swarm_test(
                     # 实际调 verify_intelligence 的 internal 逻辑
                     from tools.verify import _assess_content, _rate_source
 
-                    rating = _rate_source(tc["input"].get("url", ""))
-                    quality = _assess_content(tc["input"].get("title", "") + " " + tc["input"].get("snippet", ""))
+                    _rate_source(tc["input"].get("url", ""))
+                    _assess_content(tc["input"].get("title", "") + " " + tc["input"].get("snippet", ""))
                     elapsed = (time.time() - start) * 1000  # ms
                     all_latencies.append(elapsed)
                     round_latencies.append(elapsed)

@@ -83,10 +83,7 @@ def _make_backup_id(filepath: str, timestamp: datetime) -> str:
 
 def _is_core_file(filepath: str) -> bool:
     """判断是否为核心文件（需要检查点级备份）。"""
-    for pattern in CORE_PATTERNS:
-        if pattern in filepath:
-            return True
-    return False
+    return any(pattern in filepath for pattern in CORE_PATTERNS)
 
 
 def backup_file(filepath: str, backup_type: str = "auto") -> str | None:

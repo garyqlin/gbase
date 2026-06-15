@@ -170,10 +170,10 @@ def _tokenize_for_fts(query: str) -> str:
                 tokens.append(f"{p}*")
         else:
             # 含连字符的 token 会被 FTS5 unicode61 拆成两个词 -> no such column
-            if '-' in p:
+            if "-" in p:
                 tokens.append(f'"{p}"')
             else:
-                tokens.append(f'{p}*')
+                tokens.append(f"{p}*")
     return " OR ".join(tokens) if tokens else query
 
 

@@ -8,10 +8,11 @@ lib/path_safety.py — 统一路径安全校验
 兼容多实例：通过 AGENT_HOME 环境变量或当前工作目录自动检测。
 """
 
-import os
 import logging
+import os
 
 logger = logging.getLogger(__name__)
+
 
 # ── 安全范围自动检测 ──
 def _detect_home() -> str:
@@ -23,6 +24,7 @@ def _detect_home() -> str:
     # fallback: 从当前工作目录向上找
     cwd = os.getcwd()
     return os.path.abspath(cwd)
+
 
 _AGENT_HOME = _detect_home()
 
@@ -56,7 +58,8 @@ def validate_output_path(output_path: str) -> dict:
 
     # territory check (optional, soft fail if territory.py not available)
     try:
-        from lib.territory import check_territory_violation, build_territory_error
+        from lib.territory import build_territory_error, check_territory_violation
+
         violation = check_territory_violation(abs_path)
         if violation:
             return {

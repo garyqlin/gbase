@@ -9,7 +9,6 @@ Gbase 版本定义与模块开关。
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Set
 
 
 @dataclass

@@ -93,7 +93,10 @@ class ExperienceEngine:
         self.storage = storage
         self._skip_count: dict[str, int] = {}
         import os as _os
-        self._pending_file = pending_file or _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "data", "pending_experience.jsonl")
+
+        self._pending_file = pending_file or _os.path.join(
+            _os.path.dirname(_os.path.abspath(__file__)), "..", "data", "pending_experience.jsonl"
+        )
 
     async def extract(
         self,
@@ -108,7 +111,7 @@ class ExperienceEngine:
         rollback_occurred: bool = False,
         rollback_action: str = "",
         tool_errors_summary: str = "",
-        llm_client=None,
+        llm_client=None,  # noqa: ARG002
     ):
         """存入待处理队列，不立即执行。由 cron 定时批量处理。"""
         context = {
@@ -177,6 +180,7 @@ class ExperienceEngine:
         # 写入待处理队列文件，由 cron 批量处理
         import json as _json
         import os as _os
+
         _os.makedirs(_os.path.dirname(self._pending_file), exist_ok=True)
         with open(self._pending_file, "a") as _f:
             _f.write(_json.dumps(context, ensure_ascii=False) + "\n")
@@ -185,6 +189,7 @@ class ExperienceEngine:
         """批量处理待处理队列文件中所有经验提取。由 cron 调用。"""
         import json as _json
         import os as _os
+
         if not _os.path.exists(self._pending_file):
             logger.debug("经验提取（flush）: 无待处理文件")
             return
@@ -205,8 +210,20 @@ class ExperienceEngine:
                 if _is_duplicate_rule(self.storage, rule_name):
                     self._skip_count[rule_name] = self._skip_count.get(rule_name, 0) + 1
                     continue
-                entry = {"type": "lesson", "summary": rule_result["summary"], "context": rule_result["context"], "rule": rule_name, "confidence": rule_result["confidence"]}
-                self.storage.write("experience", entry, summary=rule_result["summary"], confidence=rule_result["confidence"], rule=rule_name)
+                entry = {
+                    "type": "lesson",
+                    "summary": rule_result["summary"],
+                    "context": rule_result["context"],
+                    "rule": rule_name,
+                    "confidence": rule_result["confidence"],
+                }
+                self.storage.write(
+                    "experience",
+                    entry,
+                    summary=rule_result["summary"],
+                    confidence=rule_result["confidence"],
+                    rule=rule_name,
+                )
                 continue
             if llm_client:
                 try:
@@ -232,11 +249,11 @@ class ExperienceEngine:
             "- 回复长度（没用）\n"
             "- 工具调用次数（没用）\n"
             "- 正常的程序运行流水、无异常的调试打印\n"
-            "- 仅描述\"发生了什么\"，无法提炼出复用方法的客观事实\n\n"
+            '- 仅描述"发生了什么"，无法提炼出复用方法的客观事实\n\n'
             "## 核心萃取规则\n"
             "### 什么是「有效经验」（必须同时满足）\n"
             "1. 可迁移：不止适用于本次单次任务，可指导未来同类场景\n"
-            "2. 可执行：明确给出\"在XX场景下，做XX动作/避开XX操作\"的指引\n"
+            '2. 可执行：明确给出"在XX场景下，做XX动作/避开XX操作"的指引\n'
             "3. 有依据：源自日志中的真实运行结果，而非主观推测\n\n"
             "## 当前对话记录\n"
         )
@@ -252,7 +269,7 @@ class ExperienceEngine:
             extra_lines.append("任务成功完成")
         if extra_lines:
             prompt += "\n".join(extra_lines) + "\n\n"
-        
+
         prompt += (
             f"用户说: {context['user_message'][:500]}\n"
             f"AI 回复: {context['reply'][:500]}\n\n"
@@ -302,7 +319,9 @@ class ExperienceEngine:
                         )
                 except Exception:
                     pass
-                logger.info("经验提取（LLM）: %s (confidence=%s, category=%s)", summary, confidence, entry.get("category",""))
+                logger.info(
+                    "经验提取（LLM）: %s (confidence=%s, category=%s)", summary, confidence, entry.get("category", "")
+                )
         except Exception as e:
             logger.debug("经验提取（LLM） 异常: %s", e)
 
@@ -335,11 +354,12 @@ class ExperienceEngine:
                 try:
                     # 对中文查询做简单 tokenize：保留原样 + 拆字
                     import re as _re
+
                     tokens = _re.sub(r"[^\u4e00-\u9fff\w\s]", " ", query).strip()
-                    fts_query = " OR ".join(
-                        f'"{t}" OR "{t}*"' if len(t) >= 2 else f'"{t}"'
-                        for t in tokens.split()
-                    ) or f'"{query}"'
+                    fts_query = (
+                        " OR ".join(f'"{t}" OR "{t}*"' if len(t) >= 2 else f'"{t}"' for t in tokens.split())
+                        or f'"{query}"'
+                    )
 
                     # FTS5 BM25 排序 + 内容长度惩罚（太长的长篇分析文降级）
                     rows = conn.execute(
@@ -356,6 +376,7 @@ class ExperienceEngine:
                     ).fetchall()
                 except Exception as ftse:
                     import logging as _lg
+
                     _lg.getLogger(__name__).debug("FTS5 搜索失败，回退 LIKE: %s", ftse)
 
             if not rows:

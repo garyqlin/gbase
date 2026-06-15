@@ -11,6 +11,7 @@ Three-layer context compression (simplified from Claude Code's 5-layer)：
 - L3: Session state tracking — dynamic thresholds + context usage stats
 """
 
+import contextlib
 import json
 import logging
 import os
@@ -211,10 +212,13 @@ class JsonlSessionManager:
         # L2: 注入最高层Summary到 messages 开头
         if highest_summary:
             level_label = f"L{highest_level + 1}" if highest_level >= 0 else "L1"
-            messages.insert(0, {
-                "role": "system",
-                "content": f"[SessionSummary - {level_label} Compression前的Conversation history]:\n{highest_summary[:600]}"
-            })
+            messages.insert(
+                0,
+                {
+                    "role": "system",
+                    "content": f"[SessionSummary - {level_label} Compression前的Conversation history]:\n{highest_summary[:600]}",
+                },
+            )
 
         # 按轮Compression
         compressed: list[dict] = []
@@ -241,7 +245,7 @@ class JsonlSessionManager:
 
     def get_compaction_context(self, max_messages: int = 15) -> dict:
         """L2: 获取Compression阶段的高层Summary + 近期轮次。
-        
+
         企业模式 (2026-06-15): 压缩已禁用，直接返回空结果。
         保留旧逻辑以供兼容，但通过 early return 跳过所有文件解析。
         """
@@ -272,18 +276,22 @@ class JsonlSessionManager:
                     after_last_compact = False  # 重置
                     s = entry.get("summary", "")
                     if s:
-                        summaries.append({
-                            "level": entry.get("level", 0),
-                            "summary": s,
-                            "ts": entry.get("_ts", 0),
-                        })
+                        summaries.append(
+                            {
+                                "level": entry.get("level", 0),
+                                "summary": s,
+                                "ts": entry.get("_ts", 0),
+                            }
+                        )
                 elif after_last_compact or etype in ("user", "assistant"):
                     after_last_compact = True
                     if etype in ("user", "assistant"):
-                        recent.append({
-                            "role": entry.get("role", etype),
-                            "content": entry.get("content", ""),
-                        })
+                        recent.append(
+                            {
+                                "role": entry.get("role", etype),
+                                "content": entry.get("content", ""),
+                            }
+                        )
         except Exception:
             pass
 
@@ -305,10 +313,7 @@ class JsonlSessionManager:
 
             first_kept_id = self._find_first_kept_id()
             self._write_compaction(summary, first_kept_id, level=0)
-            logger.info(
-                "L1 CompressionComplete: %d 条 → %d chars (level=%d)",
-                self._stats["messages"], len(summary), 0
-            )
+            logger.info("L1 CompressionComplete: %d 条 → %d chars (level=%d)", self._stats["messages"], len(summary), 0)
             return summary
         except Exception as e:
             logger.warning("L1 Compression失败: %s", e)
@@ -328,7 +333,7 @@ class JsonlSessionManager:
             # 构造合并Compression上下文（所有Summary + 最新对话）
             merge_input = []
             for s in sorted(ctx["summaries"], key=lambda x: x.get("level", 0), reverse=True):
-                merge_input.append(f"[L{s.get('level', 0)+1} Summary]: {s['summary'][:400]}")
+                merge_input.append(f"[L{s.get('level', 0) + 1} Summary]: {s['summary'][:400]}")
             if ctx["recent"]:
                 merge_input.append("[最新对话]:")
                 for m in ctx["recent"][-5:]:
@@ -352,8 +357,10 @@ class JsonlSessionManager:
 
             logger.info(
                 "L2 多层CompressionComplete: %d 条Summary + %d 轮对话 → L%d Summary (%d chars)",
-                len(ctx["summaries"]), len(ctx["recent"]),
-                new_level + 1, len(summary)
+                len(ctx["summaries"]),
+                len(ctx["recent"]),
+                new_level + 1,
+                len(summary),
             )
             return summary
         except Exception as e:
@@ -434,10 +441,8 @@ class JsonlSessionManager:
                 except Exception as _exc:
                     consecutive_fails += 1
                     logger.warning("异步Compression第 %d 次失败: %s，%d秒后Retry", consecutive_fails, _exc, retry_delay)
-                    try:
+                    with contextlib.suppress(Exception):
                         self.max_context = 20
-                    except Exception:
-                        pass
                     if consecutive_fails >= 5:
                         logger.error("异步Compression连续 5 次失败，将Wait更长时间Retry")
                         retry_delay = 300
@@ -450,10 +455,8 @@ class JsonlSessionManager:
 
     def close(self):
         if self.fh:
-            try:
+            with contextlib.suppress(Exception):
                 self.fh.close()
-            except Exception:
-                pass
 
     def __del__(self):
         self.close()

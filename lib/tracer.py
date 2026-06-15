@@ -92,7 +92,9 @@ def record_knowledge_hit(hit_count: int, query: str, hit_summaries: list[str] = 
     _write_entry("knowledge_hit", entry)
 
 
-def record_llm_call(model: str, prompt_chars: int, prompt_tokens_est: int, response_preview: str, duration_ms: float, status: str = "ok"):
+def record_llm_call(
+    model: str, prompt_chars: int, prompt_tokens_est: int, response_preview: str, duration_ms: float, status: str = "ok"
+):
     """记录一次 LLM API 调用。"""
     global _current_trace
     if not _current_trace:
@@ -314,7 +316,7 @@ def analyze_task(trace_entries: list[dict]) -> dict:
 
 def get_current_trace_id() -> str | None:
     """获取当前活跃 trace 的 ID。
-    
+
     close_trace 后会清除，所以在 close 之前调用。"""
     global _current_trace
     if _current_trace:

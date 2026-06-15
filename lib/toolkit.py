@@ -29,6 +29,8 @@ def _standard_return(ok: bool, data: str = "", error: str = "") -> dict:
     if ok:
         return {"ok": True, "result": data or ""}
     return {"ok": False, "error": error or "未知错误"}
+
+
 import json
 import logging
 import time
@@ -452,7 +454,7 @@ def _all_tool_defs() -> list[dict]:
 
 def auto_scan(path: str = "tools"):
     """自动扫描 tools/ 目录下的所有 .py 文件并 import（触发 @tool 延迟注册）。
-    
+
     企业模式 (2026-06-15): 加载后验证每个工具 callable + schema 完整性，
     记录问题到 _tool_health_issues 供 /health 暴露。
     """
@@ -489,9 +491,10 @@ def auto_scan(path: str = "tools"):
 
 # ── 工具定义查询 ────────────────────────────────────────
 
+
 def _validate_tool_registry():
     """企业级验证：每个已注册工具 callable + schema 检测。
-    
+
     仅检查硬性错误（不可调用/schema缺失），不检查无参数（无参工具合法）。
     """
     global _tool_health_issues
@@ -507,6 +510,7 @@ def _validate_tool_registry():
         if not params or "type" not in params:
             _tool_health_issues.append(f"工具 schema 不完整: {name}")
 
+
 def get_tool_health() -> dict:
     """返回工具系统健康报告。"""
     return {
@@ -514,6 +518,7 @@ def get_tool_health() -> dict:
         "health_issues": len(_tool_health_issues),
         "issues": _tool_health_issues[:20],  # 最多 20 条
     }
+
 
 def get_tool_registry_keys() -> list[str]:
     return sorted(_tool_registry.keys())
@@ -541,17 +546,42 @@ _CAPABILITY_REGISTRY: dict[str, list[str]] = {}
 _CAPABILITY_MAP: dict[str, set[str]] = {
     "文档生成": {"gen_pdf", "gen_docx", "gen_pptx", "gen_xlsx", "ocr_pdf"},
     "文档加工": {"yf_create_ppt", "author_doc", "author_test_plan"},
-    "图像视觉": {"analyze_image", "ocr_image", "vision", "yf_generate_image",
-                 "yf_create", "yf_recognize", "vision_inspect", "vision_local"},
+    "图像视觉": {
+        "analyze_image",
+        "ocr_image",
+        "vision",
+        "yf_generate_image",
+        "yf_create",
+        "yf_recognize",
+        "vision_inspect",
+        "vision_local",
+    },
     "搜索检索": {"search", "fetch", "anysearch", "honeycomb", "note_search"},
     "文件操作": {"read_file", "write_file", "file_", "my_path", "note_write"},
     "命令执行": {"exec_command"},
     "消息通讯": {"send_feishu_card", "send_file", "send_mail", "mail", "check_inbox"},
-    "学习记忆": {"learn", "memory", "mirror", "knowledge", "remember",
-                 "add_learn_topic", "list_learn_topics", "remove_learn_topic"},
-    "编程工程": {"self_edit", "editor", "test", "verify", "distill",
-                 "scan_project", "forge_verify", "health_check",
-                 "anchor_keeper", "qa_"},
+    "学习记忆": {
+        "learn",
+        "memory",
+        "mirror",
+        "knowledge",
+        "remember",
+        "add_learn_topic",
+        "list_learn_topics",
+        "remove_learn_topic",
+    },
+    "编程工程": {
+        "self_edit",
+        "editor",
+        "test",
+        "verify",
+        "distill",
+        "scan_project",
+        "forge_verify",
+        "health_check",
+        "anchor_keeper",
+        "qa_",
+    },
     "AI 进化": {"best_skill", "distill", "hive_mind", "optimize_prompt"},
 }
 
@@ -562,35 +592,14 @@ _CAPABILITY_BLURBS: dict[str, str] = {
         "Word(.docx) 文档、Excel(.xlsx) 表格（含公式支持）、PPT(.pptx) 演示文稿。"
         "生成后直接调 `send_file` 发送文件到飞书，无需人工转存。"
     ),
-    "图像视觉": (
-        "支持中文 OCR（本地/云端）、图像理解与分析（豆包VLM）、AI 图像生成（文生图）、"
-        "视觉缺陷检测。"
-    ),
-    "搜索检索": (
-        "多引擎搜索引擎（AnySearch）、结构化知识库检索（Knowledge/Self）、"
-        "笔记搜索、网页一键抓取转换。"
-    ),
-    "消息通讯": (
-        "飞书发送富文本卡片消息、邮箱收发件箱查询与发送。"
-    ),
-    "学习记忆": (
-        "可自主录入新知识（remember_fact/remember_info）、"
-        "管理学习主题、自动知识老化去噪。"
-    ),
-    "编程工程": (
-        "代码编辑/重构/回滚、自动生成测试用例、黑盒冒烟测试、"
-        "工程健康检查、项目结构扫描。"
-    ),
-    "命令执行": (
-        "直接执行 Shell 命令，可完成文件操作/服务管理/系统指令等。"
-    ),
-    "文件操作": (
-        "读取/写入任意本地文件，支持文件哈希校验与完整性验证。"
-    ),
-    "AI 进化": (
-        "经验蒸馏（从对话提取best practice）、蜂群思维（多视角交叉验证）、"
-        "提示词自动优化。"
-    ),
+    "图像视觉": ("支持中文 OCR（本地/云端）、图像理解与分析（豆包VLM）、AI 图像生成（文生图）、视觉缺陷检测。"),
+    "搜索检索": ("多引擎搜索引擎（AnySearch）、结构化知识库检索（Knowledge/Self）、笔记搜索、网页一键抓取转换。"),
+    "消息通讯": ("飞书发送富文本卡片消息、邮箱收发件箱查询与发送。"),
+    "学习记忆": ("可自主录入新知识（remember_fact/remember_info）、管理学习主题、自动知识老化去噪。"),
+    "编程工程": ("代码编辑/重构/回滚、自动生成测试用例、黑盒冒烟测试、工程健康检查、项目结构扫描。"),
+    "命令执行": ("直接执行 Shell 命令，可完成文件操作/服务管理/系统指令等。"),
+    "文件操作": ("读取/写入任意本地文件，支持文件哈希校验与完整性验证。"),
+    "AI 进化": ("经验蒸馏（从对话提取best practice）、蜂群思维（多视角交叉验证）、提示词自动优化。"),
 }
 
 

@@ -13,10 +13,7 @@ from lib.toolkit import register_platform_map, register_toolset
 from . import (  # noqa: F401
     anchor_keeper,  # noqa: F401  # noqa: F401
     anysearch_tool,  # noqa: F401
-    rescue_tool,  # noqa: F401
-    read_fleet_status,  # noqa: F401 (fleet heartbeat)
-
-    tavily_search,  # noqa: F401
+    board_tool,  # noqa: F401
     commit_helper,  # noqa: F401
     crypto_helper,  # noqa: F401
     cua_tools,  # noqa: F401
@@ -29,6 +26,7 @@ from . import (  # noqa: F401
     hive_mind,  # noqa: F401
     honeycomb_search,  # noqa: F401
     jwt_helper,  # noqa: F401
+    knowledge,  # noqa: F401
     laser_doc,  # noqa: F401
     log_profiler,  # noqa: F401
     memory_profiler,  # noqa: F401
@@ -39,6 +37,8 @@ from . import (  # noqa: F401
     pptx_gen,  # noqa: F401
     prompt_helper,  # noqa: F401
     query_profiler,  # noqa: F401
+    read_fleet_status,  # noqa: F401 (fleet heartbeat)
+    rescue_tool,  # noqa: F401
     schema_tools,  # noqa: F401
     search,  # noqa: F401
     search_bridge,  # noqa: F401
@@ -46,12 +46,11 @@ from . import (  # noqa: F401
     security_watch,  # noqa: F401
     self_search,  # noqa: F401
     send_file,  # noqa: F401
+    tavily_search,  # noqa: F401
     test_generator,  # noqa: F401
+    write_file,  # noqa: F401
     xlsx_gen,  # noqa: F401
     yf_image_tools,  # noqa: F401
-    knowledge,  # noqa: F401
-    write_file,  # noqa: F401
-    board_tool,  # noqa: F401
 )
 
 

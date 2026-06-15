@@ -72,103 +72,211 @@ _register_fonts()
 # ============================================================
 THEMES = {
     "mckinsey": {
-        "primary": "#002D5A", "primary_light": "#4A90D9", "primary_pale": "#E8F0FE",
-        "accent": "#F5A623", "cover_bg": "#FFFFFF", "cover_text": "#002D5A",
-        "cover_sub": "#002D5A", "body_text": "#333333", "muted_text": "#999999",
-        "table_header_bg": "#002D5A", "table_header_text": "#FFFFFF",
-        "table_row_even": "#FFFFFF", "table_row_odd": "#F5F7FA",
+        "primary": "#002D5A",
+        "primary_light": "#4A90D9",
+        "primary_pale": "#E8F0FE",
+        "accent": "#F5A623",
+        "cover_bg": "#FFFFFF",
+        "cover_text": "#002D5A",
+        "cover_sub": "#002D5A",
+        "body_text": "#333333",
+        "muted_text": "#999999",
+        "table_header_bg": "#002D5A",
+        "table_header_text": "#FFFFFF",
+        "table_row_even": "#FFFFFF",
+        "table_row_odd": "#F5F7FA",
         "table_border": "#D0D5DD",
-        "section_bar": "#002D5A", "section_bg": "#E8F0FE",
-        "highlight_bg": "#F0F5FF", "card_bg": "#FFFFFF", "card_border": "#D0D5DD",
-        "tag_bg": "#002D5A", "tag_text": "#FFFFFF",
+        "section_bar": "#002D5A",
+        "section_bg": "#E8F0FE",
+        "highlight_bg": "#F0F5FF",
+        "card_bg": "#FFFFFF",
+        "card_border": "#D0D5DD",
+        "tag_bg": "#002D5A",
+        "tag_text": "#FFFFFF",
     },
     "bcg": {
-        "primary": "#006B54", "primary_light": "#00A88F", "primary_pale": "#E0F2F1",
-        "accent": "#FF8F00", "cover_bg": "#FFFFFF", "cover_text": "#006B54",
-        "cover_sub": "#006B54", "body_text": "#333333", "muted_text": "#999999",
-        "table_header_bg": "#006B54", "table_header_text": "#FFFFFF",
-        "table_row_even": "#FFFFFF", "table_row_odd": "#F2F9F7",
+        "primary": "#006B54",
+        "primary_light": "#00A88F",
+        "primary_pale": "#E0F2F1",
+        "accent": "#FF8F00",
+        "cover_bg": "#FFFFFF",
+        "cover_text": "#006B54",
+        "cover_sub": "#006B54",
+        "body_text": "#333333",
+        "muted_text": "#999999",
+        "table_header_bg": "#006B54",
+        "table_header_text": "#FFFFFF",
+        "table_row_even": "#FFFFFF",
+        "table_row_odd": "#F2F9F7",
         "table_border": "#C8E6C9",
-        "section_bar": "#006B54", "section_bg": "#E0F2F1",
-        "highlight_bg": "#EDF7F5", "card_bg": "#FFFFFF", "card_border": "#C8E6C9",
-        "tag_bg": "#006B54", "tag_text": "#FFFFFF",
+        "section_bar": "#006B54",
+        "section_bg": "#E0F2F1",
+        "highlight_bg": "#EDF7F5",
+        "card_bg": "#FFFFFF",
+        "card_border": "#C8E6C9",
+        "tag_bg": "#006B54",
+        "tag_text": "#FFFFFF",
     },
     "bain": {
-        "primary": "#7A0026", "primary_light": "#C62828", "primary_pale": "#FFEBEE",
-        "accent": "#FF8F00", "cover_bg": "#FFFFFF", "cover_text": "#7A0026",
-        "cover_sub": "#7A0026", "body_text": "#333333", "muted_text": "#999999",
-        "table_header_bg": "#7A0026", "table_header_text": "#FFFFFF",
-        "table_row_even": "#FFFFFF", "table_row_odd": "#FFF5F7",
+        "primary": "#7A0026",
+        "primary_light": "#C62828",
+        "primary_pale": "#FFEBEE",
+        "accent": "#FF8F00",
+        "cover_bg": "#FFFFFF",
+        "cover_text": "#7A0026",
+        "cover_sub": "#7A0026",
+        "body_text": "#333333",
+        "muted_text": "#999999",
+        "table_header_bg": "#7A0026",
+        "table_header_text": "#FFFFFF",
+        "table_row_even": "#FFFFFF",
+        "table_row_odd": "#FFF5F7",
         "table_border": "#F8BBD0",
-        "section_bar": "#7A0026", "section_bg": "#FFEBEE",
-        "highlight_bg": "#FFF5F7", "card_bg": "#FFFFFF", "card_border": "#F8BBD0",
-        "tag_bg": "#7A0026", "tag_text": "#FFFFFF",
+        "section_bar": "#7A0026",
+        "section_bg": "#FFEBEE",
+        "highlight_bg": "#FFF5F7",
+        "card_bg": "#FFFFFF",
+        "card_border": "#F8BBD0",
+        "tag_bg": "#7A0026",
+        "tag_text": "#FFFFFF",
     },
     "deloitte": {
-        "primary": "#00843D", "primary_light": "#00A86B", "primary_pale": "#E8F5E9",
-        "accent": "#FF6B35", "cover_bg": "#FFFFFF", "cover_text": "#00843D",
-        "cover_sub": "#00843D", "body_text": "#333333", "muted_text": "#999999",
-        "table_header_bg": "#00843D", "table_header_text": "#FFFFFF",
-        "table_row_even": "#FFFFFF", "table_row_odd": "#F1F8E9",
+        "primary": "#00843D",
+        "primary_light": "#00A86B",
+        "primary_pale": "#E8F5E9",
+        "accent": "#FF6B35",
+        "cover_bg": "#FFFFFF",
+        "cover_text": "#00843D",
+        "cover_sub": "#00843D",
+        "body_text": "#333333",
+        "muted_text": "#999999",
+        "table_header_bg": "#00843D",
+        "table_header_text": "#FFFFFF",
+        "table_row_even": "#FFFFFF",
+        "table_row_odd": "#F1F8E9",
         "table_border": "#C8E6C9",
-        "section_bar": "#00843D", "section_bg": "#E8F5E9",
-        "highlight_bg": "#F1F8E9", "card_bg": "#FFFFFF", "card_border": "#C8E6C9",
-        "tag_bg": "#00843D", "tag_text": "#FFFFFF",
+        "section_bar": "#00843D",
+        "section_bg": "#E8F5E9",
+        "highlight_bg": "#F1F8E9",
+        "card_bg": "#FFFFFF",
+        "card_border": "#C8E6C9",
+        "tag_bg": "#00843D",
+        "tag_text": "#FFFFFF",
     },
     "pwc": {
-        "primary": "#2C3E50", "primary_light": "#5D7B93", "primary_pale": "#EBF0F5",
-        "accent": "#E67E22", "cover_bg": "#FFFFFF", "cover_text": "#2C3E50",
-        "cover_sub": "#2C3E50", "body_text": "#333333", "muted_text": "#999999",
-        "table_header_bg": "#2C3E50", "table_header_text": "#FFFFFF",
-        "table_row_even": "#FFFFFF", "table_row_odd": "#F5F8FA",
+        "primary": "#2C3E50",
+        "primary_light": "#5D7B93",
+        "primary_pale": "#EBF0F5",
+        "accent": "#E67E22",
+        "cover_bg": "#FFFFFF",
+        "cover_text": "#2C3E50",
+        "cover_sub": "#2C3E50",
+        "body_text": "#333333",
+        "muted_text": "#999999",
+        "table_header_bg": "#2C3E50",
+        "table_header_text": "#FFFFFF",
+        "table_row_even": "#FFFFFF",
+        "table_row_odd": "#F5F8FA",
         "table_border": "#D0D5DD",
-        "section_bar": "#E67E22", "section_bg": "#FFF3E0",
-        "highlight_bg": "#FEF8F0", "card_bg": "#FFFFFF", "card_border": "#D0D5DD",
-        "tag_bg": "#E67E22", "tag_text": "#FFFFFF",
+        "section_bar": "#E67E22",
+        "section_bg": "#FFF3E0",
+        "highlight_bg": "#FEF8F0",
+        "card_bg": "#FFFFFF",
+        "card_border": "#D0D5DD",
+        "tag_bg": "#E67E22",
+        "tag_text": "#FFFFFF",
     },
     "ey": {
-        "primary": "#212121", "primary_light": "#616161", "primary_pale": "#F5F5F5",
-        "accent": "#FFE600", "cover_bg": "#FFFFFF", "cover_text": "#212121",
-        "cover_sub": "#212121", "body_text": "#333333", "muted_text": "#999999",
-        "table_header_bg": "#212121", "table_header_text": "#FFFFFF",
-        "table_row_even": "#FFFFFF", "table_row_odd": "#F5F5F5",
+        "primary": "#212121",
+        "primary_light": "#616161",
+        "primary_pale": "#F5F5F5",
+        "accent": "#FFE600",
+        "cover_bg": "#FFFFFF",
+        "cover_text": "#212121",
+        "cover_sub": "#212121",
+        "body_text": "#333333",
+        "muted_text": "#999999",
+        "table_header_bg": "#212121",
+        "table_header_text": "#FFFFFF",
+        "table_row_even": "#FFFFFF",
+        "table_row_odd": "#F5F5F5",
         "table_border": "#E0E0E0",
-        "section_bar": "#FFE600", "section_bg": "#FFFDE7",
-        "highlight_bg": "#FAFAFA", "card_bg": "#FFFFFF", "card_border": "#E0E0E0",
-        "tag_bg": "#212121", "tag_text": "#FFFFFF",
+        "section_bar": "#FFE600",
+        "section_bg": "#FFFDE7",
+        "highlight_bg": "#FAFAFA",
+        "card_bg": "#FFFFFF",
+        "card_border": "#E0E0E0",
+        "tag_bg": "#212121",
+        "tag_text": "#FFFFFF",
     },
     "kpmg": {
-        "primary": "#00338D", "primary_light": "#5B9BD5", "primary_pale": "#E3F2FD",
-        "accent": "#00A3E0", "cover_bg": "#FFFFFF", "cover_text": "#00338D",
-        "cover_sub": "#00338D", "body_text": "#333333", "muted_text": "#999999",
-        "table_header_bg": "#00338D", "table_header_text": "#FFFFFF",
-        "table_row_even": "#FFFFFF", "table_row_odd": "#F0F7FF",
+        "primary": "#00338D",
+        "primary_light": "#5B9BD5",
+        "primary_pale": "#E3F2FD",
+        "accent": "#00A3E0",
+        "cover_bg": "#FFFFFF",
+        "cover_text": "#00338D",
+        "cover_sub": "#00338D",
+        "body_text": "#333333",
+        "muted_text": "#999999",
+        "table_header_bg": "#00338D",
+        "table_header_text": "#FFFFFF",
+        "table_row_even": "#FFFFFF",
+        "table_row_odd": "#F0F7FF",
         "table_border": "#BBDEFB",
-        "section_bar": "#00338D", "section_bg": "#E3F2FD",
-        "highlight_bg": "#F0F7FF", "card_bg": "#FFFFFF", "card_border": "#BBDEFB",
-        "tag_bg": "#00338D", "tag_text": "#FFFFFF",
+        "section_bar": "#00338D",
+        "section_bg": "#E3F2FD",
+        "highlight_bg": "#F0F7FF",
+        "card_bg": "#FFFFFF",
+        "card_border": "#BBDEFB",
+        "tag_bg": "#00338D",
+        "tag_text": "#FFFFFF",
     },
     "blue": {
-        "primary": "#1A3A5C", "primary_light": "#4A90D9", "primary_pale": "#E8F0FE",
-        "accent": "#E67E22", "cover_bg": "#FFFFFF", "cover_text": "#1A3A5C",
-        "cover_sub": "#1A3A5C", "body_text": "#333333", "muted_text": "#999999",
-        "table_header_bg": "#1A3A5C", "table_header_text": "#FFFFFF",
-        "table_row_even": "#FFFFFF", "table_row_odd": "#F5F7FA",
+        "primary": "#1A3A5C",
+        "primary_light": "#4A90D9",
+        "primary_pale": "#E8F0FE",
+        "accent": "#E67E22",
+        "cover_bg": "#FFFFFF",
+        "cover_text": "#1A3A5C",
+        "cover_sub": "#1A3A5C",
+        "body_text": "#333333",
+        "muted_text": "#999999",
+        "table_header_bg": "#1A3A5C",
+        "table_header_text": "#FFFFFF",
+        "table_row_even": "#FFFFFF",
+        "table_row_odd": "#F5F7FA",
         "table_border": "#D0D5DD",
-        "section_bar": "#1A3A5C", "section_bg": "#E8F0FE",
-        "highlight_bg": "#F0F5FF", "card_bg": "#FFFFFF", "card_border": "#D0D5DD",
-        "tag_bg": "#1A3A5C", "tag_text": "#FFFFFF",
+        "section_bar": "#1A3A5C",
+        "section_bg": "#E8F0FE",
+        "highlight_bg": "#F0F5FF",
+        "card_bg": "#FFFFFF",
+        "card_border": "#D0D5DD",
+        "tag_bg": "#1A3A5C",
+        "tag_text": "#FFFFFF",
     },
     "gray": {
-        "primary": "#2D2D2D", "primary_light": "#666666", "primary_pale": "#F5F5F5",
-        "accent": "#E67E22", "cover_bg": "#FFFFFF", "cover_text": "#2D2D2D",
-        "cover_sub": "#2D2D2D", "body_text": "#333333", "muted_text": "#999999",
-        "table_header_bg": "#2D2D2D", "table_header_text": "#FFFFFF",
-        "table_row_even": "#FFFFFF", "table_row_odd": "#F5F5F5",
+        "primary": "#2D2D2D",
+        "primary_light": "#666666",
+        "primary_pale": "#F5F5F5",
+        "accent": "#E67E22",
+        "cover_bg": "#FFFFFF",
+        "cover_text": "#2D2D2D",
+        "cover_sub": "#2D2D2D",
+        "body_text": "#333333",
+        "muted_text": "#999999",
+        "table_header_bg": "#2D2D2D",
+        "table_header_text": "#FFFFFF",
+        "table_row_even": "#FFFFFF",
+        "table_row_odd": "#F5F5F5",
         "table_border": "#D0D5DD",
-        "section_bar": "#E67E22", "section_bg": "#FEF5E7",
-        "highlight_bg": "#F8F8F8", "card_bg": "#FFFFFF", "card_border": "#D0D5DD",
-        "tag_bg": "#2D2D2D", "tag_text": "#FFFFFF",
+        "section_bar": "#E67E22",
+        "section_bg": "#FEF5E7",
+        "highlight_bg": "#F8F8F8",
+        "card_bg": "#FFFFFF",
+        "card_border": "#D0D5DD",
+        "tag_bg": "#2D2D2D",
+        "tag_text": "#FFFFFF",
     },
 }
 
@@ -184,70 +292,194 @@ def build_styles(theme_colors, font_size="normal"):
 
     # 字体层级比例 2:1.5:1.25:1:0.85:0.75
     if font_size == "small":
-        sizes = {"cover_title": 28, "cover_subtitle": 14, "h1": 20, "h2": 15,
-                 "h3": 13, "body": 9, "small": 8, "caption": 7}
+        sizes = {
+            "cover_title": 28,
+            "cover_subtitle": 14,
+            "h1": 20,
+            "h2": 15,
+            "h3": 13,
+            "body": 9,
+            "small": 8,
+            "caption": 7,
+        }
     elif font_size == "large":
-        sizes = {"cover_title": 40, "cover_subtitle": 20, "h1": 26, "h2": 20,
-                 "h3": 17, "body": 12, "small": 10, "caption": 9}
+        sizes = {
+            "cover_title": 40,
+            "cover_subtitle": 20,
+            "h1": 26,
+            "h2": 20,
+            "h3": 17,
+            "body": 12,
+            "small": 10,
+            "caption": 9,
+        }
     else:
-        sizes = {"cover_title": 32, "cover_subtitle": 16, "h1": 24, "h2": 18,
-                 "h3": 15, "body": 10.5, "small": 9, "caption": 8}
+        sizes = {
+            "cover_title": 32,
+            "cover_subtitle": 16,
+            "h1": 24,
+            "h2": 18,
+            "h3": 15,
+            "body": 10.5,
+            "small": 9,
+            "caption": 8,
+        }
 
     return {
-        "cover_title": ParagraphStyle("CoverTitle", fontName=CN_BOLD,
-            fontSize=sizes["cover_title"], textColor=c["cover_text"], alignment=TA_LEFT,
-            leading=sizes["cover_title"] * 1.3, spaceAfter=12),
-        "cover_subtitle": ParagraphStyle("CoverSubtitle", fontName=CN_REGULAR,
-            fontSize=sizes["cover_subtitle"], textColor=c["cover_sub"],
-            alignment=TA_LEFT, leading=sizes["cover_subtitle"] * 1.5),
-        "h1": ParagraphStyle("H1", fontName=CN_BOLD, fontSize=sizes["h1"],
-            textColor=c["primary"], alignment=TA_LEFT,
-            leading=sizes["h1"] * 1.3, spaceBefore=24, spaceAfter=12),
-        "h2": ParagraphStyle("H2", fontName=CN_BOLD, fontSize=sizes["h2"],
-            textColor=c["primary"], alignment=TA_LEFT,
-            leading=sizes["h2"] * 1.3, spaceBefore=18, spaceAfter=10),
-        "h3": ParagraphStyle("H3", fontName=CN_BOLD, fontSize=sizes["h3"],
-            textColor=c["body_text"], alignment=TA_LEFT,
-            leading=sizes["h3"] * 1.4, spaceBefore=14, spaceAfter=8),
-        "body": ParagraphStyle("Body", fontName=CN_REGULAR, fontSize=sizes["body"],
-            textColor=c["body_text"], alignment=TA_JUSTIFY,
-            leading=sizes["body"] * 1.7, spaceBefore=3, spaceAfter=6),
-        "body_left": ParagraphStyle("BodyLeft", fontName=CN_REGULAR,
-            fontSize=sizes["body"], textColor=c["body_text"], alignment=TA_LEFT,
-            leading=sizes["body"] * 1.7, spaceBefore=3, spaceAfter=6),
-        "small": ParagraphStyle("Small", fontName=CN_REGULAR, fontSize=sizes["small"],
-            textColor=c["muted_text"], alignment=TA_LEFT,
-            leading=sizes["small"] * 1.5),
-        "caption": ParagraphStyle("Caption", fontName=CN_REGULAR,
-            fontSize=sizes["caption"], textColor=c["muted_text"], alignment=TA_LEFT,
-            leading=sizes["caption"] * 1.4),
-        "table_cell": ParagraphStyle("TableCell", fontName=CN_REGULAR,
-            fontSize=sizes["body"], textColor=c["body_text"], alignment=TA_LEFT,
-            leading=sizes["body"] * 1.4),
-        "table_header": ParagraphStyle("TableHeader", fontName=CN_BOLD,
-            fontSize=sizes["body"], textColor=c["table_header_text"],
-            alignment=TA_LEFT, leading=sizes["body"] * 1.4),
-        "quote": ParagraphStyle("Quote", fontName=CN_REGULAR,
-            fontSize=sizes["body"], textColor=c["body_text"], alignment=TA_LEFT,
-            leading=sizes["body"] * 1.7, leftIndent=18, rightIndent=18,
-            spaceBefore=10, spaceAfter=10),
-        "note": ParagraphStyle("Note", fontName=CN_REGULAR, fontSize=sizes["small"],
-            textColor=c["muted_text"], alignment=TA_LEFT,
-            leading=sizes["small"] * 1.5, leftIndent=12),
-        "cover_info": ParagraphStyle("CoverInfo", fontName=CN_REGULAR, fontSize=10,
-            textColor=c["cover_text"], alignment=TA_LEFT, leading=16),
+        "cover_title": ParagraphStyle(
+            "CoverTitle",
+            fontName=CN_BOLD,
+            fontSize=sizes["cover_title"],
+            textColor=c["cover_text"],
+            alignment=TA_LEFT,
+            leading=sizes["cover_title"] * 1.3,
+            spaceAfter=12,
+        ),
+        "cover_subtitle": ParagraphStyle(
+            "CoverSubtitle",
+            fontName=CN_REGULAR,
+            fontSize=sizes["cover_subtitle"],
+            textColor=c["cover_sub"],
+            alignment=TA_LEFT,
+            leading=sizes["cover_subtitle"] * 1.5,
+        ),
+        "h1": ParagraphStyle(
+            "H1",
+            fontName=CN_BOLD,
+            fontSize=sizes["h1"],
+            textColor=c["primary"],
+            alignment=TA_LEFT,
+            leading=sizes["h1"] * 1.3,
+            spaceBefore=24,
+            spaceAfter=12,
+        ),
+        "h2": ParagraphStyle(
+            "H2",
+            fontName=CN_BOLD,
+            fontSize=sizes["h2"],
+            textColor=c["primary"],
+            alignment=TA_LEFT,
+            leading=sizes["h2"] * 1.3,
+            spaceBefore=18,
+            spaceAfter=10,
+        ),
+        "h3": ParagraphStyle(
+            "H3",
+            fontName=CN_BOLD,
+            fontSize=sizes["h3"],
+            textColor=c["body_text"],
+            alignment=TA_LEFT,
+            leading=sizes["h3"] * 1.4,
+            spaceBefore=14,
+            spaceAfter=8,
+        ),
+        "body": ParagraphStyle(
+            "Body",
+            fontName=CN_REGULAR,
+            fontSize=sizes["body"],
+            textColor=c["body_text"],
+            alignment=TA_JUSTIFY,
+            leading=sizes["body"] * 1.7,
+            spaceBefore=3,
+            spaceAfter=6,
+        ),
+        "body_left": ParagraphStyle(
+            "BodyLeft",
+            fontName=CN_REGULAR,
+            fontSize=sizes["body"],
+            textColor=c["body_text"],
+            alignment=TA_LEFT,
+            leading=sizes["body"] * 1.7,
+            spaceBefore=3,
+            spaceAfter=6,
+        ),
+        "small": ParagraphStyle(
+            "Small",
+            fontName=CN_REGULAR,
+            fontSize=sizes["small"],
+            textColor=c["muted_text"],
+            alignment=TA_LEFT,
+            leading=sizes["small"] * 1.5,
+        ),
+        "caption": ParagraphStyle(
+            "Caption",
+            fontName=CN_REGULAR,
+            fontSize=sizes["caption"],
+            textColor=c["muted_text"],
+            alignment=TA_LEFT,
+            leading=sizes["caption"] * 1.4,
+        ),
+        "table_cell": ParagraphStyle(
+            "TableCell",
+            fontName=CN_REGULAR,
+            fontSize=sizes["body"],
+            textColor=c["body_text"],
+            alignment=TA_LEFT,
+            leading=sizes["body"] * 1.4,
+        ),
+        "table_header": ParagraphStyle(
+            "TableHeader",
+            fontName=CN_BOLD,
+            fontSize=sizes["body"],
+            textColor=c["table_header_text"],
+            alignment=TA_LEFT,
+            leading=sizes["body"] * 1.4,
+        ),
+        "quote": ParagraphStyle(
+            "Quote",
+            fontName=CN_REGULAR,
+            fontSize=sizes["body"],
+            textColor=c["body_text"],
+            alignment=TA_LEFT,
+            leading=sizes["body"] * 1.7,
+            leftIndent=18,
+            rightIndent=18,
+            spaceBefore=10,
+            spaceAfter=10,
+        ),
+        "note": ParagraphStyle(
+            "Note",
+            fontName=CN_REGULAR,
+            fontSize=sizes["small"],
+            textColor=c["muted_text"],
+            alignment=TA_LEFT,
+            leading=sizes["small"] * 1.5,
+            leftIndent=12,
+        ),
+        "cover_info": ParagraphStyle(
+            "CoverInfo", fontName=CN_REGULAR, fontSize=10, textColor=c["cover_text"], alignment=TA_LEFT, leading=16
+        ),
         # 新增：色块标签内文字
-        "tag": ParagraphStyle("Tag", fontName=CN_BOLD, fontSize=sizes["small"],
-            textColor=c["tag_text"], alignment=TA_CENTER,
-            leading=sizes["small"] * 1.4),
+        "tag": ParagraphStyle(
+            "Tag",
+            fontName=CN_BOLD,
+            fontSize=sizes["small"],
+            textColor=c["tag_text"],
+            alignment=TA_CENTER,
+            leading=sizes["small"] * 1.4,
+        ),
         # 新增：卡片标题
-        "card_title": ParagraphStyle("CardTitle", fontName=CN_BOLD,
-            fontSize=sizes["h3"], textColor=c["primary"], alignment=TA_LEFT,
-            leading=sizes["h3"] * 1.3, spaceBefore=4, spaceAfter=6),
+        "card_title": ParagraphStyle(
+            "CardTitle",
+            fontName=CN_BOLD,
+            fontSize=sizes["h3"],
+            textColor=c["primary"],
+            alignment=TA_LEFT,
+            leading=sizes["h3"] * 1.3,
+            spaceBefore=4,
+            spaceAfter=6,
+        ),
         # 新增：高亮段落
-        "highlight": ParagraphStyle("Highlight", fontName=CN_REGULAR,
-            fontSize=sizes["body"], textColor=c["body_text"], alignment=TA_LEFT,
-            leading=sizes["body"] * 1.7, spaceBefore=6, spaceAfter=6),
+        "highlight": ParagraphStyle(
+            "Highlight",
+            fontName=CN_REGULAR,
+            fontSize=sizes["body"],
+            textColor=c["body_text"],
+            alignment=TA_LEFT,
+            leading=sizes["body"] * 1.7,
+            spaceBefore=6,
+            spaceAfter=6,
+        ),
     }
 
 
@@ -260,8 +492,8 @@ def build_cover_elements(styles, theme_colors, title, subtitle="", date="", comp
     elements.append(Spacer(1, 10))
 
     from reportlab.platypus import HRFlowable
-    elements.append(HRFlowable(width="30%", thickness=3, color=c["cover_text"],
-                               spaceAfter=20, spaceBefore=0))
+
+    elements.append(HRFlowable(width="30%", thickness=3, color=c["cover_text"], spaceAfter=20, spaceBefore=0))
 
     if subtitle:
         elements.append(Paragraph(subtitle, styles["cover_subtitle"]))
@@ -293,30 +525,30 @@ def build_table(styles, theme_colors, headers, rows, col_widths=None):
     t = Table(table_data, colWidths=col_widths, repeatRows=1)
 
     style_cmds = [
-        ('BACKGROUND', (0, 0), (-1, 0), c["table_header_bg"]),
-        ('TEXTCOLOR', (0, 0), (-1, 0), c["table_header_text"]),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, c["table_border"]),
-        ('LINEBELOW', (0, 0), (-1, 0), 0, c["table_header_bg"]),
+        ("BACKGROUND", (0, 0), (-1, 0), c["table_header_bg"]),
+        ("TEXTCOLOR", (0, 0), (-1, 0), c["table_header_text"]),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("GRID", (0, 0), (-1, -1), 0.5, c["table_border"]),
+        ("LINEBELOW", (0, 0), (-1, 0), 0, c["table_header_bg"]),
     ]
 
     for i in range(1, len(table_data)):
         if i % 2 == 0:
-            style_cmds.append(('BACKGROUND', (0, i), (-1, i), c["table_row_odd"]))
+            style_cmds.append(("BACKGROUND", (0, i), (-1, i), c["table_row_odd"]))
         else:
-            style_cmds.append(('BACKGROUND', (0, i), (-1, i), c["table_row_even"]))
+            style_cmds.append(("BACKGROUND", (0, i), (-1, i), c["table_row_even"]))
 
     t.setStyle(TableStyle(style_cmds))
     return t
 
 
-def build_note_box(styles, theme_colors, text, box_type="info"):
+def build_note_box(_styles, theme_colors, text, box_type="info"):
     """优化版：左侧色块标签 + 白底正文（标签风格）"""
     c = {k: hex_color(v) for k, v in theme_colors.items()}
 
@@ -341,48 +573,62 @@ def build_note_box(styles, theme_colors, text, box_type="info"):
         label = "信息"
         body_bg = c["primary_pale"]
 
-    tag_style = ParagraphStyle("TagLabel", fontName=CN_BOLD, fontSize=8,
-                               textColor=tag_text_color, alignment=TA_CENTER,
-                               leading=12)
-    body_para = ParagraphStyle("NoteBody", fontName=CN_REGULAR, fontSize=9,
-                               textColor=c["body_text"], alignment=TA_LEFT,
-                               leading=14, leftIndent=6)
+    tag_style = ParagraphStyle(
+        "TagLabel", fontName=CN_BOLD, fontSize=8, textColor=tag_text_color, alignment=TA_CENTER, leading=12
+    )
+    body_para = ParagraphStyle(
+        "NoteBody",
+        fontName=CN_REGULAR,
+        fontSize=9,
+        textColor=c["body_text"],
+        alignment=TA_LEFT,
+        leading=14,
+        leftIndent=6,
+    )
 
     # 左侧色块标签（窄列）+ 右侧正文（宽列）
     page_width = A4[0] - 5 * cm
     tag_col_width = 1.2 * cm
     body_col_width = page_width - tag_col_width - 0.3 * cm
 
-    tag_cell = Table([[Paragraph(label, tag_style)]],
-                     colWidths=[tag_col_width],
-                     rowHeights=[28])
-    tag_cell.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), tag_bg),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 0),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-    ]))
+    tag_cell = Table([[Paragraph(label, tag_style)]], colWidths=[tag_col_width], rowHeights=[28])
+    tag_cell.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), tag_bg),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
 
-    body_cell = Table([[Paragraph(text, body_para)]],
-                      colWidths=[body_col_width])
-    body_cell.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), body_bg),
-        ('LEFTPADDING', (0, 0), (-1, -1), 10),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-    ]))
+    body_cell = Table([[Paragraph(text, body_para)]], colWidths=[body_col_width])
+    body_cell.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), body_bg),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
 
-    outer = Table([[tag_cell, body_cell]],
-                  colWidths=[tag_col_width, body_col_width])
-    outer.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'STRETCH'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-        ('TOPPADDING', (0, 0), (-1, -1), 0),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-    ]))
+    outer = Table([[tag_cell, body_cell]], colWidths=[tag_col_width, body_col_width])
+    outer.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "STRETCH"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
     return outer
 
 
@@ -396,34 +642,45 @@ def build_section(styles, theme_colors, title, number=""):
 
     # 左竖条
     bar = Table([[""]], colWidths=[bar_width], rowHeights=[24])
-    bar.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), c["section_bar"]),
-        ('TOPPADDING', (0, 0), (-1, -1), 0),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-    ]))
+    bar.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), c["section_bar"]),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
 
     # 标题文字
     prefix = f"<b>{number}</b> · " if number else ""
     title_para = Paragraph(f"{prefix}{title}", styles["h2"])
 
     title_cell = Table([[title_para]], colWidths=[text_width])
-    title_cell.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), c["section_bg"]),
-        ('LEFTPADDING', (0, 0), (-1, -1), 12),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-    ]))
+    title_cell.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), c["section_bg"]),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
 
-    outer = Table([[bar, title_cell]],
-                  colWidths=[bar_width, text_width])
-    outer.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-        ('TOPPADDING', (0, 0), (-1, -1), 0),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-    ]))
+    outer = Table([[bar, title_cell]], colWidths=[bar_width, text_width])
+    outer.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
     return outer
 
 
@@ -437,18 +694,22 @@ def build_highlight(styles, theme_colors, text, icon=""):
     para = Paragraph(f"{icon_prefix}{text}", styles["highlight"])
 
     t = Table([[para]], colWidths=[page_width])
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), c["highlight_bg"]),
-        ('LEFTPADDING', (0, 0), (-1, -1), 14),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 14),
-        ('TOPPADDING', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-        ('LINELEFT', (0, 0), (-1, -1), 3, c["primary"]),
-    ]))
+    t.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), c["highlight_bg"]),
+                ("LEFTPADDING", (0, 0), (-1, -1), 14),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+                ("TOPPADDING", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                ("LINELEFT", (0, 0), (-1, -1), 3, c["primary"]),
+            ]
+        )
+    )
     return t
 
 
-def build_card(styles, theme_colors, cards, columns=2):
+def build_card(_styles, theme_colors, cards, columns=2):
     """卡片布局：双列或三列卡片"""
     c = {k: hex_color(v) for k, v in theme_colors.items()}
 
@@ -471,38 +732,59 @@ def build_card(styles, theme_colors, cards, columns=2):
 
                 # 卡片内容
                 icon_prefix = f"{card_icon} " if card_icon else ""
-                title_para = Paragraph(f"{icon_prefix}<b>{card_title}</b>",
-                                       ParagraphStyle("CardTitle2", fontName=CN_BOLD,
-                                           fontSize=10, textColor=c["primary"],
-                                           alignment=TA_LEFT, leading=14,
-                                           spaceAfter=4))
-                body_para = Paragraph(card_body,
-                                      ParagraphStyle("CardBody", fontName=CN_REGULAR,
-                                          fontSize=8.5, textColor=c["body_text"],
-                                          alignment=TA_LEFT, leading=13))
+                title_para = Paragraph(
+                    f"{icon_prefix}<b>{card_title}</b>",
+                    ParagraphStyle(
+                        "CardTitle2",
+                        fontName=CN_BOLD,
+                        fontSize=10,
+                        textColor=c["primary"],
+                        alignment=TA_LEFT,
+                        leading=14,
+                        spaceAfter=4,
+                    ),
+                )
+                body_para = Paragraph(
+                    card_body,
+                    ParagraphStyle(
+                        "CardBody",
+                        fontName=CN_REGULAR,
+                        fontSize=8.5,
+                        textColor=c["body_text"],
+                        alignment=TA_LEFT,
+                        leading=13,
+                    ),
+                )
 
                 cell_content = [title_para, Spacer(1, 2), body_para]
                 cell = Table([[c] for c in cell_content], colWidths=[col_width - 1.2 * cm])
-                cell.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, -1), c["card_bg"]),
-                    ('BOX', (0, 0), (-1, -1), 0.5, c["card_border"]),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-                    ('TOPPADDING', (0, 0), (-1, -1), 10),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-                ]))
+                cell.setStyle(
+                    TableStyle(
+                        [
+                            ("BACKGROUND", (0, 0), (-1, -1), c["card_bg"]),
+                            ("BOX", (0, 0), (-1, -1), 0.5, c["card_border"]),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                            ("TOPPADDING", (0, 0), (-1, -1), 10),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                        ]
+                    )
+                )
                 row_cells.append(cell)
                 card_idx += 1
             else:
-                row_cells.append(Table([[""]], colWidths=[col_width],
-                                       rowHeights=[1]))
+                row_cells.append(Table([[""]], colWidths=[col_width], rowHeights=[1]))
 
         row = Table([row_cells], colWidths=[col_width] * col_count)
-        row.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-        ]))
+        row.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
         row_data.append(row)
         row_data.append(Spacer(1, 4 * mm))
 
@@ -519,17 +801,19 @@ def build_list(styles, theme_colors, items, ordered=False):
 
     list_items = []
     for i, item in enumerate(items):
-        if ordered:
-            prefix = f"<b>{i+1}.</b> "
-        else:
-            prefix = "• "
+        prefix = f"<b>{i + 1}.</b> " if ordered else "• "
 
         p = Paragraph(f"{prefix}{item}", body_style)
-        list_items.append(ListItem(p, leftIndent=24, value=i+1 if ordered else None))
+        list_items.append(ListItem(p, leftIndent=24, value=i + 1 if ordered else None))
 
-    return ListFlowable(list_items, bulletType='bullet' if not ordered else '1',
-                        start='1' if ordered else None,
-                        leftIndent=12, bulletFontSize=8, bulletColor=c["primary"])
+    return ListFlowable(
+        list_items,
+        bulletType="bullet" if not ordered else "1",
+        start="1" if ordered else None,
+        leftIndent=12,
+        bulletFontSize=8,
+        bulletColor=c["primary"],
+    )
 
 
 def header_footer(canvas, doc):
@@ -545,20 +829,27 @@ def header_footer(canvas, doc):
     # 页眉线
     canvas.setStrokeColor(c["primary"])
     canvas.setLineWidth(0.5)
-    canvas.line(2*cm, page_height - 1.8*cm, page_width - 2*cm, page_height - 1.8*cm)
+    canvas.line(2 * cm, page_height - 1.8 * cm, page_width - 2 * cm, page_height - 1.8 * cm)
 
     # 页码
     canvas.setFont(CN_REGULAR, 8)
     canvas.setFillColor(c["muted_text"])
-    canvas.drawRightString(page_width - 2*cm, 1.5*cm, f"- {doc.page} -")
+    canvas.drawRightString(page_width - 2 * cm, 1.5 * cm, f"- {doc.page} -")
 
     canvas.restoreState()
 
 
 @tool()
-def gen_pdf(output_path: str, title: str, content: list, theme: str = "blue",
-            font_size: str = "normal", subtitle: str = "", date: str = "",
-            company: str = ""):
+def gen_pdf(
+    output_path: str,
+    title: str,
+    content: list,
+    theme: str = "blue",
+    font_size: str = "normal",
+    subtitle: str = "",
+    date: str = "",
+    company: str = "",
+):
     """生成专业 PDF 报告（大厂咨询报告风格，支持中文）
 
     v10.0 新增类型:
@@ -593,10 +884,10 @@ def gen_pdf(output_path: str, title: str, content: list, theme: str = "blue",
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
-        topMargin=3*cm,
-        bottomMargin=2.5*cm,
-        leftMargin=2.5*cm,
-        rightMargin=2.5*cm,
+        topMargin=3 * cm,
+        bottomMargin=2.5 * cm,
+        leftMargin=2.5 * cm,
+        rightMargin=2.5 * cm,
     )
     doc._theme_name = theme
 
@@ -621,16 +912,12 @@ def gen_pdf(output_path: str, title: str, content: list, theme: str = "blue",
             elements.append(Paragraph(item["text"], styles["body_left"]))
 
         elif item_type == "section":
-            section = build_section(styles, theme_colors,
-                                    title=item.get("text", ""),
-                                    number=item.get("number", ""))
+            section = build_section(styles, theme_colors, title=item.get("text", ""), number=item.get("number", ""))
             elements.append(section)
             elements.append(Spacer(1, 6))
 
         elif item_type == "highlight":
-            hl = build_highlight(styles, theme_colors,
-                                 text=item.get("text", ""),
-                                 icon=item.get("icon", ""))
+            hl = build_highlight(styles, theme_colors, text=item.get("text", ""), icon=item.get("icon", ""))
             elements.append(hl)
             elements.append(Spacer(1, 8))
 
@@ -668,17 +955,22 @@ def gen_pdf(output_path: str, title: str, content: list, theme: str = "blue",
         elif item_type == "quote":
             text = item.get("text", "")
             if text:
-                from reportlab.platypus import Table as T2
+                from reportlab.platypus import Table as _Table
+
                 quote_p = Paragraph(text, styles["quote"])
-                quote_table = T2([[quote_p]], colWidths=[A4[0] - 5*cm])
-                quote_table.setStyle(TableStyle([
-                    ('LEFTPADDING', (0, 0), (-1, -1), 18),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 12),
-                    ('TOPPADDING', (0, 0), (-1, -1), 10),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-                    ('BACKGROUND', (0, 0), (-1, -1), c["primary_pale"]),
-                    ('LINEBEFORE', (0, 0), (-1, -1), 3, c["primary"]),
-                ]))
+                quote_table = _Table([[quote_p]], colWidths=[A4[0] - 5 * cm])
+                quote_table.setStyle(
+                    TableStyle(
+                        [
+                            ("LEFTPADDING", (0, 0), (-1, -1), 18),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                            ("TOPPADDING", (0, 0), (-1, -1), 10),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                            ("BACKGROUND", (0, 0), (-1, -1), c["primary_pale"]),
+                            ("LINEBEFORE", (0, 0), (-1, -1), 3, c["primary"]),
+                        ]
+                    )
+                )
                 elements.append(quote_table)
                 elements.append(Spacer(1, 8))
 

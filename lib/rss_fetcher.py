@@ -204,7 +204,6 @@ def _parse_rss(xml_text: str, source_name: str = "") -> list[RssItem]:
         return items
 
     # 命名空间处理
-    ns = {"": "", "atom": "http://www.w3.org/2005/Atom", "content": "http://purl.org/rss/1.0/modules/content/"}
 
     # 尝试标准 RSS 2.0
     for item_elem in root.iter("item"):

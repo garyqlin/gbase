@@ -14,9 +14,7 @@ API:
     GET  /health
 """
 
-import json
 import logging
-import os
 import subprocess
 import sys
 import urllib.parse
@@ -47,8 +45,16 @@ def _search_ddgs(query: str, count: int) -> list[dict[str, Any]]:
         from ddgs import DDGS
     except ImportError:
         subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "ddgs", "-i",
-             "https://pypi.tuna.tsinghua.edu.cn/simple", "--quiet"]
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "ddgs",
+                "-i",
+                "https://pypi.tuna.tsinghua.edu.cn/simple",
+                "--quiet",
+            ]
         )
         from ddgs import DDGS
 
@@ -58,12 +64,14 @@ def _search_ddgs(query: str, count: int) -> list[dict[str, Any]]:
         for i, r in enumerate(s.text(query, max_results=count)):
             if i >= count:
                 break
-            results.append({
-                "title": r.get("title", ""),
-                "url": r.get("href", r.get("url", "")),
-                "snippet": r.get("body", r.get("snippet", "")),
-                "source": "duckduckgo",
-            })
+            results.append(
+                {
+                    "title": r.get("title", ""),
+                    "url": r.get("href", r.get("url", "")),
+                    "snippet": r.get("body", r.get("snippet", "")),
+                    "source": "duckduckgo",
+                }
+            )
     except Exception as e:
         logger.warning("DDGS search error: %s", e)
         # Try with a simple curl fallback
@@ -78,13 +86,18 @@ def _search_ddgs(query: str, count: int) -> list[dict[str, Any]]:
 
 def _fetch_html(url: str, timeout: int = 8) -> str | None:
     """Fetch HTML via urllib with a browser-like User-Agent."""
-    req = urllib.request.Request(url, headers={
-        "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"),
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
-        "Accept-Encoding": "identity",
-    })
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+            "Accept-Encoding": "identity",
+        },
+    )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.read().decode("utf-8", errors="replace")
@@ -95,12 +108,10 @@ def _fetch_html(url: str, timeout: int = 8) -> str | None:
 def _parse_html_results(html: str, count: int) -> list[dict]:
     """Parse DDG HTML search results page."""
     import re
+
     results = []
     # Match result blocks
-    blocks = re.findall(
-        r'<a[^>]*class="result__a"[^>]*href="[^"]*uddg=([^&"]+)[^"]*"[^>]*>(.*?)</a>',
-        html, re.DOTALL
-    )
+    blocks = re.findall(r'<a[^>]*class="result__a"[^>]*href="[^"]*uddg=([^&"]+)[^"]*"[^>]*>(.*?)</a>', html, re.DOTALL)
     snippets = re.findall(r'class="result__snippet"[^>]*>(.*?)</a>', html, re.DOTALL)
     for i, (url_enc, title_html) in enumerate(blocks):
         if len(results) >= count:
@@ -110,12 +121,14 @@ def _parse_html_results(html: str, count: int) -> list[dict]:
         snippet = ""
         if i < len(snippets):
             snippet = re.sub(r"<[^>]+>", "", snippets[i]).strip()
-        results.append({
-            "title": title,
-            "url": url,
-            "snippet": snippet,
-            "source": "duckduckgo",
-        })
+        results.append(
+            {
+                "title": title,
+                "url": url,
+                "snippet": snippet,
+                "source": "duckduckgo",
+            }
+        )
     return results
 
 
@@ -142,23 +155,35 @@ async def handle_search(request: web.Request) -> web.Response:
             timeout=15.0,
         )
         logger.info("Search results: %d entries", len(results))
-        return web.json_response({
-            "query": query,
-            "results": results,
-            "result_count": len(results),
-        })
+        return web.json_response(
+            {
+                "query": query,
+                "results": results,
+                "result_count": len(results),
+            }
+        )
 
-    except (asyncio.TimeoutError, TimeoutError):
+    except TimeoutError:
         logger.warning("Search timed out, trying HTML fallback: %s", query)
         results = []
         try:
             import subprocess as _sp
+
             out = _sp.run(
-                ["curl", "-s", "-m", "6",
-                 "-H", "User-Agent: Mozilla/5.0",
-                 "-H", "Accept: text/html",
-                 f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"],
-                capture_output=True, text=True, timeout=8
+                [
+                    "curl",
+                    "-s",
+                    "-m",
+                    "6",
+                    "-H",
+                    "User-Agent: Mozilla/5.0",
+                    "-H",
+                    "Accept: text/html",
+                    f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=8,
             ).stdout
             if out:
                 results = _parse_html_results(out, count)
@@ -166,23 +191,29 @@ async def handle_search(request: web.Request) -> web.Response:
         except Exception as e2:
             logger.warning("HTML fallback also failed: %s", str(e2)[:60])
         if not results:
-            return web.json_response({
+            return web.json_response(
+                {
+                    "query": query,
+                    "results": [],
+                    "message": "Search timed out",
+                }
+            )
+        return web.json_response(
+            {
                 "query": query,
-                "results": [],
-                "message": "Search timed out",
-            })
-        return web.json_response({
-            "query": query,
-            "results": results,
-            "result_count": len(results),
-        })
+                "results": results,
+                "result_count": len(results),
+            }
+        )
     except Exception as e:
         logger.error("Search exception: %s", str(e))
-        return web.json_response({
-            "query": query,
-            "results": [],
-            "message": f"Search error: {str(e)[:200]}",
-        })
+        return web.json_response(
+            {
+                "query": query,
+                "results": [],
+                "message": f"Search error: {str(e)[:200]}",
+            }
+        )
 
 
 async def handle_health(request: web.Request) -> web.Response:
@@ -191,6 +222,7 @@ async def handle_health(request: web.Request) -> web.Response:
 
 async def main():
     import asyncio
+
     port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
 
     app = web.Application()
@@ -199,7 +231,7 @@ async def main():
     app.router.add_get("/", handle_health)
 
     logger.info("Search Bridge v2 started on port %d (DDGS backend)", port)
-    logger.info("POST /search  {\"query\": \"...\", \"count\": 5}")
+    logger.info('POST /search  {"query": "...", "count": 5}')
     logger.info("GET  /health")
 
     runner = web.AppRunner(app)

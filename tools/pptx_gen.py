@@ -58,7 +58,7 @@ for sdata in slides:
         p.font.bold = True
         p.font.color.rgb = RGBColor(0x1A, 0x1A, 0x2E)
         p.alignment = PP_ALIGN.CENTER
-        
+
         content = sdata.get("content", [])
         if content:
             txBox2 = slide.shapes.add_textbox(Inches(1), Inches(4.5), Inches(11.333), Inches(2))
@@ -80,12 +80,12 @@ for sdata in slides:
         else:
             layout = prs.slide_layouts[1]  # title and content
         slide = prs.slides.add_slide(layout)
-        
+
         # 标题
         title_shape = slide.shapes.title
         if title_shape:
             title_shape.text = sdata.get("title", "")
-        
+
         content = sdata.get("content", [])
         if content:
             body = slide.placeholders[1]  # content placeholder

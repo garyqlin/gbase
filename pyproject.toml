@@ -65,6 +65,7 @@ ignore = [
 "tools/self_edit.py" = ["SIM201", "SIM108"]
 "tools/trident_tools.py" = ["SIM108"]
 "tools/security_watch.py" = ["SIM105"]
+"tools/xlsx_gen.py" = ["F821"]
 "examples/*.py" = ["N999", "W293"]
 
 [tool.ruff.format]

@@ -1,3 +1,5 @@
+import shlex
+
 # SPDX-License-Identifier: MIT
 """
 lib/safe_shell.py
@@ -14,6 +16,7 @@ lib/safe_shell.py
 """
 
 import asyncio
+import contextlib
 import logging
 import os
 from pathlib import Path
@@ -71,12 +74,10 @@ async def run(
 
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(proc.wait(), timeout=5)
-            except asyncio.TimeoutError:
-                pass
             _log.warning("[%s] 命令超时 (%ds): %s", cmdname, timeout, command[:120])
             return {
                 "success": False,
@@ -127,7 +128,7 @@ async def run_exec(
     timeout_msg: str = "Subprocess timed out",
 ) -> dict:
     """兼容旧接口：将 list[str] 转为 shell 字符串后调用 exec_command。"""
-    import shlex
+
     command = " ".join(shlex.quote(arg) for arg in cmd)
     result = await exec_command(command, timeout=int(timeout), workdir=cwd, cmdname=cmdname)
     if result["returncode"] != 0 and not result["success"]:
@@ -136,14 +137,14 @@ async def run_exec(
 
 
 # ── path_safety 兼容：从干将旧版 lib 迁移 ──
-import shlex
 from pathlib import Path as _Path
 
 _SAFE_BASE = _Path.home()  # 默认安全根目录，可通过环境变量覆盖
 
+
 def validate_output_path(path: str, allowed_bases: list[str] | None = None) -> _Path:
     """验证输出路径在安全范围内，返回 resolved Path。
-    
+
     Raises ValueError 如果路径逃逸到允许范围外。
     """
     p = _Path(path).expanduser().resolve()

@@ -8,10 +8,7 @@
 """
 
 import time
-import os
-import json
 from collections import deque
-from typing import Dict
 
 # ── 采样窗口: 保留最近 1000 次请求的耗时（~16KB）──
 _MAX_SAMPLES = 1000
@@ -22,8 +19,8 @@ class _Metrics:
 
     def __init__(self):
         self._start = time.time()
-        self._requests = 0       # int counter
-        self._errors = 0         # int counter
+        self._requests = 0  # int counter
+        self._errors = 0  # int counter
         self._latencies = deque(maxlen=_MAX_SAMPLES)  # ms
 
     # ── public API ──
@@ -40,7 +37,7 @@ class _Metrics:
 
     # ── snapshot ──
 
-    def snapshot(self) -> Dict:
+    def snapshot(self) -> dict:
         uptime = int(time.time() - self._start)
         now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
         mem = _rss_mb()
@@ -70,22 +67,25 @@ def get_metrics() -> _Metrics:
     return _metrics
 
 
-def metrics_dict() -> Dict:
+def metrics_dict() -> dict:
     return _metrics.snapshot()
 
 
 # ── helper ──
 
+
 def _rss_mb() -> int:
     """当前进程 RSS 内存（MB），跨平台。"""
     import sys
+
     try:
         import resource
+
         rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         if sys.platform == "darwin":
             return round(rss / 1024 / 1024)  # macOS: bytes
         else:
-            return round(rss / 1024)          # Linux: KB
+            return round(rss / 1024)  # Linux: KB
     except Exception:
         return 0
 

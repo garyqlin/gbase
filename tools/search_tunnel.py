@@ -7,9 +7,7 @@ search_tunnel.py — 搜索隧道桥（自爬版）
 搜狗在国内稳定可用，无反爬门槛。
 """
 
-import json
 import logging
-import re
 import urllib.parse
 
 import httpx
@@ -51,9 +49,7 @@ async def search_via_tunnel(query: str, count: int = 8) -> list[dict] | None:
         results = []
 
         # 搜狗结果解析：多个可能的容器类名
-        for item in soup.select(
-            ".vrwrap, .rb, .vr-title, .vr_common, .result, .vr5k, .vrwrap, .res-list li"
-        ):
+        for item in soup.select(".vrwrap, .rb, .vr-title, .vr_common, .result, .vr5k, .vrwrap, .res-list li"):
             title_el = item.select_one("h3 a, .vr-title a, a.vr-title, a[href^='http']")
             if not title_el:
                 continue
@@ -64,17 +60,17 @@ async def search_via_tunnel(query: str, count: int = 8) -> list[dict] | None:
                 continue
 
             # snippet
-            snip_el = item.select_one(
-                ".star-wiki, .str-text, .star-like, .str_info, .star-wiki, .space-txt"
-            )
+            snip_el = item.select_one(".star-wiki, .str-text, .star-like, .str_info, .star-wiki, .space-txt")
             snippet = snip_el.get_text(strip=True)[:300] if snip_el else ""
 
-            results.append({
-                "title": title,
-                "url": href,
-                "snippet": snippet,
-                "source": "sogou",
-            })
+            results.append(
+                {
+                    "title": title,
+                    "url": href,
+                    "snippet": snippet,
+                    "source": "sogou",
+                }
+            )
 
             if len(results) >= count:
                 break

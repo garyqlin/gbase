@@ -107,6 +107,7 @@ class Mirror:
     def setup(self):
         import shutil
         import time as _time
+
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
@@ -229,6 +230,7 @@ class Mirror:
         # Cognifold 概念层钩子：每条记忆写入后同步更新概念图
         try:
             from .toolkit import get_global as _get_global
+
             _cf = _get_global("cognifold_engine")
             if _cf and hasattr(_cf, "on_record"):
                 _cf.on_record(content, mtype=mtype, tags=tags or [], source=source)
@@ -778,9 +780,10 @@ class Mirror:
         for r in dynamic:
             content = r[2]
             tags = self._get_tags(r[0])  # fetch tags for this memory
-            ts = (r[7] if r[7] else r[6])
+            ts = r[7] if r[7] else r[6]
             if isinstance(ts, str):
                 from datetime import datetime
+
                 try:
                     ts = datetime.fromisoformat(ts).timestamp()
                 except Exception:
@@ -1080,7 +1083,15 @@ class Mirror:
         result.extend(unique[:8])
         return result
 
-    def recall(self, query: str, limit: int = 10, ebbinghaus: bool = True, include_forgotten: bool = False, open_recall: bool = False, relevance: float = 0.0) -> list:
+    def recall(
+        self,
+        query: str,
+        limit: int = 10,
+        ebbinghaus: bool = True,
+        include_forgotten: bool = False,
+        open_recall: bool = False,
+        relevance: float = 0.0,
+    ) -> list:
         """Search memories with multi-phrase LIKE expansion.
 
         Instead of a single LIKE '%whole sentence%', expands the query
@@ -1141,9 +1152,10 @@ class Mirror:
         if ebbinghaus and rows:
             scored = []
             for r in rows:
-                ts = (r[7] if r[7] else r[6])
+                ts = r[7] if r[7] else r[6]
                 if isinstance(ts, str):
                     from datetime import datetime
+
                     try:
                         ts = datetime.fromisoformat(ts).timestamp()
                     except Exception:
@@ -1159,19 +1171,24 @@ class Mirror:
         if rows:
             boost = 0.05 + relevance * 0.10  # contextual blood return: relevance 0→1 maps to +0.05→+0.15
             for r in rows:
-                was_inactive = (len(r) > 8 and not r[8])  # is_active=0 means archived
+                was_inactive = len(r) > 8 and not r[8]  # is_active=0 means archived
                 if was_inactive and open_recall:
                     # revive: bring archived memory back to active pool
                     self._conn.execute(
                         "UPDATE memories SET strength=MIN(strength + ?, 2.0), hits=hits+1, is_active=1, last_access=? WHERE id=?",
-                        (boost, now, r[0]))
+                        (boost, now, r[0]),
+                    )
                 else:
-                    self._conn.execute(
-                        "UPDATE memories SET hits=hits+1, last_access=? WHERE id=?",
-                        (now, r[0]))
+                    self._conn.execute("UPDATE memories SET hits=hits+1, last_access=? WHERE id=?", (now, r[0]))
             self._locked_commit()
         return [
-            dict(zip(["id", "type", "content", "strength", "hits", "verified", "created_at", "last_access", "is_active"], row))
+            dict(
+                zip(
+                    ["id", "type", "content", "strength", "hits", "verified", "created_at", "last_access", "is_active"],
+                    row,
+                    strict=False,
+                )
+            )
             for row in rows
         ]
 
@@ -1293,10 +1310,11 @@ class Mirror:
 
         # 4. GKM 知识图谱扩展 (optional，只在高频查询时触发)
         from importlib import import_module
-        _gkm_kb = getattr(self, '_gkm_kb', None)
+
+        _gkm_kb = getattr(self, "_gkm_kb", None)
         if _gkm_kb is None:
             try:
-                gkm_mod = import_module('.gkm_tools', package='tools')
+                gkm_mod = import_module(".gkm_tools", package="tools")
                 _gkm_kb = gkm_mod.get_knowledge_base()
                 self._gkm_kb = _gkm_kb
             except Exception:
@@ -1310,9 +1328,9 @@ class Mirror:
                 for r_gkm in gkm_results:
                     # 将 GKM 搜索结果注入为 memory 格式使用
                     _fake = {
-                        "id": -hash(r_gkm['path']) % (10**8),
+                        "id": -hash(r_gkm["path"]) % (10**8),
                         "type": "knowledge",
-                        "content": f"📚 GKM知识库: {r_gkm['title']} — {r_gkm.get('snippet','')[:150]}",
+                        "content": f"📚 GKM知识库: {r_gkm['title']} — {r_gkm.get('snippet', '')[:150]}",
                         "strength": 0.8,
                         "hits": 1,
                         "importance": 0.7,

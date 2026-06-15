@@ -11,6 +11,7 @@ opprime-core-v2/tools/self_search.py
 3. 返回匹配的经验（最多 5 条）
 """
 
+import contextlib
 import logging
 
 from lib.toolkit import get_global, tool
@@ -99,10 +100,8 @@ async def search_self(question: str) -> dict:
     for m in matched:
         rid = m.get("id") or m.get("rowid")
         if rid:
-            try:
+            with contextlib.suppress(Exception):
                 exp_engine.storage.record_hit(rid)
-            except Exception:
-                pass
 
     results = []
     for m in matched[:3]:

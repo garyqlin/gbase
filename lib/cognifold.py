@@ -192,7 +192,7 @@ class Cognifold:
 
     # ─── Layer 1: 事件接入 ────────────────────────────────
 
-    def on_record(self, content: str, mtype: str = "", tags: list[str] = None, source: str = ""):
+    def on_record(self, content: str, _mtype: str = "", tags: list[str] = None, _source: str = ""):
         """接收到新记忆事件时的处理入口。
 
         这是 Cognifold 连接 mirror.record() 的钩子。
@@ -280,14 +280,16 @@ class Cognifold:
         self._conn.commit()
         return cid
 
-    def _update_co_occurrence(self, concept_ids: list[int], now: float):
+    def _update_co_occurrence(self, concept_ids: list[int], _now: float):
         """更新概念共现矩阵（带超时保护：最大2秒）。"""
         import time as _t
+
         _start = _t.time()
-        _MAX_MS = 2000
+        _max_ms = 2000
         for i in range(len(concept_ids)):
-            if _t.time() - _start > _MAX_MS / 1000:
+            if _t.time() - _start > _max_ms / 1000:
                 import logging as _lg
+
                 _lg.getLogger(__name__).warning(
                     "Cognifold co-occurrence timeout after %d/%d concepts", i, len(concept_ids)
                 )

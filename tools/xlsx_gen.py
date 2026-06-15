@@ -52,8 +52,8 @@ for si, sdata in enumerate(sheets):
         ws = wb.active
         ws.title = sdata.get("name", "Sheet1")
     else:
-        ws = wb.create_sheet(title=sdata.get("name", f"Sheet{si + 1}"))
-    
+        ws = wb.create_sheet(title=sdata.get("name", f"Sheet{len(wb.sheetnames) + 1}"))
+
     headers = sdata.get("headers", [])
     if headers:
         for ci, h in enumerate(headers, 1):
@@ -62,7 +62,7 @@ for si, sdata in enumerate(sheets):
             cell.font = header_font
             cell.alignment = Alignment(horizontal='center')
             cell.border = thin_border
-    
+
     rows = sdata.get("rows", [])
     for ri, row in enumerate(rows, len(headers) > 0 and 2 or 1):
         for ci, val in enumerate(row, 1):
@@ -72,7 +72,7 @@ for si, sdata in enumerate(sheets):
             else:
                 cell.value = val
             cell.border = thin_border
-    
+
     # 列宽自适应
     for col in range(1, max(len(headers), 1) + 1):
         max_len = len(str(headers[col-1])) if headers else 10

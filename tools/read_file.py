@@ -5,7 +5,6 @@ tools/read_file.py — 读取本地文件工具。
 
 import logging
 import os
-from pathlib import Path
 
 from lib.territory import check_rescue_permission, check_territory_violation
 from lib.toolkit import tool
@@ -17,10 +16,7 @@ logger = logging.getLogger(__name__)
 _POSEIDON_HOME = os.environ.get("POSEIDON_HOME", os.path.expanduser("~/poseidon-home"))
 _env_roots = os.environ.get("OPPRIME_ALLOWED_ROOTS")
 if _env_roots:
-    _ALLOWED_PREFIXES = [
-        os.path.abspath(os.path.expanduser(p.strip()))
-        for p in _env_roots.split(":") if p.strip()
-    ]
+    _ALLOWED_PREFIXES = [os.path.abspath(os.path.expanduser(p.strip())) for p in _env_roots.split(":") if p.strip()]
 else:
     # 硬编码白名单（fallback，环境变量传不进去时兜底）
     _ALLOWED_PREFIXES = [
@@ -44,7 +40,9 @@ else:
 
 
 @tool()
-async def read_file(filepath: str = "", file_path: str = "", path: str = "", offset: int = 0, max_chars: int = 0) -> dict:
+async def read_file(
+    filepath: str = "", file_path: str = "", path: str = "", offset: int = 0, max_chars: int = 0
+) -> dict:
     """读取本地文件内容。
 
     用于读取 workspace 中的配置文件、skill 的 SKILL.md 等本地文本文件。
@@ -73,7 +71,7 @@ async def read_file(filepath: str = "", file_path: str = "", path: str = "", off
                 "error": denied_msg,
                 "path": abs_path,
                 "allowed_roots": _ALLOWED_PREFIXES,
-                "hint": "白名单由 OPPRIME_ALLOWED_ROOTS 环境变量控制。如果这个文件你需要读，请告诉主人扩展白名单。"
+                "hint": "白名单由 OPPRIME_ALLOWED_ROOTS 环境变量控制。如果这个文件你需要读，请告诉主人扩展白名单。",
             }
 
         # 领地检查（阻塞跨领地读取，除非走救援白名单）
@@ -91,13 +89,10 @@ async def read_file(filepath: str = "", file_path: str = "", path: str = "", off
                     "error": denied_msg,
                     "path": abs_path,
                     "violation": violation,
-                    "hint": "救援访问请使用 check_brother() 或 read_brother_log() 工具"
+                    "hint": "救援访问请使用 check_brother() 或 read_brother_log() 工具",
                 }
             else:
-                logger.warning(
-                    "📖 救援模式读取: rescue白名单通过了 Agent「%s」的文件 %s",
-                    violation, abs_path
-                )
+                logger.warning("📖 救援模式读取: rescue白名单通过了 Agent「%s」的文件 %s", violation, abs_path)
 
         if not os.path.exists(abs_path):
             return {"error": f"文件不存在: {filepath}", "path": abs_path}

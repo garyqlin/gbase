@@ -4,18 +4,17 @@ tools/exec.py
 
 命令执行工具。使用 lib/safe_shell 底座执行。
 """
-import asyncio
+
 import logging
 import os
-from pathlib import Path
-
 import re
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-from lib.territory import check_territory_violation, build_territory_error
-from lib.toolkit import tool
 from lib.safe_shell import exec_command as _exec_command
+from lib.territory import check_territory_violation
+from lib.toolkit import tool
 
 _PROJECT_ROOTS = [
     Path(__file__).resolve().parent.parent,
@@ -51,11 +50,11 @@ async def exec_command(command: str, timeout: int = 600, workdir: str = "", **_k
 
     # ── 领地检查：命令中显式 cd 到其他 Agent 的家目录 ──
     # 扫描常见的路径操作模式（cd、>重定向、cp、mv、write to）
-    cd_match = re.findall(r'(?:^|;|&&|\|\|)\s*cd\s+(\S+)', command)
-    write_match = re.findall(r'((?:>|>>)\s*/[^\s;|&]+)', command)
+    cd_match = re.findall(r"(?:^|;|&&|\|\|)\s*cd\s+(\S+)", command)
+    write_match = re.findall(r"((?:>|>>)\s*/[^\s;|&]+)", command)
 
     for target_path in cd_match + write_match:
-        stripped = target_path.lstrip('> ').strip()
+        stripped = target_path.lstrip("> ").strip()
         violation = check_territory_violation(stripped)
         if violation:
             error_msg = (
@@ -68,7 +67,7 @@ async def exec_command(command: str, timeout: int = 600, workdir: str = "", **_k
                 "error": error_msg,
                 "command": command,
                 "violation": violation,
-                "hint": "救援访问请使用 check_brother() / restart_brother() / read_brother_log()"
+                "hint": "救援访问请使用 check_brother() / restart_brother() / read_brother_log()",
             }
 
     if workdir:

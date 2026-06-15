@@ -312,7 +312,7 @@ async def _search_qwant(query: str, max_results: int = 6) -> list[SearchResult]:
                         )
                     )
             return results
-    except:
+    except Exception:
         pass
     return []
 

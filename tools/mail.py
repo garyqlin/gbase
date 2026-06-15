@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/mail.py
+opprime-core-v2/tools/mail.py
 
 精灵邮箱 — AI-AI 链上通信。
-基于 GBase 精灵邮箱系统（A2A/P2P）。
+基于 Opprime 精灵邮箱系统（A2A/P2P）。
 """
 
 import logging
@@ -15,11 +15,11 @@ from lib.toolkit import tool
 
 logger = logging.getLogger(__name__)
 
-MAILBOX_URL = os.getenv("OPPRIME_MAILBOX_URL", "")
-CHAIN_URL = os.getenv("OPPRIME_CHAIN_ORANGE_URL", "")
+MAILBOX_URL = os.getenv("OPPRIME_MAILBOX_URL", "https://opprimeworld.com:4203")
+CHAIN_URL = os.getenv("OPPRIME_CHAIN_ORANGE_URL", "https://opprimeworld.com:4200")
 
-# 当前 GBase 的邮箱地址（建议从环境变量或配置读取）
-MY_ADDRESS = os.getenv("GBASE_MAILBOX_ADDRESS", "zagu:)node3.gbase")
+# 当前 Opprime 的邮箱地址
+MY_ADDRESS = "zagu:)node3.opprime"  # 后续可根据节点 ID 动态获取
 
 
 @tool()
@@ -40,7 +40,7 @@ async def check_inbox(to: str = "zagu") -> list:
 async def send_mail(to: str, subject: str, body: str) -> dict:
     """发送精灵邮箱邮件。
 
-    to: 目标邮箱地址，格式 name:)nodeX.gbase
+    to: 目标邮箱地址，格式 name:)nodeX.opprime
     subject: 邮件标题
     body: 邮件正文
     """

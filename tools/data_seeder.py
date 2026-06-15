@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/data_seeder.py
+opprime-core-v2/tools/data_seeder.py
 
-Smart test data generator.
-Demo data seeder for agent-3 (research arm).
+YF-data-seeder 集成：智能测试数据生成器。
+为大黄蜂（调研臂）提供填充演示数据能力。
 """
 
 import asyncio
@@ -21,17 +21,17 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-data-seeder/scripts")
 async def seed_test_data(
     columns: str, count: int = 15, format: str = "json", table: str = "mock_data", output: str = ""
 ) -> dict:
-    """Generate batch test/demo data. Supported field types: name, email, phone, int, float, date, address, company, city, etc.
+    """生成批量测试/演示数据。支持字段类型：name, email, phone, int, float, date, address, company, city 等。
 
     Args:
-        columns: Column description, format like "name: name, email: email, status: active,inactive, age: int:18-65"
-        count: Number of records (default 15, aligned with the recommended 5-15 records for client delivery)
-        format: Output format: json / csv / sql
-        table: Table name for SQL mode
-        output: Output file path (optional)
+        columns: 列描述，格式如 "name: name, email: email, status: active,inactive, age: int:18-65"
+        count: 数据条数（默认15条，对应客户交付铁律建议的 5-15 条）
+        format: 输出格式 json / csv / sql
+        table: SQL 模式时的表名
+        output: 输出文件路径（可选）
 
     Returns:
-        Generated data content (JSON or SQL text)
+        生成的数据内容（JSON 或 SQL 文本）
     """
     cmd = [
         sys.executable or "python3",
@@ -60,7 +60,7 @@ async def seed_test_data(
         out = stdout.decode("utf-8", errors="replace")
         err = stderr.decode("utf-8", errors="replace")
 
-        # Extract the generated data portion
+        # 提取生成的数据部分
         data_start = out.find("[")
         if data_start == -1:
             data_start = out.find("INSERT INTO")
@@ -76,6 +76,6 @@ async def seed_test_data(
             "errors": err[:500] if err else "",
         }
     except TimeoutError:
-        return {"error": "Data generation timed out (30s)"}
+        return {"error": "数据生成超时（30秒）"}
     except Exception as e:
         return {"error": str(e)}

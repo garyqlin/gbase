@@ -60,7 +60,7 @@ async def send_card(
     if color:
         template = color
     """发送飞书卡片消息。
-
+    
     自动获取当前用户的 open_id（从全局上下文的 feishu_sender_id）。
     """
     channel = get_global("feishu_channel")

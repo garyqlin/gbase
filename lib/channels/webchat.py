@@ -112,12 +112,10 @@ class WebChatChannel:
                             if self.storage:
                                 hits = self.storage.search(user_msg)
                                 if hits:
-                                    await ws.send_json(
-                                        {
-                                            "type": "knowledge",
-                                            "content": hits[:5],
-                                        }
-                                    )
+                                    await ws.send_json({
+                                        "type": "knowledge",
+                                        "content": hits[:5],
+                                    })
                         except Exception:
                             pass
 
@@ -132,34 +130,28 @@ class WebChatChannel:
                             # but batch into chunks for practicality
                             chunk_size = 20
                             for i in range(0, len(response), chunk_size):
-                                chunk = response[i : i + chunk_size]
-                                await ws.send_json(
-                                    {
-                                        "type": "chunk",
-                                        "content": chunk,
-                                    }
-                                )
+                                chunk = response[i:i + chunk_size]
+                                await ws.send_json({
+                                    "type": "chunk",
+                                    "content": chunk,
+                                })
                                 await asyncio.sleep(0.01)  # Small delay for streaming feel
 
                             # Send completion marker with metrics
-                            await ws.send_json(
-                                {
-                                    "type": "done",
-                                    "content": response,
-                                    "meta": {
-                                        "length": len(response),
-                                    },
-                                }
-                            )
+                            await ws.send_json({
+                                "type": "done",
+                                "content": response,
+                                "meta": {
+                                    "length": len(response),
+                                },
+                            })
 
                         except Exception as e:
                             logger.error("Kernel error: %s", e, exc_info=True)
-                            await ws.send_json(
-                                {
-                                    "type": "error",
-                                    "content": str(e),
-                                }
-                            )
+                            await ws.send_json({
+                                "type": "error",
+                                "content": str(e),
+                            })
 
                     elif msg_type == "file":
                         # File upload handling
@@ -176,12 +168,10 @@ class WebChatChannel:
                             file_size_mb = len(file_bytes) / (1024 * 1024)
 
                             if file_size_mb > self.max_upload_mb:
-                                await ws.send_json(
-                                    {
-                                        "type": "error",
-                                        "content": f"File too large: {file_size_mb:.1f}MB (max {self.max_upload_mb}MB)",
-                                    }
-                                )
+                                await ws.send_json({
+                                    "type": "error",
+                                    "content": f"File too large: {file_size_mb:.1f}MB (max {self.max_upload_mb}MB)",
+                                })
                                 continue
 
                             # Save to uploads
@@ -194,22 +184,18 @@ class WebChatChannel:
                             # Analyze content
                             result = await self._process_upload(file_name, file_bytes, file_mime)
 
-                            await ws.send_json(
-                                {
-                                    "type": "file_processed",
-                                    "content": result,
-                                    "meta": {"name": file_name, "size_kb": len(file_bytes) // 1024},
-                                }
-                            )
+                            await ws.send_json({
+                                "type": "file_processed",
+                                "content": result,
+                                "meta": {"name": file_name, "size_kb": len(file_bytes) // 1024},
+                            })
 
                         except Exception as e:
                             logger.error("File processing error: %s", e)
-                            await ws.send_json(
-                                {
-                                    "type": "error",
-                                    "content": f"File processing failed: {e}",
-                                }
-                            )
+                            await ws.send_json({
+                                "type": "error",
+                                "content": f"File processing failed: {e}",
+                            })
 
             except WebSocketDisconnect:
                 logger.info("WebSocket disconnected")
@@ -232,31 +218,10 @@ class WebChatChannel:
         }
 
         # Text files
-        if ext in (
-            ".txt",
-            ".md",
-            ".csv",
-            ".json",
-            ".yaml",
-            ".yml",
-            ".py",
-            ".js",
-            ".ts",
-            ".jsx",
-            ".tsx",
-            ".html",
-            ".css",
-            ".xml",
-            ".toml",
-            ".ini",
-            ".cfg",
-            ".conf",
-            ".log",
-            ".sh",
-            ".bash",
-            ".zsh",
-            ".fish",
-        ):
+        if ext in (".txt", ".md", ".csv", ".json", ".yaml", ".yml",
+                   ".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css",
+                   ".xml", ".toml", ".ini", ".cfg", ".conf", ".log",
+                   ".sh", ".bash", ".zsh", ".fish"):
             try:
                 text = data.decode("utf-8")
                 result["content"] = text

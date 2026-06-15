@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/lib/storage.py
+opprime-core-v2/lib/storage.py
 
 沉淀引擎 — SQLite 主力 + JSONL 可读镜像双写。
 
@@ -52,6 +52,8 @@ class Storage:
         self._lock = threading.RLock()
         self._conn: sqlite3.Connection | None = None
         self._setup_ran = False  # 避免 setup() 内的 ALTER 重复执行警告
+        self._write_count = 0
+        self._last_checkpoint_time = 0.0
 
     # ── 初始化 ──────────────────────────────────────────
 
@@ -197,6 +199,9 @@ class Storage:
             # 检查上限，删除最旧记录
             self._prune(type_)
 
+            self._write_count += 1
+            self._maybe_checkpoint()
+
             logger.debug("写入 %s[%d]: %s", type_, row_id, summary[:60])
             return row_id
 
@@ -240,6 +245,19 @@ class Storage:
                 (time.time(), record_id),
             )
             self._conn.commit()
+            self._write_count += 1
+            self._maybe_checkpoint()
+
+    def _maybe_checkpoint(self):
+        """自动 WAL checkpoint：100次写入或10分钟触发。"""
+        now = time.time()
+        if self._write_count >= 100 or (self._last_checkpoint_time and now - self._last_checkpoint_time >= 600):
+            try:
+                self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                self._write_count = 0
+                self._last_checkpoint_time = now
+            except Exception:
+                pass
 
     # ── 内部方法 ────────────────────────────────────────
 
@@ -259,11 +277,7 @@ class Storage:
                 "DELETE FROM entries WHERE id IN ("
                 "SELECT id FROM entries WHERE type=? AND hits=0 AND created_at < ? "
                 "ORDER BY created_at ASC LIMIT ?)",
-                (
-                    type_,
-                    cutoff,
-                    excess,
-                ),
+                (type_, cutoff, excess,),
             ).rowcount
             self._conn.commit()
             if _deleted > 0:
@@ -293,7 +307,8 @@ class Storage:
             # ── Phase 5 增强：hit=1 且 60 天未访问 → 自动清理（噪音数据） ──
             _noise_cutoff = time.time() - 60 * 86400
             cursor = self._conn.execute(
-                "DELETE FROM entries WHERE hits = 1 AND last_accessed_at < ? AND last_accessed_at > 0",
+                "DELETE FROM entries WHERE hits = 1 AND last_accessed_at < ? "
+                "AND last_accessed_at > 0",
                 (_noise_cutoff,),
             )
             _noise_count = cursor.rowcount
@@ -301,7 +316,9 @@ class Storage:
                 logger.info("噪音清理: 删除 %d 条 hit=1 的僵尸记录", _noise_count)
 
             # ── Phase 5 增强：空 content 记录清理 ──
-            cursor = self._conn.execute("DELETE FROM entries WHERE content IS NULL OR TRIM(content) = ''")
+            cursor = self._conn.execute(
+                "DELETE FROM entries WHERE content IS NULL OR TRIM(content) = ''"
+            )
             _empty_count = cursor.rowcount
             if _empty_count > 0:
                 logger.info("空值清理: 删除 %d 条空 content 记录", _empty_count)

@@ -4,12 +4,13 @@ gen_pro_report — 专业企业调研报告生成器
 使用 Playwright HTML→PDF 渲染，输出印刷级报告
 """
 
-import os
-from datetime import datetime
-
-from playwright.sync_api import sync_playwright
-
 from lib.toolkit import tool
+
+import json
+import os
+import tempfile
+from datetime import datetime
+from playwright.sync_api import sync_playwright
 
 # ─── HTML 模板 ──────────────────────────────────────────────────────────────
 
@@ -309,15 +310,21 @@ def _build_content(blocks):
         elif t == "conclusion":
             parts.append(
                 f'<div class="conclusion-box">'
-                f'<div class="label">{block.get("label", "结论")}</div>'
+                f'<div class="label">{block.get("label","结论")}</div>'
                 f"{block['text']}</div>"
             )
         elif t == "note":
             icon = block.get("icon", "📌")
-            parts.append(f'<div class="note-box"><span class="icon">{icon}</span> {block["text"]}</div>')
+            parts.append(
+                f'<div class="note-box">'
+                f'<span class="icon">{icon}</span> {block["text"]}</div>'
+            )
         elif t == "warning":
             icon = block.get("icon", "⚠️")
-            parts.append(f'<div class="warning-box"><span class="icon">{icon}</span> {block["text"]}</div>')
+            parts.append(
+                f'<div class="warning-box">'
+                f'<span class="icon">{icon}</span> {block["text"]}</div>'
+            )
         elif t == "list":
             items = "".join(f"<li>{item}</li>" for item in block.get("items", []))
             tag = "ol" if block.get("ordered") else "ul"
@@ -349,7 +356,7 @@ def generate_report(
     output_path: str,
     title: str = "企业关联关系深度调研报告",
     subtitle: str = "企业关联关系深度调研报告",
-    author: str = "GBase 智能调研系统",
+    author: str = "Opprime 智能调研系统",
     version: str = "1.0",
     classification: str = "内部公开",
     sections: list = None,
@@ -462,11 +469,7 @@ if __name__ == "__main__":
                         "对外投资维度：核查三家企业是否存在共同投资或交叉持股",
                     ],
                 },
-                {
-                    "type": "note",
-                    "icon": "📌",
-                    "text": "数据来源：国家企业信用信息公示系统、天眼查、企查查等公开渠道。",
-                },
+                {"type": "note", "icon": "📌", "text": "数据来源：国家企业信用信息公示系统、天眼查、企查查等公开渠道。"},
                 {"type": "h1", "text": "2. 企业基本信息"},
                 {
                     "type": "table",
@@ -510,11 +513,7 @@ if __name__ == "__main__":
                     "type": "p",
                     "text": "经核查，三家企业对外投资均为0，不存在通过共同投资形成关联关系的可能。",
                 },
-                {
-                    "type": "warning",
-                    "icon": "⚠️",
-                    "text": "唯一值得注意的发现：王汉中（黑加仑法人）名下另有3家关联企业，分布在安徽、北京、浙江，均为物流/货代行业。但这些企业与硕科、旗迹源无任何交叉。",
-                },
+                {"type": "warning", "icon": "⚠️", "text": "唯一值得注意的发现：王汉中（黑加仑法人）名下另有3家关联企业，分布在安徽、北京、浙江，均为物流/货代行业。但这些企业与硕科、旗迹源无任何交叉。"},
                 {"type": "h1", "text": "4. 综合结论"},
                 {
                     "type": "conclusion",

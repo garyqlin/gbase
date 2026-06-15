@@ -2,47 +2,46 @@
 """
 tools/write_file.py
 
-写文件工具。与 read_file 对称，供 LLM 按需创建/修改文件。
+写FileTools。与 read_file 对称，供 LLM 按需Create/ModifyFile。
 安全约束：
-- 只在 gbase workspace 目录下写
-- 自动创建父目录
-- 【第7次进化】写前自动备份：覆盖写时原文件自动存入 .backups/
+- Only write within opprime workspace directories
+- 自动Create父Directory
+- [Evolution #7] Auto-backup before overwrite: originals saved to .backups/
 """
 
 import os
+from pathlib import Path
 
 from lib.backup import BACKUP_DIR, _is_core_file, backup_file
-from lib.territory import build_territory_error, check_territory_violation
 from lib.toolkit import tool
 
-# 允许写入的根目录
-# 优先从环境变量读取（跨环境部署无需改代码）
+# ──────────────────────────────────────────────
+# 🏡 自找家门：每个实例自动推导自己的家Directory
+# Strategy: use parent of __file__'s tools/ dir as home
+# ──────────────────────────────────────────────
+_my_home = str(Path(__file__).resolve().parent.parent)
+
+# 允许Write的根Directory
+# 优先级：环境变量 > 自动推导家Directory > Default硬编码
 _env_roots = os.environ.get("OPPRIME_ALLOWED_ROOTS")
 if _env_roots:
     ALLOWED_ROOTS = [r.strip() for r in _env_roots.split(":") if r.strip()]
+    # 保证家Directory一定在允许列表里（即使环境变量忘了写）
+    if _my_home not in ALLOWED_ROOTS:
+        ALLOWED_ROOTS.insert(0, _my_home)
 else:
-    ALLOWED_ROOTS = [
+    # 自动推导 + 常用公共Directory作为 fallback
+    _common_roots = [
+        os.path.expanduser("~"),
         os.path.expanduser("~/.qclaw"),
-        os.path.expanduser("~/gbase"),
-        os.path.expanduser("~/glink"),
         os.path.expanduser("~/Projects"),
-        os.path.expanduser("~/lancer"),
-        os.path.expanduser("~/gbase-home"),
-        os.path.expanduser("~/gstudio"),
-        os.path.expanduser("~/.claude"),
-        os.path.expanduser("~/homeassistant-latest"),
-        "/Volumes/workspace",
-        os.path.expanduser("~/games"),
-        "/home/gbase-v2",  # 云端运行目录
-        os.path.expanduser("~/Desktop"),
-        os.path.expanduser("$GBASE_DESKTOP"),
-        "/tmp",
-        "/private/tmp",
+        "/home",  # 云端DefaultDirectory
     ]
+    ALLOWED_ROOTS = [_my_home] + [r for r in _common_roots if r != _my_home]
 
 
 def _resolve_path(filepath: str) -> tuple[str, str]:
-    """解析文件路径，返回 (绝对路径, 错误信息)。"""
+    """解析FilePath，返回 (绝对Path, ErrorInfo)。"""
     expanded = os.path.expanduser(filepath)
     expanded = os.path.abspath(expanded)
 
@@ -51,14 +50,9 @@ def _resolve_path(filepath: str) -> tuple[str, str]:
 
     if not allowed:
         return "", (
-            f"写入被拒绝：路径 {expanded} 不在允许范围内。\n"
-            f"允许的根目录：\n" + "\n".join(f"  - {r}" for r in ALLOWED_ROOTS)
+            f"Write被拒绝：Path {expanded} 不在允许范围内。\n"
+            f"允许的根Directory：\n" + "\n".join(f"  - {r}" for r in ALLOWED_ROOTS)
         )
-
-    # ── 领地检查：不能改其他 Agent 的家 ──
-    violation = check_territory_violation(expanded)
-    if violation:
-        return "", build_territory_error(violation, expanded, "写入")
 
     parent = os.path.dirname(expanded)
     os.makedirs(parent, exist_ok=True)
@@ -67,12 +61,12 @@ def _resolve_path(filepath: str) -> tuple[str, str]:
 
 
 def _build_context(filepath: str) -> str:
-    """构建文件上下文摘要（供 LLM 判断是否还要继续改）。"""
+    """构建File上下文Summary（供 LLM 判断是否还要继续改）。"""
     try:
         with open(filepath, encoding="utf-8", errors="replace") as f:
             content = f.read()
     except Exception:
-        return "(文件刚创建，暂无内容)"
+        return "(File刚Create，暂None内容)"
 
     lines = content.split("\n")
     total = len(lines)
@@ -84,20 +78,20 @@ def _build_context(filepath: str) -> str:
         last = "\n".join(lines[-5:])
         preview = f"{first}\n... (中间 {total - 10} 行) ...\n{last}"
 
-    return f"文件已写入 ({total} 行, {len(content)} 字符):\n```\n{preview}\n```"
+    return f"File已Write ({total} 行, {len(content)} 字符):\n```\n{preview}\n```"
 
 
 @tool()
 async def write_file(filepath: str, content: str, mode: str = "w") -> dict:
-    """创建或修改文件。写入前自动备份（如果启用了 backup 模块）。
+    """Create或ModifyFile。Write前自动备份（如果Enabled了 backup 模块）。
 
     Args:
-        filepath: 文件路径（绝对路径或相对于 ~/gbase 的相对路径）
-        content: 文件内容（文本）
-        mode: 写入模式，'w' 覆盖写入（默认），'a' 追加
+        filepath: FilePath（绝对Path或相对于 ~/opprime 的相对Path）
+        content: File内容（文本）
+        mode: Write模式，'w' 覆盖Write（Default），'a' 追加
 
     Returns:
-        包含写入结果的字典：path / size / context / backup / error
+        包含Write结果的字典：path / size / context / backup / error
     """
     path, err = _resolve_path(filepath)
     if err:
@@ -114,7 +108,7 @@ async def write_file(filepath: str, content: str, mode: str = "w") -> dict:
         if backup_id:
             is_core = _is_core_file(path)
             tag = "🔴检查点" if is_core else "📦备份"
-            backup_note = f"\n{tag}: 原文件已备份到 {BACKUP_DIR}/{backup_id}"
+            backup_note = f"\n{tag}: 原File已备份到 {BACKUP_DIR}/{backup_id}"
 
     try:
         with open(path, mode, encoding="utf-8") as f:
@@ -129,7 +123,7 @@ async def write_file(filepath: str, content: str, mode: str = "w") -> dict:
             "mode": mode,
             "context": context,
             "backup": backup_note.strip() if backup_note else None,
-            "note": "如需继续编辑此文件，再次调用 write_file 即可（mode='w' 覆盖）。",
+            "note": "如需继续编辑此File，再次调用 write_file 即可（mode='w' 覆盖）。",
         }
         if backup_id:
             result["backup_id"] = backup_id
@@ -137,4 +131,4 @@ async def write_file(filepath: str, content: str, mode: str = "w") -> dict:
 
         return result
     except Exception as e:
-        return {"error": f"写入失败: {e}"}
+        return {"error": f"Write失败: {e}"}

@@ -46,7 +46,8 @@ def _parse_datetime(dt: str, fmt: str = "%Y-%m-%d %H:%M:%S") -> datetime | None:
 
 
 @tool()
-async def note_write(title: str, content: str, tags: str = "", source: str = ""):
+async def note_write(title: str = "", content: str = "", tags: str = "", source: str = "",
+                     filename: str = "", note: str = ""):
     """写一条笔记到 L4 笔记系统。笔记不会被 strength 衰减，写入后永不遗忘。
 
     Args:
@@ -54,14 +55,22 @@ async def note_write(title: str, content: str, tags: str = "", source: str = "")
         content: 笔记正文（什么值得记住）
         tags: 逗号分隔的标签，方便分类搜索
         source: 来源描述（如"与用户对话学到"、"从trace提炼"）
+        filename: (兼容旧参数名) 当 LLM 误用 filename=xxx 时自动作为 title
+        note: (兼容旧参数名) 当 LLM 误用 note=xxx 时自动作为 content
     """
+    # 兼容旧参数名：filename → title；note → content
+    if not title and filename:
+        title = filename
+    if not content and note:
+        content = note
+
     try:
         now = datetime.now()
         date_str = now.strftime("%Y-%m-%d")
         timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
 
-        filename = f"{date_str}_{_safe_title(title)}.json"
-        filepath = _notes_dir() / filename
+        safe_fname = f"{date_str}_{_safe_title(title)}.json"
+        filepath = _notes_dir() / safe_fname
 
         note = {
             "title": title,

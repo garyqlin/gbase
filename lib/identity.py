@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/lib/identity.py
+opprime-core-v2/lib/identity.py
 
 身份加载器：从 identities/<name>/ 目录加载身份声明。
 """
@@ -54,9 +54,9 @@ class Identity:
                 self.memory = f.read().strip()
 
     def set_experience_engine(self, engine):
-        """注入Experience Engine（可选）。"""
+        """注入经验引擎（可选）。"""
         self._experience_engine = engine
-        logger.info("Experience Engine已绑定")
+        logger.info("经验引擎已绑定")
 
     def get_system_prompt(self) -> str:
         """构建最终的 system prompt（身份声明 + 记忆 + 宪法 + 经验 + skill 索引）。"""
@@ -68,7 +68,7 @@ class Identity:
         if self.memory:
             parts.append(f"\n## 记忆\n{self.memory}")
 
-        # skill 索引（先于Experience injection，因为经验更优先）
+        # skill 索引（先于经验注入，因为经验更优先）
         if self._skill_loader:
             skill_text = self._skill_loader.get_injection_text()
             if skill_text:

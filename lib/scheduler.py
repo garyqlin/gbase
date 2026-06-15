@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/lib/scheduler.py v2.0 — Cron-like task scheduler
+opprime-core-v2/lib/scheduler.py v2.0 — Cron Scheduler
 
-Changelog (2026-05-19):
-1. Three action types: action="custom", action="send", and action="learn".
-   - "custom": send message content as LLM task to Kernel for processing (silent execution, no notification to owner)
-   - "send": deliver notification to configured channel
-   - "learn": call learn_all_topics() (original logic)
-2. Heartbeat protection: writes to /tmp/gbase_heartbeat every 5s for external stat to detect process liveness
+Changelog (2026-05-19)：
+1. action="custom" + action="send" + action="learn" three action types.
+   - "custom": Submit message as LLM task to Kernel (silent, no notification)
+   - "send": Send Feishu message (original logic)
+   - "learn": Call learn_all_topics() (original logic)
+2. Heartbeat: write /tmp/opprime_heartbeat every 5s for external stat
 """
 
 import asyncio
@@ -15,13 +15,14 @@ import json
 import logging
 import os
 import sqlite3
+import subprocess
 import time
 from datetime import UTC, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
 DB_PATH = os.environ.get("OPPRIME_CRON_DB", "data/cron.db")
-HEARTBEAT_PATH = "/tmp/gbase_heartbeat"
+HEARTBEAT_PATH = "/tmp/opprime_heartbeat"
 
 # ── Schedule Parsing ────────────────────────────────────────
 
@@ -77,7 +78,7 @@ def _cron_match(expr: str, dt: datetime) -> bool:
     if len(fields) != 5:
         return False
 
-    def _field_match(field: str, value: int, _max_val: int) -> bool:
+    def _field_match(field: str, value: int, max_val: int) -> bool:
         if field == "*":
             return True
         for part in field.split(","):
@@ -141,22 +142,23 @@ _MIGRATIONS = [
 
 
 class CronScheduler:
-    """Cron task scheduler — supports three action types.
+    """Cron Scheduler — supports three action types.
 
-    - "send": deliver notification to owner
-    - "learn": call AutoLearner.learn_all_topics()
-    - "custom": submit message as LLM task to Kernel for processing
+    - "send": Send Feishu message to owner
+    - "learn": Call AutoLearner.learn_all_topics()
+    - "custom": Submit message as LLM task to Kernel
     """
 
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
         self._sender = None  # async def send_text(open_id, text)
         self._learner = None  # AutoLearner instance
-        self._kernel = None  # GBaseKernel instance (for custom action)
+        self._kernel = None  # OpprimeKernel instance (for custom action)
         self._learning = False
         self._running = False
         self._task: asyncio.Task | None = None
         self._heartbeat_count = 0
+        self._callbacks: dict[str, callable] = {}  # action name → async callback
 
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self._init_db()
@@ -182,7 +184,7 @@ class CronScheduler:
                 except (ValueError, IndexError):
                     continue
                 if col_name not in cols:
-                    logger.info("Database migration: %s", migration_sql[:60])
+                    logger.info("DB migration: %s", migration_sql[:60])
                     try:
                         conn.execute(migration_sql)
                         conn.commit()
@@ -197,20 +199,29 @@ class CronScheduler:
 
     def set_learner(self, learner):
         self._learner = learner
-        logger.info("Scheduler bound to AutoLearner engine")
+        logger.info("Scheduler bound to AutoLearner")
 
     def set_kernel(self, kernel):
         """Set Kernel instance for action='custom'.
 
-        Custom action will submit message content as LLM message to kernel for processing.
-        Silent execution (no notification)."""
+        custom action submits message as LLM task to kernel,
+        skips Feishu channel, runs silently."""
         self._kernel = kernel
         logger.info("Scheduler bound to Kernel engine")
+
+    def register_callback(self, action: str, callback):
+        """Register async callback for action='callback'.
+
+        callback receives (job_id, message, owner_id).
+        On trigger, calls callback directly, skips sender/learner/kernel.
+        """
+        self._callbacks[action] = callback
+        logger.info("Scheduler registered callback: action=%s function=%s", action, getattr(callback, "__name__", "unknown"))
 
     def add_job(self, schedule: dict, message: str, owner_id: str = "", action: str = "send") -> dict:
         next_ts = _next_run(schedule)
         if next_ts is None:
-            return {"error": "Expired or unable to calculate next run time"}
+            return {"error": "Expired or cannot calculate next run time"}
         is_rec = 1 if schedule["type"] != "at" else 0
         conn = sqlite3.connect(self.db_path)
         try:
@@ -257,7 +268,7 @@ class CronScheduler:
             conn.commit()
             if cur.rowcount > 0:
                 return {"result": f"Cron job {job_id} deleted"}
-            return {"error": f"Cron job id={job_id} not found"}
+            return {"error": f"Job not found id={job_id} cron job"}
         finally:
             conn.close()
 
@@ -272,7 +283,7 @@ class CronScheduler:
             if cur.rowcount > 0:
                 status = "enabled" if enabled else "paused"
                 return {"result": f"Cron job {job_id} {status}"}
-            return {"error": f"Cron job id={job_id} not found"}
+            return {"error": f"Job not found id={job_id} cron job"}
         finally:
             conn.close()
 
@@ -280,25 +291,49 @@ class CronScheduler:
 
     async def run(self):
         if not self._sender:
-            raise RuntimeError("Scheduler sender not set (call set_sender first)")
+            raise RuntimeError("Scheduler has no sender function set (call set_sender)")
 
         self._running = True
         logger.info("Scheduler started (polling every 10s)")
 
+        # ── 启动修复：重算所有过期 next_run，避免死锁 ──
+        _fix_conn = sqlite3.connect(self.db_path)
+        try:
+            _overdue = _fix_conn.execute(
+                "SELECT id, schedule FROM cron_jobs WHERE next_run <= ? AND enabled = 1 AND is_recurring = 1",
+                [time.time()],
+            ).fetchall()
+            for row in _overdue:
+                sch = json.loads(row[1])
+                new_ts = _next_run(sch)
+                if new_ts:
+                    _fix_conn.execute(
+                        "UPDATE cron_jobs SET next_run = ? WHERE id = ?",
+                        [new_ts, row[0]],
+                    )
+            if _overdue:
+                _fix_conn.commit()
+                logger.info("🔄 启动修复: 重算 %d 个过期 cron 的 next_run", len(_overdue))
+        except Exception as _fe:
+            logger.error("❌ 启动修复失败: %s", _fe)
+        finally:
+            _fix_conn.close()
+
+        heartbeat_interval = 5  # write heartbeat every 5s
         tick_count = 0
 
         while self._running:
             try:
                 await self._tick()
                 tick_count += 1
-                if tick_count % 1 == 0:  # Write heartbeat every tick (~10s, sufficient)
+                if tick_count % 1 == 0:  # write heartbeat every cycle (~10s, enough)
                     try:
-                        with open(HEARTBEAT_PATH, "w", encoding="utf-8") as f:
+                        with open(HEARTBEAT_PATH, "w") as f:
                             f.write(str(time.time()))
                     except Exception:
                         pass
             except Exception as e:
-                logger.error("Scheduler polling exception: %s", e)
+                logger.error("Scheduler poll error: %s", e)
             await asyncio.sleep(10)
 
         logger.info("Scheduler stopped")
@@ -320,7 +355,7 @@ class CronScheduler:
             return
 
         for row in rows:
-            job_id, schedule_json, message, owner_id, action, _enabled, is_rec = (
+            job_id, schedule_json, message, owner_id, action, enabled, is_rec = (
                 row[0],
                 row[1],
                 row[2],
@@ -335,9 +370,9 @@ class CronScheduler:
             if schedule.get("type") == "cron" and not _cron_match(schedule.get("expr", ""), now_dt):
                 continue
 
-            logger.info("Cron job triggered: id=%d action=%s message=%s", job_id, action, message[:60])
+            logger.info("Cron triggered: id=%d action=%s message=%s", job_id, action, message[:60])
 
-            # Update next_run first (prevent duplicate trigger)
+            # update next_run first (prevent re-trigger)
             if is_rec:
                 sch = schedule.copy()
                 next_ts = _next_run(sch)
@@ -349,8 +384,10 @@ class CronScheduler:
                     finally:
                         conn2.close()
 
-            # Dispatch by action type
-            if action == "custom":
+            # dispatch by action
+            if action in self._callbacks:
+                await self._callbacks[action](job_id, message, owner_id)
+            elif action == "custom":
                 await self._dispatch_custom(job_id, message, owner_id)
             elif action == "learn":
                 await self._dispatch_learn(job_id)
@@ -370,48 +407,84 @@ class CronScheduler:
             try:
                 await self._sender(owner_id, message)
             except Exception as e:
-                logger.error("Cron job %d delivery failed: %s", job_id, e)
+                logger.error("Cron job %d send failed: %s", job_id, e)
 
     async def _dispatch_learn(self, job_id: int):
         if self._learning:
-            logger.warning("Previous learning still in progress, skipping this trigger (job=%d)", job_id)
+            logger.warning("Previous learning still in progress, skip trigger (job=%d)", job_id)
             return
         if not self._learner:
-            logger.error("Cron job %d action=learn but AutoLearner not set", job_id)
+            logger.error("Cron job %d action=learn but no AutoLearner set", job_id)
             return
         self._learning = True
         try:
-            logger.info("🫀 Auto-learning started (job=%d)", job_id)
+            logger.info("AutoLearn started (job=%d)", job_id)
             results = await self._learner.learn_all_topics()
             total_saved = sum(r.get("saved", 0) for r in results)
-            logger.info("🫀 Auto-learning complete (job=%d): %d topics, %d saved", job_id, len(results), total_saved)
+            logger.info("AutoLearn completed (job=%d): %d topics, saved %d", job_id, len(results), total_saved)
         except Exception as e:
-            logger.error("Auto-learning exception (job=%d): %s", job_id, e)
+            logger.error("AutoLearn error (job=%d): %s", job_id, e)
         finally:
             self._learning = False
 
-    async def _dispatch_custom(self, job_id: int, message: str, _owner_id: str):  # noqa: ARG002
-        """Submit message content as LLM task to kernel for processing.
+    async def _dispatch_custom(self, job_id: int, message: str, owner_id: str):
+        """Handle custom cron action: execute a script or submit to kernel.
 
-        Auto-compose a user message, silent execution, no notification to owner.
-        If kernel errors out, log it but don't break the scheduling loop.
+        If message starts with `!script:`, run the given Python script as a subprocess.
+        Otherwise submit the message to kernel as a cron task.
         """
+        if message.startswith("!script:"):
+            script_path_raw = message[len("!script:"):].strip()
+            # Security: restrict scripts to the cron/ directory
+            script_base = os.path.join(os.path.dirname(__file__), "..", "cron")
+            script_path = os.path.abspath(os.path.join(script_base, script_path_raw))
+            if not script_path.startswith(os.path.abspath(script_base)):
+                logger.error("Script path escape denied: %s", script_path_raw)
+                return
+            if not os.path.isfile(script_path):
+                logger.error("Script not found: %s", script_path)
+                return
+            logger.info("Cron job %d executing script: %s", job_id, script_path)
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "python3", script_path,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+                exit_code = proc.returncode
+                out_text = stdout.decode("utf-8", errors="replace")[:2000]
+                err_text = stderr.decode("utf-8", errors="replace")[:1000]
+                logger.info("Script done (job=%d): exit=%d, stdout=%d chars", job_id, exit_code, len(out_text))
+                if err_text:
+                    logger.warning("Script stderr (job=%d): %s", job_id, err_text)
+
+                if exit_code != 0 and owner_id and self._sender:
+                    await self._sender(owner_id, f"[Health Check] Script exit code {exit_code}\n{err_text[:500]}")
+            except asyncio.TimeoutError:
+                logger.error("Script timeout (job=%d): %s", job_id, script_path)
+            except Exception as e:
+                logger.error("Script exception (job=%d): %s", job_id, e)
+            return
+
         if not self._kernel:
-            logger.error("Cron job %d action=custom but Kernel not set", job_id)
+            logger.warning("Cron job %d action=custom but no Kernel set", job_id)
             return
 
         try:
-            # Compose a task message with timestamp so kernel knows it's a scheduled trigger
+            enriched = f"[Cron #{job_id}] {message}"
+            from lib.toolkit import set_global as tk_set_global
 
-            # Build minimal context: system prompt + task message
-            # No notification, no session, fully isolated
-            if _owner_id:
-                pass  # notification channel removed for release
+            if owner_id:
+                tk_set_global("feishu_sender_id", owner_id)
 
-            result = None
-            # Call kernel.run() to process a single message
+            result = await self._kernel.run(
+                user_message=enriched,
+                session=None,
+                platform="cron",
+            )
 
-            logger.info("custom task complete (job=%d): output %d chars", job_id, len(str(result) if result else ""))
+            logger.info("Custom task done (job=%d): output %d chars", job_id, len(str(result or "")))
         except Exception as e:
             logger.error("Custom task exception (job=%d): %s", job_id, e)
 

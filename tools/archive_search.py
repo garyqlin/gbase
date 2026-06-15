@@ -6,11 +6,11 @@ archive_search.py — Archive store 搜索工具（GMem Phase A1）
 
 import logging
 import time
+from typing import Optional
 
-from lib.toolkit import get_global, tool
+from lib.toolkit import tool, get_global
 
 logger = logging.getLogger("archive_search")
-
 
 @tool
 def archive_search(query: str, max_results: int = 5, session_only: bool = False) -> str:

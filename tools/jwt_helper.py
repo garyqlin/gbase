@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/jwt_helper.py
+opprime-core-v2/tools/jwt_helper.py
 
 JWT 编解码/验证工具 — 对接 YF-jwt-utils skill。
 """

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/chain.py
+opprime-core-v2/tools/chain.py
 
 区块链存证工具 — 对接橘子链 (PoA 审计链)。
 从 V0 chain.py 精简移植。
@@ -16,11 +16,11 @@ from lib.toolkit import tool
 
 logger = logging.getLogger(__name__)
 
-ORANGE_URL = os.getenv("OPPRIME_CHAIN_ORANGE_URL", "")
+ORANGE_URL = os.getenv("OPPRIME_CHAIN_ORANGE_URL", "https://opprimeworld.com:4200")
 
 
 @tool()
-async def store_proof(data: str, category: str = "gbase_decision", description: str = "") -> dict:
+async def store_proof(data: str, category: str = "opprime_decision", description: str = "") -> dict:
     """将数据哈希锚定到橘子链进行存证（不可篡改）。"""
     data_hash = "sha256:" + hashlib.sha256(data.encode()).hexdigest()
     payload = {"hash": data_hash, "category": category}

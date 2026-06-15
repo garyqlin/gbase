@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Word document generator"""
+"""Word 文档生成工具"""
 
 import json
 import logging
@@ -12,24 +12,24 @@ logger = logging.getLogger(__name__)
 
 
 @tool()
-async def gen_docx(title: str = "Document", content: list = None, output_path: str = "") -> dict:
+async def gen_docx(title: str = "文档", content: list = None, output_path: str = "") -> dict:
     """
-    Generate Word (.docx) document.
+    生成 Word (.docx) 文档。
 
     Args:
-        title: Document title
-        content: Content structure, each item is {"type": "h1|h2|h3|p|table|image", "text": "...", ...}
-                  - h1/h2/h3: {"type": "h1", "text": "Heading"}
-                  - p: {"type": "p", "text": "Paragraph text"}
-                  - table: {"type": "table", "headers": ["Col1","Col2"], "rows": [["a","b"]]}
+        title: 文档标题
+        content: 内容结构，每项为 {"type": "h1|h2|h3|p|table|image", "text": "...", ...}
+                  - h1/h2/h3: {"type": "h1", "text": "标题"}
+                  - p: {"type": "p", "text": "段落文字"}
+                  - table: {"type": "table", "headers": ["列1","列2"], "rows": [["a","b"]]}
                   - image: {"type": "image", "path": "/path/to/img.png"}
-        output_path: Output path, if empty, auto-generated in ~/Downloads/
+        output_path: 输出路径，为空则自动生成在 ~/Downloads/
 
     Returns:
         {"path": "...", "size": 12345}
     """
     if content is None:
-        content = [{"type": "p", "text": "(Empty document)"}]
+        content = [{"type": "p", "text": "（空文档）"}]
 
     if not output_path:
         output_path = os.path.expanduser(f"~/Downloads/{title}.docx")
@@ -40,7 +40,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 import json
 
 doc = docx.Document()
-# Title
+# 标题
 style = doc.styles['Normal']
 font = style.font
 font.name = 'Microsoft YaHei'
@@ -88,4 +88,4 @@ print("OK:" + {json.dumps(output_path)})
     if os.path.isfile(output_path):
         size = os.path.getsize(output_path)
         return {"path": output_path, "size": size}
-    return {"error": "File not generated"}
+    return {"error": "文件未生成"}

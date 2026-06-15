@@ -7,89 +7,37 @@
 """
 
 import logging
-
-from lib.toolkit import get_global, tool
+from typing import Optional
+from lib.toolkit import tool, get_global
 
 logger = logging.getLogger(__name__)
 
 
 # ── 分类关键词 ──
 _KNOWLEDGE_KW = [
-    "密钥",
-    "key",
-    "key",
-    "token",
-    "密码",
-    "端口",
-    "地址",
-    "路径",
-    "配置",
-    "域名",
-    "URL",
-    "url",
-    "账号",
-    "API",
-    "api",
-    "secret",
-    "版本",
-    "版本号",
-    "型号",
-    "型号",
-    "安装",
-    "安装目录",
-    "家目录",
-    "home",
-    "生日",
-    "出生",
-    "年龄",
-    "关系",  # 个人信息
+    "密钥", "key", "key", "token", "密码",
+    "端口", "地址", "路径", "配置", "域名", "URL", "url",
+    "账号", "API", "api", "secret",
+    "版本", "版本号", "型号", "型号",
+    "安装", "安装目录", "家目录", "home",
+    "生日", "出生", "年龄", "关系",  # 个人信息
 ]
 
 _NOTE_KW = [
-    "学到了",
-    "总结",
-    "总结一下",
-    "心得",
-    "笔记",
-    "调研",
-    "调研报告",
-    "文章",
-    "论文",
-    "读了",
-    "学习了",
-    "学习了",
-    "摘要",
-    "提炼",
-    "概念",
-    "概念理解",
-    "原理",
-    "框架",
-    "模式",
-    "范式",
+    "学到了", "总结", "总结一下", "心得", "笔记",
+    "调研", "调研报告", "文章", "论文", "读了",
+    "学习了", "学习了", "摘要", "提炼",
+    "概念", "概念理解", "原理",
+    "框架", "模式", "范式",
 ]
 
 _EXPERIENCE_KW = [
-    "教训",
-    "经验",
-    "教训",
-    "踩坑",
-    "下次注意",
-    "下次要",
-    "以后先",
-    "应该先",
-    "根因是",
-    "根因",
-    "原因",
-    "原因是",
-    "学到的",
-    "学到",
-    "lesson",
-    "记一条",
-    "记住",
-    "rule",
-    "规则",
-    "模式",
-    "pattern",
+    "教训", "经验", "教训", "踩坑",
+    "下次注意", "下次要", "以后先", "应该先",
+    "根因是", "根因", "原因", "原因是",
+    "学到的", "学到", "lesson",
+    "记一条", "记住", "rule", "规则",
+    "模式", "pattern",
 ]
 
 
@@ -122,7 +70,7 @@ async def remember_info(
     title: str = "",
     tags: str = "",
     source: str = "",
-    force_type: str | None = None,
+    force_type: Optional[str] = None,
     with_kw_category: str = "general",
 ) -> dict:
     """统一记忆入口——自动判断内容类型写入正确层级。
@@ -149,7 +97,6 @@ async def remember_info(
         auto_title = content[:40] if len(content) > 40 else content
         # 记忆一条事实
         from tools.knowledge import remember_fact
-
         result = await remember_fact(
             fact=content,
             category=with_kw_category,
@@ -165,7 +112,6 @@ async def remember_info(
     elif ftype == "note":
         auto_title = title or content[:30]
         from tools.note_tool import note_write
-
         result = await note_write(
             title=auto_title,
             content=content,
@@ -188,7 +134,6 @@ async def remember_info(
         summary = auto_title
         # Experience 用 rule="user_lesson"
         from tools.knowledge import remember_fact
-
         result = await remember_fact(
             fact=content,
             category="workflow",
@@ -207,11 +152,11 @@ async def remember_info(
                     "tags": [t.strip() for t in tags.split(",") if t.strip()] if tags else ["lesson"],
                 }
                 import json
-
                 storage._conn.execute(
                     "INSERT INTO entries (type, content, summary, created_at, confidence, rule) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
-                    ("experience", json.dumps(payload), summary, now, payload["confidence"], payload["rule"]),
+                    ("experience", json.dumps(payload), summary, now,
+                     payload["confidence"], payload["rule"]),
                 )
                 storage._conn.commit()
                 exp_id = storage._conn.lastrowid

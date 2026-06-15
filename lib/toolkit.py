@@ -154,6 +154,7 @@ def hot_cache_stats() -> dict:
 # ── 全局注册表 ──────────────────────────────────────────
 
 _tool_registry: dict[str, callable] = {}
+_tool_health_issues: list[str] = []  # 工具注册/验证过程中发现的问题
 """{tool_name: async_function}"""
 
 _tool_metadata: dict[str, dict] = {}
@@ -450,12 +451,20 @@ def _all_tool_defs() -> list[dict]:
 
 
 def auto_scan(path: str = "tools"):
-    """自动扫描 tools/ 目录下的所有 .py 文件并 import（触发 @tool 延迟注册）。"""
+    """自动扫描 tools/ 目录下的所有 .py 文件并 import（触发 @tool 延迟注册）。
+    
+    企业模式 (2026-06-15): 加载后验证每个工具 callable + schema 完整性，
+    记录问题到 _tool_health_issues 供 /health 暴露。
+    """
     import importlib
     import os
 
+    global _tool_health_issues
+    _tool_health_issues = []
+
     tools_dir = path
     if not os.path.isdir(tools_dir):
+        _tool_health_issues.append(f"工具目录不存在: {tools_dir}")
         logger.warning("工具目录不存在: %s", tools_dir)
         return
 
@@ -469,10 +478,45 @@ def auto_scan(path: str = "tools"):
                     spec.loader.exec_module(importlib.util.module_from_spec(spec))
                     logger.debug("加载工具文件: %s", fname)
                 except Exception as e:
+                    _tool_health_issues.append(f"导入失败 {fname}: {e}")
                     logger.warning("加载工具文件失败 %s: %s", fname, e)
+            else:
+                _tool_health_issues.append(f"无法加载 spec: {fname}")
+
+    # 加载后验证：每个已注册工具必须 callable + schema 完整
+    _validate_tool_registry()
 
 
 # ── 工具定义查询 ────────────────────────────────────────
+
+def _validate_tool_registry():
+    """企业级验证：每个已注册工具 callable + schema 检测。
+    
+    仅检查硬性错误（不可调用/schema缺失），不检查无参数（无参工具合法）。
+    """
+    global _tool_health_issues
+    for name, func in sorted(_tool_registry.items()):
+        if not callable(func):
+            _tool_health_issues.append(f"工具不可调用: {name}")
+            continue
+        meta = _tool_metadata.get(name, {})
+        if not meta:
+            _tool_health_issues.append(f"工具缺少元数据: {name}")
+            continue
+        params = meta.get("parameters", {})
+        if not params or "type" not in params:
+            _tool_health_issues.append(f"工具 schema 不完整: {name}")
+
+def get_tool_health() -> dict:
+    """返回工具系统健康报告。"""
+    return {
+        "total_registered": len(_tool_registry),
+        "health_issues": len(_tool_health_issues),
+        "issues": _tool_health_issues[:20],  # 最多 20 条
+    }
+
+def get_tool_registry_keys() -> list[str]:
+    return sorted(_tool_registry.keys())
 
 
 def available_tools() -> list[str]:

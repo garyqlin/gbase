@@ -58,7 +58,7 @@ async def anysearch_search(
         return _call_mcporter("search", *parts, timeout=15)
     except (RuntimeError, FileNotFoundError) as e:
         logger.warning("anysearch mcporter 失败，回退到 search_web: %s", e)
-        from tools.search import search_web
+        from .search import search_web
 
         return await search_web(query)
 
@@ -78,7 +78,7 @@ async def anysearch_batch_search(queries_json: str = "", query: str = "") -> str
     except (RuntimeError, FileNotFoundError) as e:
         logger.warning("anysearch batch mcporter 失败，回退到 search_web: %s", e)
         q = query or json.loads(queries_json)[0]["query"]
-        from tools.search import search_web
+        from .search import search_web
 
         return await search_web(q)
 
@@ -94,6 +94,6 @@ async def anysearch_extract(url: str) -> str:
         return _call_mcporter("extract", f'url:"{url}"', timeout=30)
     except (RuntimeError, FileNotFoundError) as e:
         logger.warning("anysearch extract mcporter 失败，回退到 fetch_page: %s", e)
-        from tools.search import fetch_page
+        from .search import fetch_page
 
         return await fetch_page(url)

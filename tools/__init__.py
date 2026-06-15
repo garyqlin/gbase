@@ -1,26 +1,32 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/__init__.py
+opprime-core-v2/tools/__init__.py
 
-Tool set and platform route registration.
-Each identity can override in their own configuration.
+工具集和平台路由的默认注册。
+各身份可以在自己的配置中覆写。
 """
 
 from lib.toolkit import register_platform_map, register_toolset
 
-# Tools auto-registered via @tool decorator
-# YF-image-base and scene skills
+# 自动注册的工具（通过 @tool 装饰器自动注册）
+# YF-image-base 和场景技能
 from . import (  # noqa: F401
     anchor_keeper,  # noqa: F401  # noqa: F401
-    archive_search,  # noqa: F401
+    anysearch_tool,  # noqa: F401
+    rescue_tool,  # noqa: F401
+    read_fleet_status,  # noqa: F401 (fleet heartbeat)
+
+    tavily_search,  # noqa: F401
     commit_helper,  # noqa: F401
     crypto_helper,  # noqa: F401
     cua_tools,  # noqa: F401
     data_seeder,  # noqa: F401
     docx_gen,  # noqa: F401
+    feishu_send,  # noqa: F401
     file_checker,  # noqa: F401
-    glink_projects,  # noqa: F401
-    send_file,  # noqa: F401
+    forge_verify,  # noqa: F401
+    gen_pro_report,  # noqa: F401 (Playwright 版，更高 PQ)
+    hive_mind,  # noqa: F401
     honeycomb_search,  # noqa: F401
     jwt_helper,  # noqa: F401
     laser_doc,  # noqa: F401
@@ -28,16 +34,24 @@ from . import (  # noqa: F401
     memory_profiler,  # noqa: F401
     mock_server,  # noqa: F401
     network_tools,  # noqa: F401
+    note_tool,  # noqa: F401
     pdf_gen,  # noqa: F401
     pptx_gen,  # noqa: F401
     prompt_helper,  # noqa: F401
     query_profiler,  # noqa: F401
-    remember_info,  # noqa: F401
     schema_tools,  # noqa: F401
+    search,  # noqa: F401
+    search_bridge,  # noqa: F401
+    search_tunnel,  # noqa: F401
     security_watch,  # noqa: F401
+    self_search,  # noqa: F401
+    send_file,  # noqa: F401
     test_generator,  # noqa: F401
     xlsx_gen,  # noqa: F401
     yf_image_tools,  # noqa: F401
+    knowledge,  # noqa: F401
+    write_file,  # noqa: F401
+    board_tool,  # noqa: F401
 )
 
 
@@ -46,8 +60,8 @@ def register_default():
 
 
 def _register_new_skills():
-    """Register new skills to corresponding toolsets.
-    Import triggers @tool decorator; here we only add keywords.
+    """注册新技能到对应 toolset。
+    导入即触发 @tool 装饰器，这里只添加 keywords。
     """
     register_toolset(
         "test",
@@ -105,16 +119,16 @@ def _register_new_skills():
     register_toolset("crypto", ["加密", "密钥", "证书", "解密", "加解密", "密钥生成"], ["generate_key", "cert_info"])
 
     register_platform_map("cli", ["test", "security", "log_analysis", "commit", "database", "seed", "mock"])
-    # feishu platform removed for release
+    register_platform_map("feishu", ["test", "security", "log_analysis", "commit", "database", "seed", "mock"])
     register_platform_map("api", ["test", "security", "log_analysis", "commit", "database", "seed", "mock"])
 
     register_toolset(
         "web",
-        ["search", "find", "lookup", "query"],
+        ["查", "搜", "搜索", "百度", "谷歌", "查询"],
         [
             "search_web",
-            "fetch_page",
             "honeycomb_search",
+            "fetch_page",
         ],
     )
 
@@ -228,8 +242,8 @@ def _register_new_skills():
     )
 
     register_toolset(
-        "card",
-        ["card", "send card", "notification"],
+        "feishu_card",
+        ["卡片", "发卡片", "消息卡片", "发一个卡片", "飞书卡片"],
         [
             "send_card",
         ],
@@ -245,7 +259,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── Code Index Toolset ──
+    # ── 代码索引工具集 ──
     register_toolset(
         "code",
         [
@@ -268,7 +282,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── Safe Write Toolset ──
+    # ── 安全写入工具集 ──
     register_toolset(
         "safe_write",
         ["改文件", "写文件", "修改", "创建文件", "新建文件", "编辑", "写入"],
@@ -277,7 +291,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── Rollback Toolset (Phase 1: Brake) ──
+    # ── 回滚工具集（波段一：刹车装置）──
     register_toolset(
         "rollback",
         [
@@ -301,7 +315,18 @@ def _register_new_skills():
         ],
     )
 
-    # ── Mirror Toolset ──
+    # ── 鉴面工具集 ──
+    # ── L4 笔记工具集 ──
+    register_toolset(
+        "note",
+        ["笔记", "记住", "记录", "笔记系统", "note", "知识", "知识库"],
+        [
+            "note_write",
+            "note_search",
+            "note_list",
+        ],
+    )
+
     register_toolset(
         "mirror",
         [
@@ -324,7 +349,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── Code Session Toolset ──
+    # ── 代码会话工具集 ──
     register_toolset(
         "code_session",
         [
@@ -345,7 +370,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── Document: Laser Documentation Authoring ──
+    # ── 文档：Laser 文档撰写工具 ──
     register_toolset(
         "doc",
         [
@@ -379,7 +404,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── Anchor Armor: Project Anchor Management ──
+    # ── 锚点盔甲：项目锚点管理 ──
     register_toolset(
         "anchor",
         [
@@ -404,7 +429,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── YF Image Suite ──
+    # ── YF Image 套件 ──
     register_toolset(
         "image",
         [
@@ -434,7 +459,7 @@ def _register_new_skills():
         ],
     )
 
-    # Platform routes (all activated, including rollback)
+    # 平台路由（全部激活，含 rollback）
     register_platform_map(
         "cli",
         [
@@ -452,6 +477,7 @@ def _register_new_skills():
             "rollback",
             "code_session",
             "mirror",
+            "note",
             "anchor",
             "doc",
             "image",
@@ -473,12 +499,13 @@ def _register_new_skills():
             "rollback",
             "code_session",
             "mirror",
+            "note",
             "anchor",
             "doc",
         ],
     )
     register_platform_map(
-        "default",
+        "feishu",
         [
             "web",
             "weather",
@@ -495,12 +522,14 @@ def _register_new_skills():
             "rollback",
             "code_session",
             "mirror",
+            "note",
+            "feishu_card",
             "anchor",
             "doc",
         ],
     )
 
-    # ── Agent-3: intelligence verification toolset ──
+    # ── 大黄蜂专属：情报验证工具集 ──
     register_toolset(
         "verify",
         [
@@ -521,7 +550,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── QA: whitebox (agent-1) + blackbox (agent-3) dual review ──
+    # ── QA 质检：重锤(白盒) + 大黄蜂(黑盒) 双战甲测试 ──
     register_toolset(
         "qa",
         [
@@ -545,7 +574,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── Swarm test: parallel stress test ──
+    # ── 蜂群测试：大黄蜂多工蜂并行压力测试 ──
     register_toolset(
         "swarm",
         [
@@ -566,7 +595,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── Hive: swarm worker manager ──
+    # ── 蜂巢：大黄蜂的工蜂管理器 ──
     register_toolset(
         "beehive",
         [
@@ -590,7 +619,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── Distillation Engine (train local model from experience)
+    # ── 蒸馏引擎（从经验训练本地模型）
     register_toolset(
         "distill",
         [

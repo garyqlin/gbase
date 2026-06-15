@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/schema_tools.py
+opprime-core-v2/tools/schema_tools.py
 
-JSON/YAML schema validation and inference tool.
+JSON/YAML Schema 验证和推断工具 — 对接 YF-schema-validator skill。
 """
 
 import asyncio
@@ -31,18 +31,18 @@ def _build_skill_path() -> str:
 
 @tool()
 async def validate_file(path: str) -> dict:
-    """Validate JSON/YAML file format.
+    """验证 JSON/YAML 文件格式是否正确。
 
     Args:
-        path: Target file path
+        path: 目标文件路径
 
     Returns:
-        Validation result (valid/invalid, error details)
+        验证结果（是否有效、错误详情）
     """
     script = _build_skill_path()
     cmd = ["python3", script, "--action", "validate", "--file", path]
 
-    logger.info("Validating file format: %s", path)
+    logger.info("验证文件格式: %s", path)
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -51,31 +51,31 @@ async def validate_file(path: str) -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
         if proc.returncode != 0:
-            return {"error": f"Validation failed: {stderr.decode().strip()}"}
+            return {"error": f"验证失败: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
     except TimeoutError:
-        return {"error": "File validation timed out"}
+        return {"error": "文件验证超时"}
     except FileNotFoundError:
-        return {"error": f"Skill script not found: {script}"}
+        return {"error": f"找不到 skill 脚本: {script}"}
     except Exception as e:
-        logger.exception("validate_file exception")
+        logger.exception("validate_file 异常")
         return {"error": str(e)}
 
 
 @tool()
 async def infer_schema(path: str) -> dict:
-    """Infer JSON/YAML schema structure from a data file.
+    """从数据文件推断 JSON/YAML schema 结构。
 
     Args:
-        path: Data file path
+        path: 数据文件路径
 
     Returns:
-        Inferred schema structure
+        推断出的 schema 结构
     """
     script = _build_skill_path()
     cmd = ["python3", script, "--action", "infer", "--file", path]
 
-    logger.info("Inferring schema: %s", path)
+    logger.info("推断 schema: %s", path)
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -84,12 +84,12 @@ async def infer_schema(path: str) -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
         if proc.returncode != 0:
-            return {"error": f"Schema inference failed: {stderr.decode().strip()}"}
+            return {"error": f"schema 推断失败: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
     except TimeoutError:
-        return {"error": "Schema inference timed out"}
+        return {"error": "schema 推断超时"}
     except FileNotFoundError:
-        return {"error": f"Skill script not found: {script}"}
+        return {"error": f"找不到 skill 脚本: {script}"}
     except Exception as e:
-        logger.exception("infer_schema exception")
+        logger.exception("infer_schema 异常")
         return {"error": str(e)}

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/knowledge.py
+opprime-core-v2/tools/knowledge.py
 
 知识沉淀工具 — LLM 主动调用，判断什么值得记住。
 
@@ -169,7 +169,11 @@ def _tokenize_for_fts(query: str) -> str:
             if len(p) > 1:
                 tokens.append(f"{p}*")
         else:
-            tokens.append(f"{p}*")
+            # 含连字符的 token 会被 FTS5 unicode61 拆成两个词 -> no such column
+            if '-' in p:
+                tokens.append(f'"{p}"')
+            else:
+                tokens.append(f'{p}*')
     return " OR ".join(tokens) if tokens else query
 
 
@@ -181,7 +185,7 @@ async def search_knowledge(query: str, limit: int = 5) -> dict:
     支持全文检索（FTS5），中文会自动拆分。
 
     Args:
-        query: 搜索关键词，例如 "nginx"、"用户"、"端口"
+        query: 搜索关键词，例如 "nginx"、"羽非"、"端口"
         limit: 最多返回几条（默认 5，最大 20）
     """
     storage = get_global("storage")
@@ -280,9 +284,10 @@ async def search_knowledge_batch(queries: str, limit: int = 3) -> dict:
     """批量搜索知识记忆。当你需要查找多个方向的信息时，用这个代替多次调用 search_knowledge。
 
     Args:
-        queries: 逗号分隔的搜索关键词，例如 "nginx,用户,端口配置,家庭"
+        queries: 逗号分隔的搜索关键词，例如 "nginx,羽非,端口配置,家庭"
         limit: 每个关键词最多返回几条（默认 3，最大 5）
     """
+    results = []
     qlist = [q.strip() for q in queries.split(",") if q.strip()]
     if not qlist:
         return {"result": "没有搜索关键词。", "total": 0}
@@ -387,7 +392,7 @@ async def export_knowledge_md() -> dict:
 
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = [
-        "# GBase 知识库",
+        "# Opprime 知识库",
         "",
         f"> 导出时间：{now_str}",
         f"> 总条数：{len(rows)}",

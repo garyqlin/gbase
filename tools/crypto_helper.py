@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/crypto_helper.py
+opprime-core-v2/tools/crypto_helper.py
 
-Crypto/encryption tool.
+密钥/证书/加解密工具 — 对接 YF-crypto-helper skill。
 """
 
 import asyncio
@@ -31,18 +31,18 @@ def _build_skill_path() -> str:
 
 @tool()
 async def generate_key(key_type: str = "rsa") -> dict:
-    """Generate a key pair.
+    """生成密钥对。
 
     Args:
-        key_type: Key type (rsa/ed25519), default rsa
+        key_type: 密钥类型（rsa/ed25519），默认 rsa
 
     Returns:
-        Key generation result (public/private key paths or content)
+        密钥生成结果（公钥和私钥路径/内容）
     """
     script = _build_skill_path()
     cmd = ["python3", script, "--action", "keygen", "--type", key_type]
 
-    logger.info("Generating key pair: %s", key_type)
+    logger.info("生成密钥对: %s", key_type)
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -51,31 +51,31 @@ async def generate_key(key_type: str = "rsa") -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
         if proc.returncode != 0:
-            return {"error": f"Key generation failed: {stderr.decode().strip()}"}
+            return {"error": f"密钥生成失败: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
     except TimeoutError:
-        return {"error": "Key generation timed out"}
+        return {"error": "密钥生成超时"}
     except FileNotFoundError:
-        return {"error": f"Skill script not found: {script}"}
+        return {"error": f"找不到 skill 脚本: {script}"}
     except Exception as e:
-        logger.exception("generate_key exception")
+        logger.exception("generate_key 异常")
         return {"error": str(e)}
 
 
 @tool()
 async def cert_info(path: str) -> dict:
-    """View X.509 certificate info.
+    """查看 X.509 证书信息。
 
     Args:
-        path: Certificate file path (PEM format)
+        path: 证书文件路径（PEM 格式）
 
     Returns:
-        Certificate details (issuer, validity, subject, etc.)
+        证书详细信息（颁发者、有效期、主题等）
     """
     script = _build_skill_path()
     cmd = ["python3", script, "--action", "cert-info", "--file", path]
 
-    logger.info("Viewing certificate info: %s", path)
+    logger.info("查看证书信息: %s", path)
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -84,12 +84,12 @@ async def cert_info(path: str) -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
         if proc.returncode != 0:
-            return {"error": f"Certificate query failed: {stderr.decode().strip()}"}
+            return {"error": f"查看证书失败: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
     except TimeoutError:
-        return {"error": "Certificate query timed out"}
+        return {"error": "证书查询超时"}
     except FileNotFoundError:
-        return {"error": f"Skill script not found: {script}"}
+        return {"error": f"找不到 skill 脚本: {script}"}
     except Exception as e:
-        logger.exception("cert_info exception")
+        logger.exception("cert_info 异常")
         return {"error": str(e)}

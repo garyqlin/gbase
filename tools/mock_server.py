@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/mock_server.py
+opprime-core-v2/tools/mock_server.py
 
-Local mock API server.
-Mock server for agent-2 (design arm).
+YF-api-mock-server 集成：启动本地 Mock API 服务器。
+为一台绘墨（设计臂）提供前端 mock 能力。
 """
 
 import asyncio
@@ -17,20 +17,20 @@ from lib.toolkit import tool
 logger = logging.getLogger(__name__)
 SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-api-mock-server/scripts")
 
-# Track active mock server processes
+# 跟踪已启动的 mock server 进程
 _active_mock_servers: dict[int, dict] = {}
 
 
 @tool()
 async def start_mock_server(description: str, port: int = 4000) -> dict:
-    """Start a local Mock API server for independent work before backend development.
+    """启动本地 Mock API 服务器，后端开发前可独立工作。
 
     Args:
-        description: API description, e.g. "GET /api/users, POST /api/users, GET /api/users/1, DELETE /api/users/1"
-        port: Port number (default 4000)
+        description: API 描述，如 "GET /api/users, POST /api/users, GET /api/users/1, DELETE /api/users/1"
+        port: 端口号（默认4000）
 
     Returns:
-        Server process information and status
+        服务器进程信息和状态
     """
     cmd = [
         sys.executable or "python3",
@@ -49,15 +49,15 @@ async def start_mock_server(description: str, port: int = 4000) -> dict:
             stderr=asyncio.subprocess.PIPE,
         )
 
-        # Wait for startup confirmation (2 seconds)
+        # 等待启动确认（2秒）
         await asyncio.sleep(2)
 
-        # Check if still running
+        # 检查是否正在运行
         if proc.returncode is not None:
             stdout, stderr = await proc.communicate()
             return {
                 "success": False,
-                "error": "Server failed to start",
+                "error": "服务器启动失败",
                 "output": stdout.decode()[:1000],
                 "errors": stderr.decode()[:500],
             }
@@ -83,13 +83,13 @@ async def start_mock_server(description: str, port: int = 4000) -> dict:
 
 @tool()
 async def stop_mock_server(port: int = 4000) -> dict:
-    """Stop the running Mock API server.
+    """停止正在运行的 Mock API 服务器。
 
     Args:
-        port: Port of the service to stop (default 4000)
+        port: 要停止的服务端口（默认4000）
 
     Returns:
-        Stop result
+        停止结果
     """
     server = _active_mock_servers.pop(port, None)
     if server:

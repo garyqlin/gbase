@@ -1,53 +1,97 @@
 # SPDX-License-Identifier: MIT
 """
-search_tunnel.py — Tunnel search bridge
-Prioritize calling ProSearch via local SSH tunnel (127.0.0.1:18430),
-fallback to existing self-crawling engine when unavailable.
+search_tunnel.py — 搜索隧道桥（自爬版）
+
+国内网络环境下自爬搜狗搜索引擎。
+不再依赖第三方库或外部服务进程。
+搜狗在国内稳定可用，无反爬门槛。
 """
 
 import json
 import logging
-import urllib.error
-import urllib.request
+import re
+import urllib.parse
+
+import httpx
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-TUNNEL_URL = "http://127.0.0.1:18430/search"
-TUNNEL_TIMEOUT = 8  # Short tunnel timeout for fast degradation
+SEARCH_TIMEOUT = 12
+MAX_RESULTS = 8
+
+# 搜狗反爬规避：使用桌面版 User-Agent
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/125.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+}
 
 
 async def search_via_tunnel(query: str, count: int = 8) -> list[dict] | None:
-    """Call local ProSearch via SSH tunnel. Returns result list on success, None on failure."""
+    """自爬搜狗搜索，成功返回结果列表，失败返回 None。"""
     import asyncio
 
     try:
-        payload = json.dumps({"query": query, "count": count}).encode("utf-8")
-
-        # Execute blocking HTTP request via asyncio thread pool
+        url = f"https://www.sogou.com/web?query={urllib.parse.quote(query)}"
         loop = asyncio.get_event_loop()
 
-        def _do_req():
-            req = urllib.request.Request(
-                TUNNEL_URL, data=payload, headers={"Content-Type": "application/json"}, method="POST"
+        def _fetch():
+            with httpx.Client(timeout=SEARCH_TIMEOUT, verify=False) as client:
+                resp = client.get(url, headers=HEADERS, follow_redirects=True)
+                resp.raise_for_status()
+                return resp.text
+
+        html = await loop.run_in_executor(None, _fetch)
+        soup = BeautifulSoup(html, "html.parser")
+        results = []
+
+        # 搜狗结果解析：多个可能的容器类名
+        for item in soup.select(
+            ".vrwrap, .rb, .vr-title, .vr_common, .result, .vr5k, .vrwrap, .res-list li"
+        ):
+            title_el = item.select_one("h3 a, .vr-title a, a.vr-title, a[href^='http']")
+            if not title_el:
+                continue
+
+            title = title_el.get_text(strip=True)
+            href = title_el.get("href", "")
+            if not href or href.startswith("#"):
+                continue
+
+            # snippet
+            snip_el = item.select_one(
+                ".star-wiki, .str-text, .star-like, .str_info, .star-wiki, .space-txt"
             )
-            with urllib.request.urlopen(req, timeout=TUNNEL_TIMEOUT) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+            snippet = snip_el.get_text(strip=True)[:300] if snip_el else ""
 
-        data = await loop.run_in_executor(None, _do_req)
+            results.append({
+                "title": title,
+                "url": href,
+                "snippet": snippet,
+                "source": "sogou",
+            })
 
-        if not data:
-            return None
+            if len(results) >= count:
+                break
 
-        results = data.get("results", [])
         if not results:
+            logger.warning("搜狗解析结果为空: %s", query)
             return None
 
-        logger.info("Tunnel search success: %s -> %d results", query, len(results))
+        logger.info("搜狗搜索成功: %s -> %d 条", query, len(results))
         return results
 
-    except (urllib.error.URLError, ConnectionRefusedError, TimeoutError, OSError, json.JSONDecodeError) as e:
-        logger.warning("Tunnel search failed (%s), falling back to self-crawling engine", str(e)[:60])
+    except httpx.TimeoutException:
+        logger.warning("搜狗搜索超时: %s", query)
+        return None
+    except httpx.HTTPStatusError as e:
+        logger.warning("搜狗搜索 HTTP %d: %s", e.response.status_code, query)
         return None
     except Exception as e:
-        logger.warning("Tunnel search exception (%s), falling back to self-crawling engine", str(e)[:60])
+        logger.warning("搜狗搜索异常 (%s)，回退自爬引擎", str(e)[:80])
         return None

@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/commit_helper.py
+opprime-core-v2/tools/commit_helper.py
 
-AI commit message generator.
-Auto-commit helper for agent-1 (engineering arm).
+YF-ai-commit-gen 集成：自动生成 commit message。
+为重锤（工程臂）提供自动 commit 能力。
 """
 
 import asyncio
@@ -21,16 +21,16 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-ai-commit-gen/scripts")
 async def suggest_commit_message(
     project_dir: str = "", commit_type: str = "", scope: str = "", message: str = ""
 ) -> dict:
-    """Generate a suggested commit message from the current git diff.
+    """根据当前 git diff 生成建议的 commit message。
 
     Args:
-        project_dir: Project directory (default: current working directory)
-        commit_type: Force specific type (feat/fix/docs/refactor/test/chore)
-        scope: Force specific scope
-        message: Custom description text. If not provided, auto-inferred from diff.
+        project_dir: 项目目录（默认战甲工作目录）
+        commit_type: 强制指定类型 feat/fix/docs/refactor/test/chore
+        scope: 强制指定范围
+        message: 自定义描述文本，不传则从 diff 自动推断
 
     Returns:
-        Suggested commit message
+        建议的 commit message
     """
     workdir = project_dir or os.path.expanduser("~")
 
@@ -45,7 +45,7 @@ async def suggest_commit_message(
         cmd.extend(["--scope", scope])
     if message:
         cmd.extend(["--message", message])
-    cmd.append("<<<")  # auto-confirm via stdin
+    cmd.append("<<<")  # 用输入自动确认
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -56,13 +56,13 @@ async def suggest_commit_message(
             stdin=asyncio.subprocess.PIPE,
         )
 
-        # Input "n" to cancel commit (only generate suggestion)
+        # 输入 "n" 取消提交（只生成建议）
         stdout, stderr = await asyncio.wait_for(proc.communicate(input=b"n\n"), timeout=15)
 
         stdout_text = stdout.decode("utf-8", errors="replace")
         stderr_text = stderr.decode("utf-8", errors="replace")
 
-        # Extract commit message section
+        # 提取 commit message 部分
         msg = ""
         lines = stdout_text.split("\n")
         in_msg = False
@@ -82,6 +82,6 @@ async def suggest_commit_message(
             "errors": stderr_text[:500] if stderr_text else "",
         }
     except TimeoutError:
-        return {"success": False, "error": "commit suggestion timed out (15 seconds)"}
+        return {"success": False, "error": "commit 建议超时（15秒）"}
     except Exception as e:
         return {"success": False, "error": str(e)}

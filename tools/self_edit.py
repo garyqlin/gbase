@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
 """
-self_edit.py — Agent 自修代码工具
+self_edit.py — 波塞冬自修代码工具
 
-让 Agent 能安全地修改自己的源代码（tools/、lib/ 下的 .py 文件）。
+让波塞冬能安全地修改自己的源代码（tools/、lib/ 下的 .py 文件）。
 核心安全机制：
   1. 改前自动备份到 ~/.gbase_rollback/
   2. 改后自动语法检查
   3. 回退支持（rollback_restore）
-  4. 只能改 ~/gbase-home/ 内的文件
+  4. 只能改 ~/poseidon-home/ 内的文件
 
 用法：
   self_edit(path="tools/exec.py", old="旧代码片段", new="新代码片段")
@@ -17,17 +17,19 @@ self_edit.py — Agent 自修代码工具
   self_edit_rollback(path="tools/exec.py")  ← 回退到最近备份
 """
 
-import ast
-import hashlib
 import os
 import shutil
+import ast
+import re
 import time
+import hashlib
 from pathlib import Path
+from typing import Optional
 
 from lib.toolkit import tool
 
 # ── 安全范围界定 ──
-_INSTANCE_HOME = Path(__file__).resolve().parent.parent  # ~/gbase-home/
+_INSTANCE_HOME = Path(__file__).resolve().parent.parent  # ~/poseidon-home/
 _ALLOWED_DIRS = [
     _INSTANCE_HOME / "tools",
     _INSTANCE_HOME / "lib",
@@ -42,22 +44,24 @@ _ALLOWED_DIRS = [
 _LIB_DIRS = [_INSTANCE_HOME / "lib" / d for d in ["channels", "identity"]]
 _ALLOWED_DIRS.extend([d for d in _LIB_DIRS if d.exists()])
 # 额外允许的 lib 目录（共享底座的可写副本）
-_LIB_SHARED = Path("$HOME/gbase/lib")
+_LIB_SHARED = Path("/Users/gary/opprime/lib")
 if _LIB_SHARED.exists():
     _ALLOWED_DIRS.append(_LIB_SHARED)
 
 _ROLLBACK_DIR = _INSTANCE_HOME / ".gbase_rollback"
 _ROLLBACK_DIR.mkdir(parents=True, exist_ok=True)
 
-
 # ── 路径校验 ──
 def _safety_check(path: str) -> tuple[Path, str]:
     """解析并验证路径在安全范围内。返回 (绝对路径, 错误信息)"""
     raw = Path(path)
-    if raw.suffix != ".py":
+    if not raw.suffix == ".py":
         return None, "仅支持 .py 文件修改"
 
-    abs_path = raw.resolve() if raw.is_absolute() else (_INSTANCE_HOME / raw).resolve()
+    if raw.is_absolute():
+        abs_path = raw.resolve()
+    else:
+        abs_path = (_INSTANCE_HOME / raw).resolve()
 
     # 必须在允许目录下
     for allowed in _ALLOWED_DIRS:
@@ -94,7 +98,7 @@ def _backup(path: Path) -> str:
 def _verify_syntax(path: Path) -> tuple[bool, str]:
     """语法检查"""
     try:
-        with open(path, encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             source = f.read()
         ast.parse(source)
         return True, "语法检查通过"
@@ -106,10 +110,9 @@ def _verify_syntax(path: Path) -> tuple[bool, str]:
 
 # ── 工具函数 ──
 
-
 @tool()
 async def self_edit(
-    path: str,
+    filepath: str,
     old: str = "",
     new: str = "",
     search: str = "",
@@ -125,7 +128,7 @@ async def self_edit(
     C. 行后插入（insert_after 匹配文本 → 在匹配行后插入 content）
 
     Args:
-        path: 文件路径（相对于 ~/gbase-home/ 或绝对路径）
+        filepath: 文件路径（相对于 ~/poseidon-home/ 或绝对路径）
         old: 模式 A — 要替换的原始文本
         new: 模式 A — 替换后的新文本
         search: 模式 B — 要搜索整段文本
@@ -133,7 +136,7 @@ async def self_edit(
         insert_after: 模式 C — 在此文本所在行之后插入
         content: 模式 C — 要插入的内容
     """
-    abs_path, err = _safety_check(path)
+    abs_path, err = _safety_check(filepath)
     if err:
         return {"success": False, "error": err}
 
@@ -147,7 +150,7 @@ async def self_edit(
         # A: 精确替换
         count = original.count(old)
         if count == 0:
-            return {"success": False, "error": "未找到匹配文本（0次匹配）", "path": str(abs_path)}
+            return {"success": False, "error": f"未找到匹配文本（0次匹配）", "path": str(abs_path)}
         elif count > 1:
             return {
                 "success": False,
@@ -160,7 +163,7 @@ async def self_edit(
         # B: 整段替换
         count = original.count(search)
         if count == 0:
-            return {"success": False, "error": "未找到搜索文本（0次匹配）", "path": str(abs_path)}
+            return {"success": False, "error": f"未找到搜索文本（0次匹配）", "path": str(abs_path)}
         elif count > 1:
             return {
                 "success": False,
@@ -186,10 +189,7 @@ async def self_edit(
         modified = "\n".join(lines)
 
     else:
-        return {
-            "success": False,
-            "error": "请提供 old+new（精确替换）或 search+replace（整段替换）或 insert_after+content（行后插入）",
-        }
+        return {"success": False, "error": "请提供 old+new（精确替换）或 search+replace（整段替换）或 insert_after+content（行后插入）"}
 
     # ── 改前备份 ──
     backup_name = _backup(abs_path)
@@ -225,7 +225,7 @@ async def self_edit_verify(path: str) -> dict:
     """语法检查工具源码文件（不改内容，只验证语法）
 
     Args:
-        path: 文件路径（相对于 ~/gbase-home/ 或绝对路径）
+        path: 文件路径（相对于 ~/poseidon-home/ 或绝对路径）
     """
     abs_path, err = _safety_check(path)
     if err:
@@ -248,7 +248,7 @@ async def self_edit_rollback(path: str, version: str = "") -> dict:
     """回滚到之前备份的版本
 
     Args:
-        path: 文件路径（相对于 ~/gbase-home/ 或绝对路径）
+        path: 文件路径（相对于 ~/poseidon-home/ 或绝对路径）
         version: 可选，指定备份文件中的特定时间戳或哈希
     """
     abs_path, err = _safety_check(path)
@@ -293,19 +293,31 @@ async def self_edit_rollback(path: str, version: str = "") -> dict:
 
 @tool()
 async def self_edit_restart() -> dict:
-    """重启 Agent 进程（launchd 自动拉起）
+    """重启波塞冬进程（launchd 自动拉起）
 
     修改 lib/ 下的代码后需要重启才能生效。
     launchd KeepAlive 配置会在进程退出后自动重新拉起。
     返回后会延迟 2 秒自杀，launchd 接管自动拉起。
     """
     import threading
-
+    import json
     current_pid = os.getpid()
+
+    # ── 写入心跳探测文件 ──
+    heartbeat_path = _INSTANCE_HOME / ".restart_heartbeat"
+    try:
+        heartbeat_path.write_text(
+            json.dumps({
+                "status": "restarting",
+                "old_pid": current_pid,
+                "timestamp": time.time(),
+            })
+        )
+    except Exception:
+        pass
 
     def _delayed_exit():
         import time
-
         time.sleep(2.0)
         os._exit(0)
 
@@ -315,6 +327,7 @@ async def self_edit_restart() -> dict:
         "success": True,
         "message": f"将在 2 秒后重启进程 (PID={current_pid})，launchd 自动拉起",
         "pid": current_pid,
+        "heartbeat": str(heartbeat_path),
     }
 
 
@@ -322,11 +335,11 @@ async def self_edit_restart() -> dict:
 async def self_edit_read_source(path: str, offset: int = 0, max_chars: int = 8000) -> dict:
     """读取自己的源码文件（tools/、lib/ 下的 .py 文件）
 
-    Agent 的 read_file 主要用于读外部文件（用户项目、文档等）。
+    波塞冬的 read_file 主要用于读外部文件（用户项目、文档等）。
     这个工具专门用于读自己的源码，方便定位和修复 bug。
 
     Args:
-        path: 文件路径（相对于 ~/gbase-home/ 或绝对路径）
+        path: 文件路径（相对于 ~/poseidon-home/ 或绝对路径）
         offset: 跳过多少字符（默认 0）
         max_chars: 最多读取多少字符（默认 8000，设 0 表示全量）
     """
@@ -409,7 +422,6 @@ async def self_edit_remember_reason(
     """
     try:
         from lib.storage import Storage
-
         _st = Storage()
         _summary = f"[自修] {root_cause[:80]}"
         _detail = f"类型: {fix_type}"
@@ -436,3 +448,4 @@ async def self_edit_remember_reason(
         return {"success": False, "error": "数据库连接不可用"}
     except Exception as e:
         return {"success": False, "error": f"记录失败: {e}"}
+

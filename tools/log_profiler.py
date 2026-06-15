@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/log_profiler.py
+opprime-core-v2/tools/log_profiler.py
 
-Multi-source log analyzer.
-Suitable for agent-3 (research) + standard edition.
+YF-log-analyzer 集成：多源日志分析工具。
+适合大黄蜂（调研臂）+ 标准版。
 """
 
 import asyncio
@@ -20,15 +20,15 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-log-analyzer/scripts")
 
 @tool()
 async def analyze_log_file(file_path: str, log_format: str = "auto", slow_threshold_ms: int = 1000) -> dict:
-    """Analyze a log file for error patterns, slow requests, and resource alerts.
+    """分析日志文件，检测错误模式、慢请求、资源告警。
 
     Args:
-        file_path: Log file path
-        log_format: Log format: auto / text / json
-        slow_threshold_ms: Slow request threshold in ms (default 1000)
+        file_path: 日志文件路径
+        log_format: 日志格式 auto / text / json
+        slow_threshold_ms: 慢请求阈值（毫秒，默认1000）
 
     Returns:
-        Analysis report (error stats, slow requests, resource alerts)
+        分析报告（错误统计、慢请求、资源告警）
     """
     cmd = [
         sys.executable or "python3",
@@ -40,7 +40,7 @@ async def analyze_log_file(file_path: str, log_format: str = "auto", slow_thresh
         "--slow-threshold",
         str(slow_threshold_ms),
         "--output",
-        "/tmp/gbase-log-analysis.json",
+        "/tmp/opprime-log-analysis.json",
     ]
 
     try:
@@ -52,10 +52,10 @@ async def analyze_log_file(file_path: str, log_format: str = "auto", slow_thresh
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
 
-        # Read JSON report
-        report_path = "/tmp/gbase-log-analysis.json"
+        # 读取 JSON 报告
+        report_path = "/tmp/opprime-log-analysis.json"
         if os.path.exists(report_path):
-            with open(report_path, encoding="utf-8") as f:
+            with open(report_path) as f:
                 report = json.load(f)
             os.remove(report_path)
             return report
@@ -66,6 +66,6 @@ async def analyze_log_file(file_path: str, log_format: str = "auto", slow_thresh
             "stderr": stderr.decode("utf-8", errors="replace")[:500],
         }
     except TimeoutError:
-        return {"success": False, "error": "Log analysis timed out (15s)"}
+        return {"success": False, "error": "日志分析超时（15秒）"}
     except Exception as e:
         return {"success": False, "error": str(e)}

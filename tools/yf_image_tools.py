@@ -2,7 +2,7 @@
 """
 yf_image_tools.py — YF Image ecosystem @tool file.
 
-Registers 7 tools for the gbase tool system:
+Registers 7 tools for the opprime-core-v2 tool system:
  1. yf_generate_image     — T2I via YF-image-base
  2. yf_recognize_image    — VLM image understanding
  3. yf_optimize_text      — LLM text optimization
@@ -12,7 +12,6 @@ Registers 7 tools for the gbase tool system:
  7. yf_create_ppt         — PPT generation (WIP delegates)
 """
 
-import importlib
 import json
 import os
 import subprocess
@@ -149,7 +148,10 @@ def yf_create_infographic(
             "--system-prompt",
             "You are an infographic layout expert. Return only the template name.",
         )
-        layout = analysis["result"].strip().lower() if analysis.get("status") == "ok" else "comparison_side_by_side"
+        if analysis.get("status") == "ok":
+            layout = analysis["result"].strip().lower()
+        else:
+            layout = "comparison_side_by_side"
 
     # Stage 2: Build the T2I prompt
     prompt_text = (
@@ -326,9 +328,9 @@ def yf_create_ppt(
     else:
         # Standard mode: PPTX via docx skill
         try:
-            importlib.util.find_spec(".docx_gen", package=__package__)
+            from . import docx_gen
 
-            f"/tmp/yf-ppt-{int(__import__('time').time())}.pptx"
+            output_path = f"/tmp/yf-ppt-{int(__import__('time').time())}.pptx"
             # docx_gen handles the actual PPTX generation
             return json.dumps(
                 {

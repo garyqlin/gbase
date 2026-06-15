@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/lib/tracer.py
+opprime-core-v2/lib/tracer.py
 
-Execution observability — auto-trace each tool call, output exact failure step number.
+执行可观测性 —— 每步工具调用自动记录 trace，失败时精确输出失败步骤号。
 
-Architecture:
-- Non-intrusive: records at the tool call point in kernel._loop(), does not modify tool functions
-- Async writes: JSONL file, <50ms overhead, non-blocking
-- Failure analysis: callers use get_failure_analysis() to get "step N failed, why"
-- Cross-session correlation: same task_id trace files can be loaded by subsequent tasks
+架构：
+- 无侵入：通过包装 kernel._loop() 中的工具调用点记录，不改工具函数本身
+- 异步写入：JSONL 文件，<50ms 开销，不阻塞主流程
+- 失败分析：调用方可通过 get_failure_analysis() 拿到"第N步失败，失败原因"
+- 跨session关联：同一个 task_id 的 trace 文件可被后续任务读入
 """
 
 import json
@@ -18,19 +18,19 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# ── Storage ──
+# ── 存储 ──
 
 TRACE_DIR = Path(__file__).resolve().parent.parent / "data" / "traces"
 
-# Currently active trace context (thread-safe: only one conversation at a time)
+# 当前活跃的 trace 上下文（线程安全：同一时间只有一个对话）
 _current_trace: dict | None = None
 
 
-# ── Init ──
+# ── 初始化 ──
 
 
 def init_trace(task_id: str, task_description: str = ""):
-    """Start a new trace record"""
+    """开始一个新的 trace 追踪记录"""
     global _current_trace
     TRACE_DIR.mkdir(parents=True, exist_ok=True)
     _current_trace = {
@@ -48,12 +48,12 @@ def init_trace(task_id: str, task_description: str = ""):
             "timestamp": time.time(),
         },
     )
-    logger.info("[trace %s] initialized", task_id)
+    logger.info("[trace %s] 初始化", task_id)
     return task_id
 
 
 def close_trace(status: str = "completed", error: str = ""):
-    """Close the current trace"""
+    """关闭当前 trace"""
     global _current_trace
     if not _current_trace:
         return
@@ -69,11 +69,61 @@ def close_trace(status: str = "completed", error: str = ""):
             "elapsed": time.time() - _current_trace["start_time"],
         },
     )
-    logger.info("[trace %s] closed: status=%s", _current_trace.get("task_id", "?"), status)
+    logger.info("[trace %s] 关闭: status=%s", _current_trace.get("task_id", "?"), status)
     _current_trace = None
 
 
-# ── Tool Call Recording ──
+# ── 工具调用记录 ──
+
+
+def record_knowledge_hit(hit_count: int, query: str, hit_summaries: list[str] = None):
+    """记录 Knowledge 自动检索命中。"""
+    global _current_trace
+    if not _current_trace:
+        return
+    entry = {
+        "_type": "knowledge_hit",
+        "count": hit_count,
+        "query": query[:200],
+        "matches": (hit_summaries or [])[:5],
+        "timestamp": time.time(),
+    }
+    _current_trace["steps"].append(entry)
+    _write_entry("knowledge_hit", entry)
+
+
+def record_llm_call(model: str, prompt_chars: int, prompt_tokens_est: int, response_preview: str, duration_ms: float, status: str = "ok"):
+    """记录一次 LLM API 调用。"""
+    global _current_trace
+    if not _current_trace:
+        return
+    entry = {
+        "_type": "llm_call",
+        "model": model,
+        "prompt_chars": prompt_chars,
+        "prompt_tokens_est": prompt_tokens_est,
+        "response": response_preview[:200],
+        "duration_ms": round(duration_ms, 1),
+        "status": status,
+        "timestamp": time.time(),
+    }
+    _current_trace["steps"].append(entry)
+    _write_entry("llm_call", entry)
+
+
+def record_phase(name: str, detail: str = ""):
+    """记录处理阶段的标记（如：知识检索完成、prompt构建、skillopt注入等）。"""
+    global _current_trace
+    if not _current_trace:
+        return
+    entry = {
+        "_type": "phase",
+        "name": name,
+        "detail": detail[:200],
+        "timestamp": time.time(),
+    }
+    _current_trace["steps"].append(entry)
+    _write_entry("phase", entry)
 
 
 def record_tool_call(
@@ -84,23 +134,25 @@ def record_tool_call(
     status: str = "ok",
     error: str = "",
     duration_ms: float = 0,
+    llm_reasoning: str = "",  # [Fix #4] LLM 推理上下文快照
 ):
-    """Record a single tool call (called by kernel._loop).
+    """记录一次工具调用（由 kernel._loop 调用）。
 
     Args:
-        step: Step number (starts from 1)
-        tool_name: Tool name
-        input_digest: Input digest (first 120 chars of params)
-        output_digest: Output digest (first 200 chars of result)
+        step: 步骤号（从1开始递增）
+        tool_name: 工具名称
+        input_digest: 输入摘要（参数的前120字）
+        output_digest: 输出摘要（结果的前200字）
         status: ok | error | timeout
-        error: Error message (required when status=error)
-        duration_ms: Execution duration (milliseconds)
+        error: 错误信息（status=error时必填）
+        duration_ms: 执行耗时（毫秒）
     """
     global _current_trace
     if not _current_trace:
         return
 
     entry = {
+        "_type": "tool_call",
         "step": step,
         "tool": tool_name,
         "input": input_digest[:200],
@@ -108,6 +160,7 @@ def record_tool_call(
         "status": status,
         "error": error[:500] if error else "",
         "duration_ms": round(duration_ms, 1),
+        "llm_reasoning": llm_reasoning[:200] if llm_reasoning else "",  # [Fix #4]
         "timestamp": time.time(),
     }
     _current_trace["steps"].append(entry)
@@ -115,15 +168,15 @@ def record_tool_call(
 
     if status == "error":
         logger.warning(
-            "[trace %s] step%d tool %s failed: %s", _current_trace.get("task_id", "?"), step, tool_name, error[:100]
+            "[trace %s] 步骤%d 工具 %s 失败: %s", _current_trace.get("task_id", "?"), step, tool_name, error[:100]
         )
 
 
-# ── Failure Analysis ──
+# ── 失败分析 ──
 
 
 def get_failure_analysis() -> dict:
-    """Analyze current trace, return failure info.
+    """分析当前 trace，返回失败信息。
 
     Returns:
         {
@@ -144,10 +197,11 @@ def get_failure_analysis() -> dict:
     failed = None
 
     for s in steps:
-        if s["status"] == "error":
+        if s.get("_type") == "tool_call" and s.get("status") == "error":
             failed = s
             break
-        passed_before_fail += 1
+        if s.get("_type") == "tool_call":
+            passed_before_fail += 1
 
     if not failed:
         return {
@@ -156,33 +210,33 @@ def get_failure_analysis() -> dict:
             "suggestion": None,
         }
 
-    # Failure type inference
+    # 失败类型推断
     error_text = (failed.get("error") or "").lower()
     if "timeout" in error_text or "timeout" in failed.get("output", ""):
-        failure_type = "Tool Timeout"
+        failure_type = "工具超时"
     elif "not found" in error_text or "404" in error_text:
-        failure_type = "Resource Not Found"
+        failure_type = "资源不存在"
     elif "auth" in error_text or "401" in error_text or "403" in error_text:
-        failure_type = "Permission Denied"
+        failure_type = "权限不足"
     elif "connection" in error_text or "connect" in error_text or "refused" in error_text:
-        failure_type = "Connection Failed"
+        failure_type = "连接失败"
     elif "500" in error_text or "error" in error_text:
-        failure_type = "Server Error"
+        failure_type = "服务端错误"
     elif "timeout" in error_text:
-        failure_type = "Timeout"
+        failure_type = "超时"
     else:
-        failure_type = "Unknown Error"
+        failure_type = "未知错误"
 
-    # Suggestion (based on failure step context)
-    suggestion = f"Step {passed_before_fail + 1} ({failed['tool']}) failed, failure type: {failure_type}."
+    # 建议（基于失败步骤前后文）
+    suggestion = f"第{passed_before_fail + 1}步({failed['tool']})失败，失败类型：{failure_type}。"
     if passed_before_fail == 0:
-        suggestion += " First step failed, check environment and dependencies."
-    elif failure_type == "Tool Timeout":
-        suggestion += " Consider parallelization or reducing command timeout."
-    elif failure_type == "Resource Not Found":
-        suggestion += " Check if path and file exist."
+        suggestion += "第一步即失败，检查环境和依赖是否就绪。"
+    elif failure_type == "工具超时":
+        suggestion += "考虑并行化或缩短命令超时。"
+    elif failure_type == "资源不存在":
+        suggestion += "检查路径和文件是否存在。"
     else:
-        suggestion += f" Failure detail: {error_text[:200]}"
+        suggestion += f"失败详情：{error_text[:200]}"
 
     return {
         "has_failure": True,
@@ -194,11 +248,11 @@ def get_failure_analysis() -> dict:
     }
 
 
-# ── File Write ──
+# ── 文件写入 ──
 
 
 def _write_entry(entry_type: str, data: dict):
-    """Async write a JSONL trace record."""
+    """异步写入一条 JSONL trace 记录。"""
     if _current_trace is None:
         return
     task_id = _current_trace["task_id"]
@@ -213,14 +267,14 @@ def _write_entry(entry_type: str, data: dict):
         with open(filepath, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception as e:
-        logger.warning("[trace] write failed: %s", e)
+        logger.warning("[trace] 写入失败: %s", e)
 
 
-# ── Read Existing Traces ──
+# ── 读取已有 trace ──
 
 
 def read_trace(task_id: str) -> list[dict]:
-    """Read a completed trace file."""
+    """读取已完成的 trace 文件。"""
     filepath = TRACE_DIR / f"{task_id}.jsonl"
     if not filepath.exists():
         return []
@@ -233,12 +287,12 @@ def read_trace(task_id: str) -> list[dict]:
                     entries.append(json.loads(line))
         return entries
     except Exception as e:
-        logger.warning("[trace] read failed %s: %s", task_id, e)
+        logger.warning("[trace] 读取失败 %s: %s", task_id, e)
         return []
 
 
 def analyze_task(trace_entries: list[dict]) -> dict:
-    """Analyze a set of trace entries (independent of active trace)."""
+    """对一组 trace 条目做分析（独立于 active trace）。"""
     tool_calls = [e for e in trace_entries if e.get("_type") == "tool_call"]
     errors = [e for e in tool_calls if e.get("status") == "error"]
 
@@ -255,11 +309,21 @@ def analyze_task(trace_entries: list[dict]) -> dict:
     }
 
 
-# ── List ──
+# ── 列表 ──
+
+
+def get_current_trace_id() -> str | None:
+    """获取当前活跃 trace 的 ID。
+    
+    close_trace 后会清除，所以在 close 之前调用。"""
+    global _current_trace
+    if _current_trace:
+        return _current_trace.get("task_id")
+    return None
 
 
 def list_traces() -> list[str]:
-    """List all trace files."""
+    """列出所有 trace 文件。"""
     if not TRACE_DIR.exists():
         return []
     return sorted([f.stem for f in TRACE_DIR.glob("*.jsonl")], reverse=True)

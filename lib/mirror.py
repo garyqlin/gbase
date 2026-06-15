@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/lib/mirror.py
+opprime-core-v2/lib/mirror.py
 
 Mirror Engine — Mirror Layer
 
@@ -23,6 +23,7 @@ import json
 import logging
 import math
 import sqlite3
+import threading
 import time
 from pathlib import Path
 
@@ -95,11 +96,35 @@ class Mirror:
         self._conn: sqlite3.Connection | None = None
         # GMem P1: 异步写入队列
         self._async_queue: asyncio.Queue | None = None
+        self._write_count = 0
+        self._last_checkpoint_time = 0.0
+        self._write_lock = threading.Lock()
+
+    def _locked_commit(self):
+        with self._write_lock:
+            self._conn.commit()
 
     def setup(self):
+        import shutil
+        import time as _time
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self._db_path)
+        self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=5000")
+        # Auto-recovery: check integrity, back up and recreate if corrupt
+        try:
+            _row = self._conn.execute("PRAGMA integrity_check").fetchone()
+            if _row and _row[0] != "ok":
+                logger.warning("mirror.db corruption detected: %s — backing up and recreating", _row[0][:80])
+                self._conn.close()
+                _bk = self._db_path + f".corrupted-{int(_time.time())}"
+                shutil.move(self._db_path, _bk)
+                logger.info("Corrupted mirror.db moved to %s", _bk)
+                self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+                self._conn.execute("PRAGMA journal_mode=WAL")
+                self._conn.execute("PRAGMA busy_timeout=5000")
+        except Exception as _e:
+            logger.warning("mirror.db integrity check skipped: %s", _e)
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS memories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -149,7 +174,9 @@ class Mirror:
             ON gmem_relations(entity_a, entity_b)
         """)
 
-        self._conn.commit()
+        self._locked_commit()
+        self._write_count = 0
+        self._last_checkpoint_time = time.time()
 
     def record(
         self,
@@ -176,7 +203,7 @@ class Mirror:
                 "UPDATE memories SET strength=?, hits=hits+1, last_access=?, importance=? WHERE id=?",
                 (new_strength, now, importance, existing["id"]),
             )
-            self._conn.commit()
+            self._locked_commit()
             return
 
         self._conn.execute(
@@ -184,7 +211,7 @@ class Mirror:
             "created_at, last_access, last_decay, importance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (mtype, content, tags_str, source, strength, now, now, now, importance),
         )
-        self._conn.commit()
+        self._locked_commit()
 
         # P3: 自动提取实体关系
         if len(content) > 10:
@@ -196,8 +223,30 @@ class Mirror:
                             self.relate_entities(ents[i], ents[j], "co_occur", source=f"memory:{mtype}")
             except Exception:
                 logger.exception("静默异常")
+        self._write_count += 1
+        self._maybe_checkpoint()
 
-    # ── GMem P0: 搜索结果Auto sedimentation ──
+        # Cognifold 概念层钩子：每条记忆写入后同步更新概念图
+        try:
+            from .toolkit import get_global as _get_global
+            _cf = _get_global("cognifold_engine")
+            if _cf and hasattr(_cf, "on_record"):
+                _cf.on_record(content, mtype=mtype, tags=tags or [], source=source)
+        except Exception:
+            pass
+
+    def _maybe_checkpoint(self):
+        """自动 WAL checkpoint：100次写入或10分钟触发。"""
+        now = time.time()
+        if self._write_count >= 100 or (self._last_checkpoint_time and now - self._last_checkpoint_time >= 600):
+            try:
+                self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                self._write_count = 0
+                self._last_checkpoint_time = now
+            except Exception:
+                pass
+
+    # ── GMem P0: 搜索结果自动沉淀 ──
     SEARCH_TTL = {"fresh": 3600, "normal": 21600, "stale": 86400}
     """搜索结果的 TTL（秒）：fresh < 1h, normal < 6h, stale < 24h。"""
 
@@ -229,7 +278,7 @@ class Mirror:
                 "UPDATE memories SET strength=?, hits=hits+1, last_access=?, importance=? WHERE id=?",
                 (min(1.0, existing["strength"] * 1.1), now, importance, existing["id"]),
             )
-            self._conn.commit()
+            self._locked_commit()
             return
 
         self._conn.execute(
@@ -237,7 +286,9 @@ class Mirror:
             "created_at, last_access, last_decay, importance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             ("search_result", content, tags_str, f"search:{query}", 0.8, now, now, now, importance),
         )
-        self._conn.commit()
+        self._locked_commit()
+        self._write_count += 1
+        self._maybe_checkpoint()
         logger.info("GMem: 搜索结果已沉淀 (%s, depth=%d)", query[:40], depth)
 
     def _prune_search_results(self, max_age: float = 86400):
@@ -250,7 +301,7 @@ class Mirror:
             (cutoff,),
         )
         deleted = cursor.rowcount
-        self._conn.commit()
+        self._locked_commit()
         if deleted:
             logger.info("GMem: 清理过期搜索结果 %d 条", deleted)
         return deleted
@@ -391,7 +442,7 @@ class Mirror:
                 "UPDATE gmem_relations SET weight = weight + ? WHERE entity_a=? AND entity_b=? AND relation=?",
                 (weight * 0.1, store_a, store_b, relation),
             )
-            self._conn.commit()
+            self._locked_commit()
         except Exception:
             logger.exception("静默异常")
 
@@ -476,7 +527,7 @@ class Mirror:
                 "UPDATE memories SET strength=?, verified=verified+1, hits=hits+1, last_access=? WHERE id=?",
                 (new_strength, now, row[0]),
             )
-            self._conn.commit()
+            self._locked_commit()
 
     def decay(self):
         if self._conn is None:
@@ -503,7 +554,7 @@ class Mirror:
                     "UPDATE memories SET strength=?, last_decay=? WHERE id=?", (new_strength, now, mem_id)
                 )
                 decayed += 1
-        self._conn.commit()
+        self._locked_commit()
 
     def review(self) -> dict:
         if self._conn is None:
@@ -727,7 +778,14 @@ class Mirror:
         for r in dynamic:
             content = r[2]
             tags = self._get_tags(r[0])  # fetch tags for this memory
-            days = (now - (r[7] if r[7] else r[6])) / 86400
+            ts = (r[7] if r[7] else r[6])
+            if isinstance(ts, str):
+                from datetime import datetime
+                try:
+                    ts = datetime.fromisoformat(ts).timestamp()
+                except Exception:
+                    ts = 0.0
+            days = (now - ts) / 86400
 
             # Pre-filter: aggressively down-weight noise memories
             is_noise = self._is_noise_memory(tags, content)
@@ -792,7 +850,7 @@ class Mirror:
         if self._conn is None:
             return
         self._conn.execute("UPDATE memories SET inject_hits = inject_hits + 1 WHERE id=?", (memory_id,))
-        self._conn.commit()
+        self._locked_commit()
 
     def get_injection_text(
         self, max_items: int = 5, ebbinghaus: bool = True, user_input: str = "", tier: str = "auto"
@@ -820,7 +878,7 @@ class Mirror:
             cursor = self._conn.execute(
                 "SELECT id, type, content, strength, hits, verified, "
                 "created_at, last_access, importance, inject_hits "
-                "FROM memories WHERE is_active=1 AND type IN ('lesson') "
+                "FROM memories WHERE is_active=1 AND type IN ('lesson', 'experience') "
                 "AND inject_hits >= 5 "
                 "ORDER BY inject_hits DESC, strength DESC LIMIT ?",
                 (max(max_items, 3),),
@@ -922,7 +980,7 @@ class Mirror:
         session_dir = _db_path_obj.parent / "sessions" if _db_path_obj else None
         if not session_dir or not session_dir.exists():
             # Try default path
-            alt = Path("/home/gbase-v2/data/sessions")
+            alt = Path("/home/opprime-v2/data/sessions")
             if alt.exists():
                 session_dir = alt
             else:
@@ -1022,15 +1080,7 @@ class Mirror:
         result.extend(unique[:8])
         return result
 
-    def recall(
-        self,
-        query: str,
-        limit: int = 10,
-        ebbinghaus: bool = True,
-        include_forgotten: bool = False,
-        open_recall: bool = False,
-        relevance: float = 0.0,
-    ) -> list:
+    def recall(self, query: str, limit: int = 10, ebbinghaus: bool = True, include_forgotten: bool = False, open_recall: bool = False, relevance: float = 0.0) -> list:
         """Search memories with multi-phrase LIKE expansion.
 
         Instead of a single LIKE '%whole sentence%', expands the query
@@ -1091,7 +1141,14 @@ class Mirror:
         if ebbinghaus and rows:
             scored = []
             for r in rows:
-                days = (now - (r[7] if r[7] else r[6])) / 86400
+                ts = (r[7] if r[7] else r[6])
+                if isinstance(ts, str):
+                    from datetime import datetime
+                    try:
+                        ts = datetime.fromisoformat(ts).timestamp()
+                    except Exception:
+                        ts = 0.0
+                days = (now - ts) / 86400
                 U = r[3]
                 F = min(1.0, r[4] / 50.0)
                 R = ebbinghaus_retention(max(0, days), U, F)
@@ -1102,24 +1159,19 @@ class Mirror:
         if rows:
             boost = 0.05 + relevance * 0.10  # contextual blood return: relevance 0→1 maps to +0.05→+0.15
             for r in rows:
-                was_inactive = len(r) > 8 and not r[8]  # is_active=0 means archived
+                was_inactive = (len(r) > 8 and not r[8])  # is_active=0 means archived
                 if was_inactive and open_recall:
                     # revive: bring archived memory back to active pool
                     self._conn.execute(
                         "UPDATE memories SET strength=MIN(strength + ?, 2.0), hits=hits+1, is_active=1, last_access=? WHERE id=?",
-                        (boost, now, r[0]),
-                    )
+                        (boost, now, r[0]))
                 else:
-                    self._conn.execute("UPDATE memories SET hits=hits+1, last_access=? WHERE id=?", (now, r[0]))
-            self._conn.commit()
+                    self._conn.execute(
+                        "UPDATE memories SET hits=hits+1, last_access=? WHERE id=?",
+                        (now, r[0]))
+            self._locked_commit()
         return [
-            dict(
-                zip(
-                    ["id", "type", "content", "strength", "hits", "verified", "created_at", "last_access", "is_active"],
-                    row,
-                    strict=False,
-                )
-            )
+            dict(zip(["id", "type", "content", "strength", "hits", "verified", "created_at", "last_access", "is_active"], row))
             for row in rows
         ]
 
@@ -1136,7 +1188,7 @@ class Mirror:
             self._conn.execute(
                 f"UPDATE memories SET is_active=0, last_access=? WHERE id IN ({placeholders})", (now, *ids)
             )
-            self._conn.commit()
+            self._locked_commit()
         return len(ids)
 
     # ── 冷记忆搜索（已遗忘的记忆，主动查仍可找到）──
@@ -1239,7 +1291,43 @@ class Mirror:
                                 expanded.append(r)
                                 seen_ids.add(r["id"])
 
-        # 4. 合并去重 + Ebbinghaus 排序（先精确后扩展）
+        # 4. GKM 知识图谱扩展 (optional，只在高频查询时触发)
+        from importlib import import_module
+        _gkm_kb = getattr(self, '_gkm_kb', None)
+        if _gkm_kb is None:
+            try:
+                gkm_mod = import_module('.gkm_tools', package='tools')
+                _gkm_kb = gkm_mod.get_knowledge_base()
+                self._gkm_kb = _gkm_kb
+            except Exception:
+                pass
+        if _gkm_kb is not None:
+            try:
+                gkm_results = _gkm_kb.search(query, limit=5)
+            except Exception:
+                gkm_results = []
+            if gkm_results:
+                for r_gkm in gkm_results:
+                    # 将 GKM 搜索结果注入为 memory 格式使用
+                    _fake = {
+                        "id": -hash(r_gkm['path']) % (10**8),
+                        "type": "knowledge",
+                        "content": f"📚 GKM知识库: {r_gkm['title']} — {r_gkm.get('snippet','')[:150]}",
+                        "strength": 0.8,
+                        "hits": 1,
+                        "importance": 0.7,
+                        "verified": 0,
+                        "source": "gkm",
+                        "created_at": time.time(),
+                        "last_access": time.time(),
+                        "inject_hits": 0,
+                    }
+                    fid = _fake["id"]
+                    if fid not in seen_ids:
+                        expanded.append(_fake)
+                        seen_ids.add(fid)
+
+        # 5. 合并去重 + Ebbinghaus 排序（先精确后扩展）
         combined = exact + expanded[: max(0, top_k - len(exact))]
 
         # 按 strength 降序
@@ -1341,7 +1429,7 @@ class Mirror:
         logger.info("GMem import: 成功导入 %d 条 (source=%s)", count, source_tag)
         return count
 
-    # ── 独立基准状态（冗余Backup #65） ──
+    # ── 独立基准状态（冗余备份 #65） ──
     BASELINE_FILE = "mirror_baseline.json"
 
     def save_baseline(self, label: str = "auto", data_dir: str = ""):
@@ -1349,7 +1437,7 @@ class Mirror:
 
         - 首次初始化时自动创建 baseline
         - 只有人类显式确认后才会更新
-        - Rollback的终点是 baseline，不是上一个版本
+        - 回滚的终点是 baseline，不是上一个版本
         """
         import json
         from pathlib import Path
@@ -1395,7 +1483,7 @@ class Mirror:
         return str(filepath)
 
     def rollback_to_baseline(self, data_dir: str = ""):
-        """Rollback到最近的人类确认基准，不是上一个版本。
+        """回滚到最近的人类确认基准，不是上一个版本。
 
         Restore memory state from the latest human-confirmed baseline.
         Falls back to the most recent baseline if no "human" baseline exists.
@@ -1448,7 +1536,7 @@ class Mirror:
                     now,
                 ),
             )
-        self._conn.commit()
+        self._locked_commit()
         logger.info(
             "Rolled back to baseline %s (%d memories restored)",
             baseline_path.name,

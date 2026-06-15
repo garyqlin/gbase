@@ -1,25 +1,20 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/security_watch.py
+opprime-core-v2/tools/security_watch.py
 
 YF-security-scanner 集成：本地安全扫描。
 所有战甲通用，特别适合大黄蜂（扫描第三方代码）+ 重锤（扫描项目代码）。
 """
 
 import asyncio
-import contextlib
 import logging
 import os
-import re
 import sys
 
 from lib.toolkit import tool
 
 logger = logging.getLogger(__name__)
-SKILL_DIR = os.environ.get(
-    "YF_SECURITY_SCANNER_DIR",
-    os.path.expanduser("~/.qclaw/skills/YF-security-scanner/scripts"),
-)
+SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-security-scanner/scripts")
 
 
 @tool()
@@ -33,23 +28,16 @@ async def security_scan_directory(directory: str, output: str = "") -> dict:
     Returns:
         扫描结果摘要（高危/中危/低风险数量）
     """
-    # Sanitize directory path to prevent injection
-    safe_dir = re.sub(r"[;&|`$]", "", directory.strip())
-    if not safe_dir:
-        return {"error": "Directory path is empty after sanitization"}
-    if not os.path.isdir(safe_dir):
-        return {"error": f"Directory not found: {safe_dir}"}
-
     cmd = [
         sys.executable or "python3",
         os.path.join(SKILL_DIR, "security_scan.py"),
         "--dir",
-        safe_dir,
+        directory,
     ]
     if output:
         cmd.extend(["--output", output])
     else:
-        cmd.extend(["--output", "/tmp/gbase-security-scan.json"])
+        cmd.extend(["--output", "/tmp/opprime-security-scan.json"])
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -68,8 +56,10 @@ async def security_scan_directory(directory: str, output: str = "") -> dict:
         for line in stdout_text.split("\n"):
             for level in findings:
                 if f"  {level}:" in line:
-                    with contextlib.suppress(Exception):
+                    try:
                         findings[level] = int(line.split(f"{level}:")[1].strip().split()[0])
+                    except:
+                        pass
 
         return {
             "success": proc.returncode == 0,

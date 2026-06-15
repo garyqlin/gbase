@@ -2,14 +2,14 @@
 """
 lib/backup.py
 
-Backup system — Phase one: safety brake.
+备份系统 — 波段一：刹车装置。
 
-Provides:
-- auto-backup before write (called by write_file)
-- list backups
-- restore backups
-- expiry cleanup
-- core file checkpoint marking
+提供：
+- 写前自动备份（write_file 调用）
+- 备份列表查询
+- 备份恢复
+- 过期清理
+- 核心文件检查点标记
 """
 
 import hashlib
@@ -19,37 +19,38 @@ import secrets
 import shutil
 from datetime import datetime, timedelta
 
-# Default backup dir: use GBASE_BACKUP_DIR env or project root/.backups
+# 默认备份目录：云端 /home/opprime-v2/.backups，本地 ~/opprime/.backups
 _default_backup = os.environ.get("GBASE_BACKUP_DIR", "")
 if not _default_backup:
-    # auto-detect working directory
+    # 自动检测工作目录
     cwd = os.getcwd()
-    _default_backup = os.getenv("GBASE_BACKUP_DIR", "") or os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", ".backups"
-    )
+    if "/home/opprime-v2" in cwd:
+        _default_backup = "/home/opprime-v2/.backups"
+    else:
+        _default_backup = os.path.join(os.path.expanduser("~"), "opprime", ".backups")
 BACKUP_DIR = _default_backup
 INDEX_PATH = os.path.join(BACKUP_DIR, "index.json")
 
-# Core file paths (auto-create checkpoints before modification, not just backups)
+# 核心文件路径（修改前自动创建🔴检查点，而不仅仅是📦备份）
 CORE_PATTERNS = [
-    # architecture core
+    # 架构核心
     "/main.py",
     "/lib/",
     "/tools/",
     "/skills/",
-    # constitution and meta-rules
+    # 宪法与元规则
     "CONSTITUTION.md",
     "META-RULES.md",
-    # evolution and memory
+    # 进化与记忆
     "evolution-log.md",
     "SYSTEM-MAP.md",
     "/experience/",
     "/memory/",
     "/mirror/",
-    # home directory config
+    # 家目录配置
     "/.bashrc",
     "/.profile",
-    # startup and config
+    # 启动与配置
     "/systemd/",
     "/config/",
 ]
@@ -59,7 +60,7 @@ def _load_index() -> dict:
     if not os.path.exists(INDEX_PATH):
         return {"backups": []}
     try:
-        with open(INDEX_PATH, encoding="utf-8") as f:
+        with open(INDEX_PATH) as f:
             return json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
         return {"backups": []}
@@ -67,26 +68,29 @@ def _load_index() -> dict:
 
 def _save_index(index: dict):
     os.makedirs(BACKUP_DIR, exist_ok=True)
-    with open(INDEX_PATH, "w", encoding="utf-8") as f:
+    with open(INDEX_PATH, "w") as f:
         json.dump(index, f, indent=2, ensure_ascii=False)
 
 
 def _make_backup_id(filepath: str, timestamp: datetime) -> str:
-    """Generate unique backup filename (microsecond + random salt for collision avoidance)."""
+    """生成唯一备份文件名（微秒+随机数防撞）。"""
     rel = filepath.replace("/", "_").replace(" ", "_")
-    ts = timestamp.strftime("%Y-%m-%dT%H-%M-%S-%f")  # microsecond
-    rand = secrets.token_hex(4)  # 8 hex chars
+    ts = timestamp.strftime("%Y-%m-%dT%H-%M-%S-%f")  # 加微秒
+    rand = secrets.token_hex(4)  # 8 位随机 hex
     h = hashlib.md5(f"{ts}_{filepath}_{rand}".encode()).hexdigest()[:6]
     return f"{ts}_{rel}_{rand}_{h}"
 
 
 def _is_core_file(filepath: str) -> bool:
-    """Check if file is core (needs checkpoint-level backup)."""
-    return any(pattern in filepath for pattern in CORE_PATTERNS)
+    """判断是否为核心文件（需要检查点级备份）。"""
+    for pattern in CORE_PATTERNS:
+        if pattern in filepath:
+            return True
+    return False
 
 
 def backup_file(filepath: str, backup_type: str = "auto") -> str | None:
-    """Backup before write. Creates backup if file exists, returns backup_id; returns None if not."""
+    """写前备份。文件存在时创建备份，返回 backup_id；不存在返回 None。"""
     if not os.path.exists(filepath):
         return None
 
@@ -94,7 +98,7 @@ def backup_file(filepath: str, backup_type: str = "auto") -> str | None:
 
     now = datetime.now()
 
-    # Core files auto-upgrade to checkpoint
+    # 核心文件自动升级为检查点
     if backup_type == "auto" and _is_core_file(filepath):
         backup_type = "checkpoint"
 
@@ -120,7 +124,7 @@ def backup_file(filepath: str, backup_type: str = "auto") -> str | None:
 
 
 def list_backups(filepath: str = "", limit: int = 20) -> list[dict]:
-    """List backups, filterable by original path."""
+    """列出备份，可按原始路径筛选。"""
     index = _load_index()
     backups = index["backups"]
 
@@ -132,16 +136,16 @@ def list_backups(filepath: str = "", limit: int = 20) -> list[dict]:
 
 
 def restore_backup(backup_id: str) -> dict:
-    """Restore backup to original location. Current file is backed up first."""
+    """恢复备份到原始位置。恢复前会先备份当前文件。"""
     index = _load_index()
 
     for b in index["backups"]:
         if b["id"] == backup_id:
             backup_path = os.path.join(BACKUP_DIR, b["backup_file"])
             if not os.path.exists(backup_path):
-                return {"error": f"Backup file not found: {backup_path}"}
+                return {"error": f"备份文件不存在: {backup_path}"}
 
-            # Backup current file before restore (safety)
+            # 恢复前先备份当前文件（防止恢复错）
             if os.path.exists(b["original_path"]):
                 backup_file(b["original_path"], backup_type="pre_restore")
 
@@ -150,14 +154,14 @@ def restore_backup(backup_id: str) -> dict:
                 "restored": b["original_path"],
                 "from_backup": backup_id,
                 "timestamp": b["timestamp"],
-                "note": "Current file auto-backed up to .backups/ before restore",
+                "note": "恢复前已自动备份当前文件到 .backups/",
             }
 
-    return {"error": f"Backup not found: {backup_id}"}
+    return {"error": f"未找到备份: {backup_id}"}
 
 
 def cleanup_backups(days: int = 7) -> dict:
-    """Clean up backups older than N days."""
+    """清理超过 N 天的备份。"""
     cutoff = datetime.now() - timedelta(days=days)
 
     index = _load_index()
@@ -186,7 +190,7 @@ def cleanup_backups(days: int = 7) -> dict:
 
 
 def backup_stats() -> dict:
-    """Get backup statistics."""
+    """获取备份统计信息。"""
     index = _load_index()
     backups = index["backups"]
 

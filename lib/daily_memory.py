@@ -8,15 +8,16 @@
 
 import json
 import os
-
-# ─── 配置 ──────────────────────────────────────────
 import time
 from datetime import UTC, datetime
 
-# 自动检测运行环境：优先用 gbase-home 本地路径
+# ─── 配置 ──────────────────────────────────────────
+import sys as _sys
+
+# 自动检测运行环境：优先用 poseidon-home 本地路径
 _CANDIDATE_DIRS = [
-    os.path.join(os.path.dirname(__file__), "..", "data"),  # gbase-home/data/
-    "/home/gbase-v2/data",  # GBase 云端（回退）
+    os.path.join(os.path.dirname(__file__), "..", "data"),  # poseidon-home/data/
+    "/home/opprime-v2/data",  # Opprime 云端（回退）
 ]
 
 # 取第一个存在的目录
@@ -63,7 +64,7 @@ def extract_key_points_from_session(session_path: str, max_entries: int = 50) ->
         tool_calls = d.get("tool_calls", None)
 
         if role == "user" and content:
-            # 新问题开始，Save前一对
+            # 新问题开始，保存前一对
             if current_q and current_a:
                 pairs.append({"q": current_q, "a": current_a})
             current_q = content[:200]
@@ -210,7 +211,7 @@ def get_injection_text(db_path: str = DB_PATH, limit: int = MAX_INJECTION_SUMMAR
         return ""
 
     lines = []
-    for summary, confidence, created_at, _hits in rows:
+    for summary, confidence, created_at, hits in rows:
         dt = datetime.fromtimestamp(created_at, tz=UTC).strftime("%m-%d %H:%M")
         lines.append(f"- [{confidence}] ({dt}) {summary}")
 
@@ -280,10 +281,103 @@ def run_daily_extraction(session_path: str = None, db_path: str = DB_PATH):
     return inserted
 
 
-# ─── 跨 session Memory injection ──────────────────────────
+# ─── 跨 session 记忆注入 ──────────────────────────
+
+
+def inject_cross_session_to_mirror(mirror_engine=None):
+    """将今日跨 session 关键对话对写入 mirror，供 recall 使用。
+
+    让每天的重要对话不只是通过 `get_cross_session_injections()` 
+    （纯文本注入，24小时内有效），还能持久化到 mirror 的 Ebbinghaus 衰减体系。
+    """
+    from .mirror import Mirror
+    me = mirror_engine or globals().get("_mirror_instance")
+    if me is None:
+        return 0
+
+    session_dir = os.path.join(os.path.dirname(__file__), "..", "data", "sessions")
+    if not os.path.isdir(session_dir):
+        return 0
+
+    now = time.time()
+    today_start = now - 86400
+    today_sessions = []
+    for fname in os.listdir(session_dir):
+        fpath = os.path.join(session_dir, fname)
+        if not fname.endswith(".jsonl"):
+            continue
+        try:
+            mtime = os.path.getmtime(fpath)
+        except Exception:
+            continue
+        if mtime >= today_start:
+            today_sessions.append(fpath)
+    if not today_sessions:
+        return 0
+
+    count = 0
+    seen_hash = set()
+    for sess_path in sorted(today_sessions):
+        try:
+            with open(sess_path) as f:
+                lines = f.readlines()
+        except Exception:
+            continue
+        recent_lines = lines[-30:] if len(lines) > 30 else lines
+        pairs = []
+        current_q, current_a = None, None
+        for line in recent_lines:
+            try:
+                d = json.loads(line)
+            except Exception:
+                continue
+            role = d.get("role", "")
+            content = d.get("content", "") or ""
+            if role == "user" and content:
+                if current_q and current_a:
+                    pairs.append({"q": current_q, "a": current_a})
+                current_q = content[:300]
+                current_a = None
+            elif role == "assistant" and content and len(content) > 20:
+                if not d.get("tool_calls"):
+                    current_a = content[:500]
+        if current_q and current_a:
+            pairs.append({"q": current_q, "a": current_a})
+
+        for p in pairs:
+            q, a = p["q"], p["a"]
+            is_question = any(c in q for c in "？?")
+            has_substance = len(q) > 30 or len(a) > 30
+            if not (is_question or has_substance):
+                continue
+            h = hashlib.md5((q + a).encode()).hexdigest()
+            if h in seen_hash:
+                continue
+            seen_hash.add(h)
+            tag = ":cross-session:" if "系统" in q or "配置" in q or "部署" in q else ":cross-session:"
+            content = f"[今日跨会话] 问:{q[:160]} → 答:{a[:240]} {tag}"
+            try:
+                me.remember(content, mtype="context", importance=0.4)
+                count += 1
+            except Exception:
+                pass
+            if count >= 10:
+                break
+        if count >= 10:
+            break
+    return count
 
 
 def get_cross_session_injections(session_dir: str = None, max_recent: int = 3) -> str:
+    """扫描今天的 session 文件，提取关键对话对，返回注入文本。
+
+    作用等效于 OpenClaw 的 YF-cross-session-memory Skill：
+    每次对话开始时自动把今日其他 session 的关键对话注入到 system prompt。
+    不等 LLM 主动 recall。
+
+    增强: 如果有 mirror_engine，同时调用 inject_cross_session_to_mirror()
+    将高质量对话持久化到 mirror 的 Ebbinghaus 衰减体系。
+    """
     """扫描今天的 session 文件，提取关键对话对，返回注入文本。
 
     作用等效于 OpenClaw 的 YF-cross-session-memory Skill：
@@ -322,7 +416,7 @@ def get_cross_session_injections(session_dir: str = None, max_recent: int = 3) -
         except Exception:
             continue
         # 只取最近 max_recent 轮 user↔assistant 对
-        recent_lines = lines[-max_recent * 6 :] if len(lines) > max_recent * 6 else lines
+        recent_lines = lines[-max_recent * 6:] if len(lines) > max_recent * 6 else lines
         pairs = []
         current_q = None
         current_a = None
@@ -362,11 +456,21 @@ def get_cross_session_injections(session_dir: str = None, max_recent: int = 3) -
         if len(snippets) >= 6:
             break
 
+    # 同时写入 mirror（如果可用）
+    try:
+        inject_cross_session_to_mirror()
+    except Exception:
+        pass
+
     if not snippets:
         return ""
 
     text = "\n".join(snippets)
-    return f"\n## 📜 今日其他会话（跨会话记忆）\n以下是你今天在其他会话中聊过的内容摘要，供参考：\n{text}\n"
+    return (
+        "\n## 📜 今日其他会话（跨会话记忆）\n"
+        "以下是你今天在其他会话中聊过的内容摘要，供参考：\n"
+        f"{text}\n"
+    )
 
 
 if __name__ == "__main__":

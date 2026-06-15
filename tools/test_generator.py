@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/test_generator.py
+opprime-core-v2/tools/test_generator.py
 
-Auto-generate unit tests from code.
-Designed for agent-1 (engineering arm).
+YF-test-generator 集成：从代码自动生成单元测试。
+专为重锤（工程臂）设计。
 """
 
 import asyncio
@@ -19,20 +19,20 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-test-generator/scripts")
 
 @tool()
 async def generate_tests(file_path: str, language: str = "auto", output_ext: str = "") -> dict:
-    """Auto-generate unit tests for a source code file.
+    """为指定源代码文件自动生成单元测试。
 
-    Supports Python, JavaScript, TypeScript, Java.
-    Test files are generated in the same directory as the source file.
+    支持 Python、JavaScript、TypeScript、Java。
+    测试文件会生成在源文件同目录下。
 
     Args:
-        file_path: Source file path (absolute or relative)
-        language: Language, auto-detect or specify python / javascript / java / ruby
-        output_ext: Output extension override, auto-inferred if not provided
+        file_path: 源文件路径（绝对路径或相对路径）
+        language: 语言，自动检测或指定 python / javascript / java / ruby
+        output_ext: 输出扩展名覆盖，不传则自动推断
 
     Returns:
-        Generated test file path and statistics
+        生成的测试文件路径和统计信息
     """
-    # Build working directory
+    # 构建工作目录
     workdir = os.path.expanduser("~")
 
     cmd = [
@@ -58,10 +58,10 @@ async def generate_tests(file_path: str, language: str = "auto", output_ext: str
         output = stdout.decode("utf-8", errors="replace")
         errors = stderr.decode("utf-8", errors="replace")
 
-        # Attempt to extract test file path
+        # 尝试提取测试文件路径
         test_file = ""
         for line in output.split("\n"):
-            if "✅ Test file:" in line or "test file:" in line.lower():
+            if "✅ 测试文件:" in line or "test file:" in line.lower():
                 test_file = line.split(":", 1)[1].strip()
                 break
 
@@ -73,21 +73,21 @@ async def generate_tests(file_path: str, language: str = "auto", output_ext: str
             "errors": errors[:500] if errors else "",
         }
     except TimeoutError:
-        return {"success": False, "error": "Test generation timed out (30s)"}
+        return {"success": False, "error": "测试生成超时（30秒）"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
 @tool()
 async def generate_tests_batch(directory: str, language: str = "python") -> dict:
-    """Batch generate tests for all source files in a directory.
+    """批量为一个目录下的所有源码文件生成测试。
 
     Args:
-        directory: Directory path
-        language: Language (python / javascript / java)
+        directory: 目录路径
+        language: 语言（python / javascript / java）
 
     Returns:
-        List of generation results for each file
+        每个文件的生成结果列表
     """
     workdir = os.path.expanduser("~")
 
@@ -116,6 +116,6 @@ async def generate_tests_batch(directory: str, language: str = "python") -> dict
             "errors": stderr.decode("utf-8", errors="replace")[:500] if stderr else "",
         }
     except TimeoutError:
-        return {"success": False, "error": "Batch generation timed out (60s)"}
+        return {"success": False, "error": "批量生成超时（60秒）"}
     except Exception as e:
         return {"success": False, "error": str(e)}

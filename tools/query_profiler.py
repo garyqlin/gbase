@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/query_profiler.py
+opprime-core-v2/tools/query_profiler.py
 
-SQL query performance profiler.
-DB query profiler for agent-1 (engineering) + standard edition.
+YF-query-profiler 集成：SQL 查询性能分析。
+为重锤（工程臂）+ 标准版提供数据库优化能力。
 """
 
 import asyncio
@@ -20,23 +20,23 @@ SKILL_DIR = os.path.expanduser("~/.qclaw/skills/YF-query-profiler/scripts")
 
 @tool()
 async def profile_database(db_path: str = "", sql: str = "") -> dict:
-    """Analyze database performance or a single SQL query, detecting slow queries, full table scans, N+1, and missing indexes.
+    """分析数据库性能或单条 SQL 查询，检测慢查询、全表扫描、N+1、缺失索引。
 
     Args:
-        db_path: SQLite database path (analyze tables/indexes/recommended indexes for the entire database)
-        sql: A single SQL query statement (analyze risks and optimization suggestions)
+        db_path: SQLite 数据库路径（分析整库的表/索引/推荐索引）
+        sql: 单条 SQL 查询语句（分析风险和优化建议）
 
     Returns:
-        Analysis report including slow queries, index suggestions, and risk detection
+        分析报告含慢查询、索引建议、风险检测
     """
     if not db_path and not sql:
-        return {"error": "Must specify db_path or sql parameter"}
+        return {"error": "需要指定 db_path 或 sql 参数"}
 
     cmd = [
         sys.executable or "python3",
         os.path.join(SKILL_DIR, "profile_queries.py"),
         "--output",
-        "/tmp/gbase-query-profile.json",
+        "/tmp/opprime-query-profile.json",
     ]
     if db_path:
         cmd.extend(["--sqlite", db_path])
@@ -52,9 +52,9 @@ async def profile_database(db_path: str = "", sql: str = "") -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
 
-        report_path = "/tmp/gbase-query-profile.json"
+        report_path = "/tmp/opprime-query-profile.json"
         if os.path.exists(report_path):
-            with open(report_path, encoding="utf-8") as f:
+            with open(report_path) as f:
                 report = json.load(f)
             os.remove(report_path)
             return report
@@ -65,6 +65,6 @@ async def profile_database(db_path: str = "", sql: str = "") -> dict:
             "errors": stderr.decode("utf-8", errors="replace")[:500],
         }
     except TimeoutError:
-        return {"error": "Analysis timed out (30s)"}
+        return {"error": "分析超时（30秒）"}
     except Exception as e:
         return {"error": str(e)}

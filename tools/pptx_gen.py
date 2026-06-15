@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""PPT presentation generator"""
+"""PPT 演示文稿生成工具"""
 
 import json
 import logging
@@ -12,21 +12,21 @@ logger = logging.getLogger(__name__)
 
 
 @tool()
-async def gen_pptx(title: str = "Presentation", slides: list = None, output_path: str = "") -> dict:
+async def gen_pptx(title: str = "演示文稿", slides: list = None, output_path: str = "") -> dict:
     """
-    Generate PowerPoint (.pptx) file.
+    生成 PowerPoint (.pptx) 文件。
 
     Args:
-        title: File name (without path)
-        slides: List of slides, each as {"title": "Cover", "content": ["First line","Second line"], "layout": "title|content|two"}
-                layout: title=title slide, content=content slide(default), two=two columns, blank=blank
-        output_path: Output path
+        title: 文件名（不含路径）
+        slides: 幻灯片列表，每项为 {"title": "封面", "content": ["第一行","第二行"], "layout": "title|content|two"}
+                layout: title=标题页, content=内容页(默认), two=两栏, blank=空白
+        output_path: 输出路径
 
     Returns:
         {"path": "...", "size": 12345, "slides": 3}
     """
     if not slides:
-        slides = [{"title": title, "content": ["Welcome"], "layout": "title"}]
+        slides = [{"title": title, "content": ["欢迎"], "layout": "title"}]
 
     if not output_path:
         output_path = os.path.expanduser(f"~/Downloads/{title}.pptx")
@@ -48,7 +48,7 @@ for sdata in slides:
     if layout_name == "title":
         layout = prs.slide_layouts[6]  # blank
         slide = prs.slides.add_slide(layout)
-        # Title centered large
+        # 标题居中大号
         txBox = slide.shapes.add_textbox(Inches(1), Inches(2.5), Inches(11.333), Inches(2))
         tf = txBox.text_frame
         tf.word_wrap = True
@@ -58,7 +58,7 @@ for sdata in slides:
         p.font.bold = True
         p.font.color.rgb = RGBColor(0x1A, 0x1A, 0x2E)
         p.alignment = PP_ALIGN.CENTER
-
+        
         content = sdata.get("content", [])
         if content:
             txBox2 = slide.shapes.add_textbox(Inches(1), Inches(4.5), Inches(11.333), Inches(2))
@@ -74,18 +74,18 @@ for sdata in slides:
                 p2.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
                 p2.alignment = PP_ALIGN.CENTER
     else:
-        # Content slide
+        # 内容页
         if layout_name == "blank":
             layout = prs.slide_layouts[6]
         else:
             layout = prs.slide_layouts[1]  # title and content
         slide = prs.slides.add_slide(layout)
-
-        # Title
+        
+        # 标题
         title_shape = slide.shapes.title
         if title_shape:
             title_shape.text = sdata.get("title", "")
-
+        
         content = sdata.get("content", [])
         if content:
             body = slide.placeholders[1]  # content placeholder
@@ -113,4 +113,4 @@ print("OK:" + {json.dumps(output_path)})
     if os.path.isfile(output_path):
         size = os.path.getsize(output_path)
         return {"path": output_path, "size": size, "slides": len(slides)}
-    return {"error": "File not generated"}
+    return {"error": "文件未生成"}

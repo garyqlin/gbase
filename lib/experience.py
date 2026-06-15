@@ -1,16 +1,12 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/lib/experience.py
+opprime-core-v2/lib/experience.py
 
 经验层 — 自动提取 + 读取 + 注入。
 
 属于三层沉淀体系的第一层（experience）。
 
-v2.2 — 反脆弱元认知升级：
-  - _llm_extract 从「简单JSON提取」升级为「结构化元认知反思」
-  - 新增 _meta_reflection 框架（Situation→Action→Outcome→Lesson）
-  - 新增反脆弱规则：失败不静默，记录"什么条件下该用不同策略"
-  - 新增 _ANTI_FRAGILE_RULES 动态规则集
+v2.1 — 增加去重逻辑：同一规则在 DEDUP_WINDOW 内不重复记录。
 """
 
 import json
@@ -30,16 +26,9 @@ _RECENT_DEDUP_MIN_COUNT = 2
 """去重阈值：窗口内同规则出现次数 ≥ 此值则跳过。"""
 
 
-# ── 反脆弱动态规则 ───────────────────────────────────────
-# 这些规则不是静态检查，而是基于「失败模式 → 改进策略」的映射
+# ── 规则提取 ────────────────────────────────────────────
 
-_ANTI_FRAGILE_RULES = [
-    {
-        "name": "tool_excessive",
-        "check": lambda ctx: ctx.get("tool_calls_count", 0) > 5,
-        "summary": "此次任务工具调用次数偏多（{tool_calls_count}次），下次同类任务应该先规划再调工具",
-        "confidence": "medium",
-    },
+_RULES = [
     {
         "name": "api_error",
         "check": lambda ctx: ctx.get("has_api_error", False),
@@ -59,23 +48,12 @@ _ANTI_FRAGILE_RULES = [
         "summary": "执行回滚: [{rollback_action}] 验证失败，已回滚。这条路走不通。",
         "confidence": "medium",
     },
-    # ── 反脆弱: 成功模式提炼（成功比失败更需要分析）──
-    {
-        "name": "success_pattern",
-        "check": lambda ctx: (
-            ctx.get("tool_calls_count", 0) >= 3
-            and not ctx.get("has_api_error", False)
-            and not ctx.get("has_failure", False)
-        ),
-        "summary": "有效模式: [{task_theme}] 用 {tool_calls_count} 次工具调用完成",
-        "confidence": "medium",
-    },
 ]
 
 
 def _rule_extract(context: dict) -> dict | None:
     """用规则提取经验。命中最优先的规则则返回，否则 None。"""
-    for rule in _ANTI_FRAGILE_RULES:
+    for rule in _RULES:
         if rule["check"](context):
             summary = rule["summary"].format(**context)
             return {
@@ -105,57 +83,17 @@ def _is_duplicate_rule(storage: "store_module.Storage", rule_name: str) -> bool:
         return False
 
 
-# ── 元认知反思模板 ──────────────────────────────────────
-
-_META_REFLECTION_PROMPT = """你是一个元认知反思系统。从一次对话中提取结构化反思。
-
-## 反思框架
-
-按 Situation → Action → Outcome → Lesson 四段式分析：
-
-| 维度 | 说明 |
-|------|------|
-| Situation | 这次对话的场景是什么？用户想要什么？ |
-| Action | 你做了什么？用了哪些工具？顺序如何？ |
-| Outcome | 结果如何？哪些做得好？哪些不好？ |
-| Lesson | 从中能学到什么？下次遇到类似场景该怎么做？ |
-
-## 输出格式
-
-如果没有什么值得记住的教训，只回复: null
-
-如果有一条值得记住的教训，回复 JSON:
-{
-  "summary": "一句话教训（50字以内，可执行）",
-  "context": "背景描述（100字以内）",
-  "situation": "场景描述",
-  "action": "采取的行动",
-  "outcome": "结果评估",
-  "meta_pattern": "元模式归类: 工具使用/沟通策略/代码质量/系统设计/安全考虑/其他",
-  "when_to_use": "什么条件下这条经验适用",
-  "when_to_ignore": "什么条件下这条经验不适用"
-}
-
-## 输入数据
-
-用户说: {user_message}
-AI 回复: {reply}
-工具调用: {tool_calls_count} 次
-API 错误: {has_api_error}
-失败记录: {has_failure}
-"""
-
-
 # ── 经验提取器 ──────────────────────────────────────────
 
 
 class ExperienceEngine:
     """经验引擎。绑定到一个 Storage 实例上运作。"""
 
-    def __init__(self, storage: store_module.Storage):
+    def __init__(self, storage: store_module.Storage, pending_file: str = ""):
         self.storage = storage
-        self._pending_extract: list[dict] = []
         self._skip_count: dict[str, int] = {}
+        import os as _os
+        self._pending_file = pending_file or _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "data", "pending_experience.jsonl")
 
     async def extract(
         self,
@@ -169,14 +107,10 @@ class ExperienceEngine:
         dont_repeat: str = "",
         rollback_occurred: bool = False,
         rollback_action: str = "",
+        tool_errors_summary: str = "",
         llm_client=None,
     ):
-        """从一次对话中提取经验。先跑规则 → 去重 → 写库。"""
-        # 提取任务主题（前60字，去标点）
-        import re as _re
-
-        task_theme = _re.sub(r"[^\u4e00-\u9fff\w\s]", "", user_message[:60]).strip()
-
+        """存入待处理队列，不立即执行。由 cron 定时批量处理。"""
         context = {
             "user_message": user_message,
             "reply": reply,
@@ -189,12 +123,10 @@ class ExperienceEngine:
             "dont_repeat": dont_repeat or failure_reason or "未知",
             "rollback_occurred": rollback_occurred,
             "rollback_action": rollback_action or "",
-            "task_theme": task_theme or "未知任务",
-            "successful_calls": tool_calls_count,
-            "effective_strategy": "标准工具流程",
+            "tool_errors_summary": tool_errors_summary or "",
+            "is_successful_task": not has_api_error and not has_failure and tool_calls_count > 0,
         }
 
-        # 第一阶段：规则提取（快速通道）
         rule_result = _rule_extract(context)
         if rule_result:
             rule_name = rule_result["rule"]
@@ -239,82 +171,123 @@ class ExperienceEngine:
 
             return
 
-        # 第二阶段：LLM 元认知反思（深度通道）
-        if llm_client:
-            try:
-                await self._llm_extract(context, llm_client)
-            except Exception as e:
-                logger.warning("经验提取（LLM）失败: %s", e)
+        # 噪音过滤：只有深度工作/异常信号才入待处理队列
+        if tool_calls_count == 0 and not has_failure and not has_api_error and not rollback_occurred:
+            return
+        # 写入待处理队列文件，由 cron 批量处理
+        import json as _json
+        import os as _os
+        _os.makedirs(_os.path.dirname(self._pending_file), exist_ok=True)
+        with open(self._pending_file, "a") as _f:
+            _f.write(_json.dumps(context, ensure_ascii=False) + "\n")
+
+    async def flush(self, llm_client=None):
+        """批量处理待处理队列文件中所有经验提取。由 cron 调用。"""
+        import json as _json
+        import os as _os
+        if not _os.path.exists(self._pending_file):
+            logger.debug("经验提取（flush）: 无待处理文件")
+            return
+        contexts = []
+        with open(self._pending_file) as _f:
+            for _l in _f:
+                _l = _l.strip()
+                if _l:
+                    contexts.append(_json.loads(_l))
+        _os.remove(self._pending_file)
+        if not contexts:
+            return
+        logger.info("经验提取（flush）: 批量处理 %d 条上下文", len(contexts))
+        for ctx in contexts:
+            rule_result = _rule_extract(ctx)
+            if rule_result:
+                rule_name = rule_result["rule"]
+                if _is_duplicate_rule(self.storage, rule_name):
+                    self._skip_count[rule_name] = self._skip_count.get(rule_name, 0) + 1
+                    continue
+                entry = {"type": "lesson", "summary": rule_result["summary"], "context": rule_result["context"], "rule": rule_name, "confidence": rule_result["confidence"]}
+                self.storage.write("experience", entry, summary=rule_result["summary"], confidence=rule_result["confidence"], rule=rule_name)
+                continue
+            if llm_client:
+                try:
+                    await self._llm_extract(ctx, llm_client)
+                except Exception as e:
+                    logger.warning("经验提取（flush）LLM失败: %s", e)
 
     async def _llm_extract(self, context: dict, client):
-        """元认知反思提取 — 从「发生了什么」升级到「为什么发生、如何避免、什么条件下该用不同策略」。
-
-        使用 _META_REFLECTION_PROMPT 模板，按 Situation→Action→Outcome→Lesson 四段式分析。
-        """
-        prompt = _META_REFLECTION_PROMPT.format(
-            user_message=context["user_message"][:300],
-            reply=context["reply"][:300],
-            tool_calls_count=context["tool_calls_count"],
-            has_api_error=context["has_api_error"],
-            has_failure=context["has_failure"],
+        prompt = (
+            "## 角色：Agent运行经验萃取师\n"
+            "你是专门负责从Agent日常运行日志中提炼可复用经验的专业分析师。\n"
+            "你的核心价值是把零散的单次运行记录，转化为可指导未来Agent执行、可沉淀积累、可检索复用的标准化经验资产。\n\n"
+            "## 核心目标\n"
+            "1. 从输入的Agent运行日志中，提取所有具备迁移复用价值的经验、方法、规则、避坑点与优化方案\n"
+            "2. 输出严格结构化的JSON，可直接存入经验知识库\n"
+            "3. 确保每条经验均可落地执行，而非事实复述或空泛总结\n\n"
+            "## 你需要重点关注的信号（按优先级）\n"
+            "1. 工具报错 > 为什么错？怎么避？\n"
+            "2. 用户纠正行为 > 纠正了什么？正确做法是什么？\n"
+            "3. 系统边界 > 哪个工具参数变了？哪个路径不能写？\n"
+            "4. 成功模式 > 特定场景下什么做法特别有效？\n\n"
+            "## 你完全不记录的内容（直接忽略）\n"
+            "- 回复长度（没用）\n"
+            "- 工具调用次数（没用）\n"
+            "- 正常的程序运行流水、无异常的调试打印\n"
+            "- 仅描述\"发生了什么\"，无法提炼出复用方法的客观事实\n\n"
+            "## 核心萃取规则\n"
+            "### 什么是「有效经验」（必须同时满足）\n"
+            "1. 可迁移：不止适用于本次单次任务，可指导未来同类场景\n"
+            "2. 可执行：明确给出\"在XX场景下，做XX动作/避开XX操作\"的指引\n"
+            "3. 有依据：源自日志中的真实运行结果，而非主观推测\n\n"
+            "## 当前对话记录\n"
+        )
+        # 丰富上下文：加入失败原因、回滚信息、工具报错等
+        extra_lines = []
+        if context.get("tool_errors_summary"):
+            extra_lines.append(f"工具报错摘要: {context['tool_errors_summary']}")
+        if context.get("failure_reason") and context["failure_reason"] != "未知原因":
+            extra_lines.append(f"失败原因: {context['failure_reason']}")
+        if context.get("rollback_occurred"):
+            extra_lines.append(f"发生过回滚: {context['rollback_action']}")
+        if context.get("is_successful_task"):
+            extra_lines.append("任务成功完成")
+        if extra_lines:
+            prompt += "\n".join(extra_lines) + "\n\n"
+        
+        prompt += (
+            f"用户说: {context['user_message'][:500]}\n"
+            f"AI 回复: {context['reply'][:500]}\n\n"
+            "## 输出要求\n"
+            "如果没有值得记录的经验，只回复: null\n"
+            "如果有值得记录的经验，回复以下JSON格式：\n"
+            '{"summary": "一句话说清经验核心（例如：写文件前先用check_allowed_paths验证路径白名单）", '
+            '"context": "什么场景下发生的", '
+            '"category": "最佳实践/避坑指南/异常预案/效率优化中的一种"}'
         )
         try:
             response = await client.chat.completions.create(
                 model="deepseek-chat",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=400,
+                max_tokens=300,
                 temperature=0.3,
             )
             text = response.choices[0].message.content.strip()
             if text == "null" or not text:
                 logger.debug("经验提取（LLM）: 无有价值教训")
                 return
-
-            # 类型防御：LLM 可能返回不完整 JSON（被截断的末尾）
-            is_clean = False
-            for _try_idx in range(3):
-                try:
-                    result = json.loads(text)
-                    is_clean = True
-                    break
-                except json.JSONDecodeError:
-                    # 尝试找到最晚的完整 JSON 截止点
-                    last_brace = text.rfind("}")
-                    if last_brace > 0:
-                        text = text[: last_brace + 1]
-                    else:
-                        break
-            if not is_clean:
-                logger.warning("经验提取（LLM）: JSON 解析失败，跳过")
-                return
-
+            result = json.loads(text)
             if "summary" in result:
-                # 构建结构化 entry
                 summary = result["summary"][:200]
-                content_obj = {
-                    "situation": result.get("situation", ""),
-                    "action": result.get("action", ""),
-                    "outcome": result.get("outcome", ""),
-                    "meta_pattern": result.get("meta_pattern", "其他"),
-                    "when_to_use": result.get("when_to_use", ""),
-                    "when_to_ignore": result.get("when_to_ignore", ""),
-                }
-                content_json = json.dumps(content_obj, ensure_ascii=False)
-
+                # 只有可执行的经验才值得高置信度
+                has_action = any(kw in summary for kw in ["先", "用", "不要", "避开", "检查", "确认", "改为", "调用"])
+                confidence = "high" if has_action and context.get("is_successful_task", False) else "medium"
                 entry = {
                     "type": "lesson",
                     "summary": summary,
-                    "content": content_json,
                     "context": result.get("context", context["user_message"][:200]),
-                    "confidence": "medium",
-                    "meta_pattern": result.get("meta_pattern", "其他"),
+                    "category": result.get("category", ""),
+                    "confidence": confidence,
                 }
-                self.storage.write(
-                    "experience",
-                    entry,
-                    summary=summary,
-                    confidence="medium",
-                )
+                self.storage.write("experience", entry, summary=summary, confidence=confidence)
                 # --- 同步写入鉴面 ---
                 try:
                     from tools.mirror_tool import get_mirror_instance
@@ -322,24 +295,16 @@ class ExperienceEngine:
                     m = get_mirror_instance()
                     if m:
                         m.record(
-                            content=summary,
+                            content=summary[:200],
                             mtype="lesson",
-                            tags=["experience", "meta_reflection", result.get("meta_pattern", "other")],
-                            source="experience:meta_reflection",
+                            tags=["experience", "llm"],
+                            source="experience:llm",
                         )
                 except Exception:
                     pass
-
-                logger.info("经验提取（元认知反思）: %s", summary[:60])
-
-                # --- 自动刻入 insight（成功任务不留空洞） ---
-                if context.get("tool_calls_count", 0) > 0 and not context.get("has_api_error", False):
-                    _record_success_insight(self, context.get("user_message", ""), context["tool_calls_count"])
-
-        except (json.JSONDecodeError, KeyError) as e:
-            logger.debug("经验提取（LLM）解析失败: %s | 原始响应: %s", e, text[:200] if "text" in dir() else "N/A")
+                logger.info("经验提取（LLM）: %s (confidence=%s, category=%s)", summary, confidence, entry.get("category",""))
         except Exception as e:
-            logger.debug("经验提取（LLM）异常: %s", e)
+            logger.debug("经验提取（LLM） 异常: %s", e)
 
     def search(self, query: str, limit: int = 5) -> list[dict]:
         """搜索经验库。优先 FTS5 全文检索，无结果时回退 LIKE 模糊匹配。
@@ -370,12 +335,11 @@ class ExperienceEngine:
                 try:
                     # 对中文查询做简单 tokenize：保留原样 + 拆字
                     import re as _re
-
                     tokens = _re.sub(r"[^\u4e00-\u9fff\w\s]", " ", query).strip()
-                    fts_query = (
-                        " OR ".join(f'"{t}" OR "{t}*"' if len(t) >= 2 else f'"{t}"' for t in tokens.split())
-                        or f'"{query}"'
-                    )
+                    fts_query = " OR ".join(
+                        f'"{t}" OR "{t}*"' if len(t) >= 2 else f'"{t}"'
+                        for t in tokens.split()
+                    ) or f'"{query}"'
 
                     # FTS5 BM25 排序 + 内容长度惩罚（太长的长篇分析文降级）
                     rows = conn.execute(
@@ -392,7 +356,6 @@ class ExperienceEngine:
                     ).fetchall()
                 except Exception as ftse:
                     import logging as _lg
-
                     _lg.getLogger(__name__).debug("FTS5 搜索失败，回退 LIKE: %s", ftse)
 
             if not rows:

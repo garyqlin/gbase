@@ -1,7 +1,7 @@
 """
-gbase/lib/channels/feishu.py
+opprime-core-v2/lib/channels/feishu.py
 
-Feishu Channel:加密解密、消息收发。
+飞书通道:加密解密、消息收发。
 
 来自 V0 feishu_bridge.py 的浓缩版。
 只保留核心链:解密 → 处理 → 回复。
@@ -18,23 +18,23 @@ from pathlib import Path
 
 import httpx
 
-from lib.session import JsonlSessionManager
-
 logger = logging.getLogger(__name__)
 
-# ── Feishu Channel心跳配置 ──
+# ── 飞书通道心跳配置 ──
 _HEARTBEAT_INTERVAL = 180  # 每 3 分钟检测一次（不是 5 分钟，更敏感）
 _HEARTBEAT_MAX_FAILURES = 3  # 连续 3 次失败触发重连
 _HEARTBEAT_RECONNECT_DELAYS = [5, 30, 120, 300]  # 指数退避：5s → 30s → 2min → 5min
 
 
 class FeishuChannel:
-    """Feishu Channel。"""
+    """飞书通道。"""
 
-    def __init__(self, app_id: str, app_secret: str, encrypt_key: str):
+    def __init__(self, app_id: str, app_secret: str, encrypt_key: str, verify_token: str = "", ack_text: str = ""):
         self.app_id = app_id
         self.app_secret = app_secret
         self.encrypt_key = encrypt_key  # 明文 32 位 encrypt key
+        self.verify_token = verify_token  # 飞书事件订阅验证 token
+        self.ack_text = ack_text or "高达收到🦾，执行您的指令"
 
         self._tenant_token: str = ""
         self._token_expires: float = 0
@@ -69,14 +69,14 @@ class FeishuChannel:
         self._heartbeat_reconnects = 0
 
     async def start_heartbeat(self):
-        """启动Feishu Channel心跳后台检测。"""
+        """启动飞书通道心跳后台检测。"""
         if self._heartbeat_task and not self._heartbeat_task.done():
             return  # 已有心跳在跑
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-        logger.info("Feishu Channel心跳已启动 (间隔 %ds, 最大失败 %d 次)", _HEARTBEAT_INTERVAL, _HEARTBEAT_MAX_FAILURES)
+        logger.info("飞书通道心跳已启动 (间隔 %ds, 最大失败 %d 次)", _HEARTBEAT_INTERVAL, _HEARTBEAT_MAX_FAILURES)
 
     async def _heartbeat_loop(self):
-        """心跳循环：定时检测Feishu Channel可用性。
+        """心跳循环：定时检测飞书通道可用性。
 
         检测方式：轻量调用 _ensure_token 验证 token 有效即可，
         不额外发送消息（不发 ping 字样的消息到飞书）。
@@ -101,7 +101,7 @@ class FeishuChannel:
                     if data.get("code") == 0:
                         # 心跳成功
                         if not self._heartbeat_healthy:
-                            logger.info("💚 Feishu Channel已恢复")
+                            logger.info("💚 飞书通道已恢复")
                         self._heartbeat_healthy = True
                         self._heartbeat_failures = 0
                         backoff_index = 0
@@ -112,15 +112,13 @@ class FeishuChannel:
                 break
             except Exception as e:
                 self._heartbeat_failures += 1
-                logger.warning(
-                    "💔 Feishu Channel心跳失败 (%d/%d): %s", self._heartbeat_failures, _HEARTBEAT_MAX_FAILURES, e
-                )
+                logger.warning("💔 飞书通道心跳失败 (%d/%d): %s", self._heartbeat_failures, _HEARTBEAT_MAX_FAILURES, e)
 
                 if self._heartbeat_failures >= _HEARTBEAT_MAX_FAILURES:
                     # 触发重连
                     self._heartbeat_healthy = False
                     delay = _HEARTBEAT_RECONNECT_DELAYS[min(backoff_index, len(_HEARTBEAT_RECONNECT_DELAYS) - 1)]
-                    logger.error("🔴 Feishu Channel异常，%ds 后尝试重新初始化", delay)
+                    logger.error("🔴 飞书通道异常，%ds 后尝试重新初始化", delay)
                     await asyncio.sleep(delay)
                     backoff_index += 1
                     self._heartbeat_reconnects += 1
@@ -130,12 +128,12 @@ class FeishuChannel:
                         self._tenant_token = ""
                         self._token_expires = 0
                         await self._refresh_token()
-                        logger.info("💚 Feishu Channel重连成功 (第 %d 次重连)", self._heartbeat_reconnects)
+                        logger.info("💚 飞书通道重连成功 (第 %d 次重连)", self._heartbeat_reconnects)
                         self._heartbeat_failures = 0
                         self._heartbeat_healthy = True
                         backoff_index = 0
                     except Exception as e2:
-                        logger.error("🔴 Feishu Channel重连失败: %s", e2)
+                        logger.error("🔴 飞书通道重连失败: %s", e2)
                         # 继续等待下一轮心跳重试
 
     def set_kernel(self, kernel):
@@ -154,7 +152,7 @@ class FeishuChannel:
         """从飞书下载文件到本地。
 
         使用 GET /im/v1/messages/{message_id}/resources/{file_key}?type=file
-        返回本地Save路径，失败返回 None。
+        返回本地保存路径，失败返回 None。
 
         Note:
             飞说资源下载 API 需要传 type 参数（file/image）否则报 99992402 field validation failed。
@@ -185,7 +183,7 @@ class FeishuChannel:
                         "text/csv": ".csv",
                     }
                     ext = ext_map.get(ct, "")
-                # Save文件
+                # 保存文件
                 save_dir = self._get_download_dir()
                 fname = f"{file_key}{ext}" if ext else file_key
                 save_path = save_dir / fname
@@ -199,7 +197,7 @@ class FeishuChannel:
     async def send_file(self, open_id: str, file_path: str | Path, message_id: str = ""):
         """发送文件到飞书。
 
-        使用飞书File upload后发送的流程:
+        使用飞书文件上传后发送的流程:
         1. POST /im/v1/files 上传文件
         2. 用返回的 file_key 发送消息
         """
@@ -207,7 +205,7 @@ class FeishuChannel:
         file_path = Path(file_path)
         if not file_path.exists():
             logger.error("send_file: 文件不存在 %s", file_path)
-            return
+            return {"ok": False, "error": f"文件不存在: {file_path}"}
 
         # 先上传文件
         upload_url = "https://open.feishu.cn/open-apis/im/v1/files"
@@ -221,13 +219,13 @@ class FeishuChannel:
                     resp = await client.post(upload_url, headers=headers, files=files, data=data, timeout=60)
                 upload_data = resp.json()
                 if upload_data.get("code") != 0:
-                    logger.error("File upload失败: %s", upload_data)
-                    return
+                    logger.error("文件上传失败: %s", upload_data)
+                    return {"ok": False, "error": f"上传失败: {upload_data.get('code')}"}
                 file_key = upload_data.get("data", {}).get("file_key", "")
                 if not file_key:
                     logger.error("上传成功但无 file_key")
-                    return
-                logger.info("File upload成功: %s → file_key=%s", file_path.name, file_key)
+                    return {"ok": False, "error": "上传成功但飞书未返回 file_key"}
+                logger.info("文件上传成功: %s → file_key=%s", file_path.name, file_key)
 
                 # 发送文件消息
                 if message_id:
@@ -237,7 +235,7 @@ class FeishuChannel:
                         "file",
                     )
                     if success:
-                        return
+                        return {"ok": True, "result": f"文件已发送 (reply): {file_path.name}", "file_key": file_key}
 
                 send_url = "https://open.feishu.cn/open-apis/im/v1/messages"
                 send_body = {
@@ -255,8 +253,11 @@ class FeishuChannel:
                 data2 = resp2.json()
                 if data2.get("code") != 0:
                     logger.error("文件发送失败: %s", data2)
+                    return {"ok": False, "error": f"发送失败: {data2.get('msg')}"}
+                return {"ok": True, "result": f"文件已发送: {file_path.name}", "file_key": file_key}
         except Exception as e:
             logger.error("send_file 异常: %s", e, exc_info=True)
+            return {"ok": False, "error": f"send_file 异常: {str(e)}"}
 
     async def _ensure_token(self):
         """确保 tenant_access_token 有效。"""
@@ -311,7 +312,7 @@ class FeishuChannel:
 
         return json.loads(plaintext.decode("utf-8"))
 
-    # ── Message sending ──
+    # ── 消息发送 ──
 
     async def _reply_to_message(self, message_id: str, content: str, msg_type: str = "text"):
         """通过 reply API 回复消息（跨 App 可用，不依赖 open_id）。"""
@@ -333,6 +334,40 @@ class FeishuChannel:
                 return False
             return True
 
+    _send_retry_max: int = 0
+    _send_retry_delay: float = 1.0
+
+    def set_send_retry(self, max_retries: int = 3, base_delay: float = 1.0):
+        """设置飞书发送失败时的重试参数（网络错误/超时/5xx 才重试）。"""
+        self._send_retry_max = max_retries
+        self._send_retry_delay = base_delay
+
+    async def _send_with_retry(self, fn, *args, **kwargs):
+        """对网络层错误进行重试包装。"""
+        last_exc = None
+        for attempt in range(1 + self._send_retry_max):
+            try:
+                return await fn(*args, **kwargs)
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.RemoteProtocolError) as e:
+                last_exc = e
+                if attempt < self._send_retry_max:
+                    delay = self._send_retry_delay * (2 ** attempt)
+                    logger.warning("飞书发送网络错误 (attempt %d/%d): %s，%.1fs 后重试",
+                                   attempt + 1, self._send_retry_max + 1, e, delay)
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error("飞书发送网络错误，已重试 %d 次: %s", self._send_retry_max, e)
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code >= 500 and attempt < self._send_retry_max:
+                    last_exc = e
+                    delay = self._send_retry_delay * (2 ** attempt)
+                    logger.warning("飞书发送 5xx (attempt %d/%d): %s，%.1fs 后重试",
+                                   attempt + 1, self._send_retry_max + 1, e.response.status_code, delay)
+                    await asyncio.sleep(delay)
+                else:
+                    raise
+        raise last_exc  # type: ignore[misc]
+
     async def send_text(self, open_id: str, text: str, message_id: str = ""):
         """发送文本消息到飞书。
 
@@ -342,7 +377,7 @@ class FeishuChannel:
         if message_id:
             success = await self._reply_to_message(message_id, json.dumps({"text": text}, ensure_ascii=False), "text")
             if success:
-                return
+                return {"ok": True, "result": "文本已发送 (reply)"}
             # reply 失败时降级到 send API
             logger.info("reply 失败，降级到 send API | content 前200=%s", (text or "")[:200])
 
@@ -374,8 +409,11 @@ class FeishuChannel:
                 logger.info("send 失败，降级到 chat_id 方式 | content 前200=%s", (text or "")[:200])
                 try:
                     await self._send_to_chat(open_id, text)
+                    return {"ok": True, "result": "文本已发送 (chat_id 降级)"}
                 except Exception as e2:
                     logger.error("chat_id 降级也失败: %s", e2)
+                    return {"ok": False, "error": f"发送失败 (chat_id 降级也失败): {e2}"}
+            return {"ok": True, "result": "文本已发送"}
 
     async def _send_to_chat(self, chat_id: str, text: str):
         """发送消息到群聊。"""
@@ -401,6 +439,8 @@ class FeishuChannel:
             data = resp.json()
             if data.get("code") != 0:
                 logger.error("飞书群聊发送失败: %s", data)
+                raise RuntimeError(f"群聊发送失败: {data.get('msg')}")
+            return {"ok": True, "result": "消息已发送到群聊"}
 
     async def send_card(self, open_id: str, card: dict, message_id: str = ""):
         """发送卡片消息到飞书。
@@ -414,7 +454,7 @@ class FeishuChannel:
             success = await self._reply_to_message(message_id, card_str, "interactive")
             if success:
                 logger.info("飞书卡片 reply 成功 → msg_id=%s", message_id[:20])
-                return
+                return {"ok": True, "result": "卡片已发送 (reply)"}
             logger.info("卡片 reply 失败，降级到 send API")
 
         await self._ensure_token()
@@ -441,8 +481,10 @@ class FeishuChannel:
             data = resp.json()
             if data.get("code") != 0:
                 logger.error("飞书卡片发送失败: %s", data)
+                return {"ok": False, "error": f"发送失败: {data.get('msg')}"}
+            return {"ok": True, "result": "卡片已发送"}
 
-    # ── Event handling ──
+    # ── 事件处理 ──
 
     async def handle_event(self, body: bytes) -> dict:
         """处理飞书 Webhook 事件。
@@ -559,7 +601,7 @@ class FeishuChannel:
                     parts.append(header)
                 elements = content.get("elements", [])
                 for block in elements:
-                    # 飞书某些卡片模块把元素包在嵌套数组里，Recursive flattening
+                    # 飞书某些卡片模块把元素包在嵌套数组里，递归展平
                     worklist = [block]
                     while worklist:
                         item = worklist.pop()
@@ -668,12 +710,22 @@ class FeishuChannel:
                 else:
                     text = "[文件: 无法获取 file_key]"
             elif message_type == "image":
-                # 图片消息:下载后Save路径，LLM 可以自行处理
+                # 图片消息:下载后自动调豆包 VLM 分析图片
                 image_key = content.get("image_key", "")
                 if image_key:
                     save_path = await self._download_file(message_id, image_key, ext=".png")
                     if save_path:
-                        text = f"[图片已Save | 本地路径: {save_path} | 可用 image 工具查看]"
+                        # 自动调豆包 VLM 预分析图片
+                        try:
+                            from tools.analyze_image_doubao import analyze_image_doubao
+                            result = await analyze_image_doubao(str(save_path), "请详细描述这张图片的内容，包括其中的物体、文字、颜色、场景等")
+                            if result.get("success"):
+                                text = f"[用户发了一张图片]\n\n图片分析结果（预分析）:\n{result['description']}"
+                            else:
+                                text = f"[图片已保存 | 本地路径: {save_path}]\n[预分析失败: {result.get('error', '未知错误')}]"
+                        except Exception as e:
+                            logger.warning("图片预分析异常（不影响运行）: %s", e)
+                            text = f"[图片已保存 | 本地路径: {save_path}]"
                     else:
                         text = f"[图片下载失败: key={image_key}]"
                 else:
@@ -710,9 +762,27 @@ class FeishuChannel:
                 tk_set_global("feishu_sender_id", sender_id)
                 tk_set_global("feishu_message_id", message_id)
 
+                # ── Pendling 队列：写任务标记（进程崩溃后恢复用） ──
+                _pending_dir = Path("data/pending")
+                _pending_dir.mkdir(parents=True, exist_ok=True)
+                _pending_file = _pending_dir / f"{message_id}.json"
+                try:
+                    with open(_pending_file, "w") as _pf:
+                        json.dump({
+                            "message_id": message_id,
+                            "open_id": sender_id,
+                            "chat_id": chat_id,
+                            "chat_type": chat_type,
+                            "text": text[:200],
+                            "timestamp": time.time(),
+                            "status": "pending"
+                        }, _pf, ensure_ascii=False)
+                except Exception as _pe:
+                    logger.warning("Pendling 写入失败: %s", _pe)
+
                 # 先发已读回执（群聊跳过，避免私聊泄漏）
                 if not is_group:
-                    await self.send_text(sender_id, "👀 收到,正在处理...")
+                    await self.send_text(sender_id, self.ack_text)
 
                 # 进度通知函数
                 _last_progress_msg = ""
@@ -745,12 +815,23 @@ class FeishuChannel:
                         )
                     else:
                         await self.send_text(sender_id, reply, message_id=message_id)
+
+                    # ── Pendling 队列：标记完成（删除标记文件） ──
+                    try:
+                        if _pending_file.exists():
+                            _pending_file.unlink()
+                            logger.info("Pendling 完成: %s", message_id)
+                    except Exception as _pe:
+                        logger.warning("Pendling 删除失败: %s", _pe)
+
                 except asyncio.CancelledError:
+                    # 中断：保持 pending，启动恢复时会重试
                     await self.send_text(sender_id, "❌ 任务被中断,抱歉没能完成。可以重新跟我说。")
                 except Exception as e:
                     import traceback
 
                     logger.error("飞书消息处理异常: %s\n%s", e, traceback.format_exc())
+                    # 保持 pending 文件，启动恢复时重试
                     with contextlib.suppress(Exception):
                         await self.send_text(sender_id, f"❌ 处理消息时出错了: {str(e)[:200]}")
 
@@ -763,7 +844,7 @@ class FeishuChannel:
         chat_name = event_body.get("name", "新群聊")
         logger.info("飞书机器人被拉入群聊: %s (%s)", chat_name, chat_id)
         greeting = (
-            "👋 大家好！我是 GBase，用户的数字分身。\n\n"
+            "👋 大家好！我是 Opprime，羽非的数字分身。\n\n"
             "**我能做什么：**\n"
             "• 回答各种问题\n"
             "• 搜索信息、查天气\n"
@@ -787,7 +868,7 @@ class FeishuChannel:
             logger.info("24h 内已发过欢迎，跳过")
             return
         self._greeted[open_id] = now
-        await self._send_to_chat(open_id, "你好我是GBase World 🌍 宇宙意志，有什么可以帮您！🛡️")
+        await self._send_to_chat(open_id, "你好我是Opprime World 🌍 宇宙意志，有什么可以帮您！🛡️")
 
     async def _handle_card_action(self, event: dict):
         """处理卡片按钮点击事件 (card.action.trigger)。
@@ -852,7 +933,7 @@ class FeishuChannel:
             tk_set_global("feishu_sender_id", open_id)
             tk_set_global("feishu_message_id", open_message_id)
 
-            await self.send_text(open_id, "👀 收到，正在处理...", message_id=open_message_id)
+            await self.send_text(open_id, self.ack_text, message_id=open_message_id)
 
             # 🛡️ 厚钢板：120 秒超时保底，不会永久卡死
             try:

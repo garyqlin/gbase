@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 # ── 默认配置 ──
 DEFAULT_WINDOW_HOURS = 168  # 回顾最近 7 天的 session
-IMPORTANCE_FLOOR = 0.15  # 低于此值的 mirror 条目标记为噪声
-MAX_SESSION_ROWS = 15  # 每 session 压缩时保留的条目数
+IMPORTANCE_FLOOR = 0.0  # 企业模式：不修剪 mirror（重要性过滤已移至注入层）
+MAX_SESSION_ROWS = 100000  # 企业模式：不截断 session（全量保留，冷备走 archive_store）
 COMPRESSION_TTL = 1209600  # 14 天无更新的 session 不处理（秒）
 
 
@@ -52,7 +52,7 @@ def run_sleep_cycle(
         "total_time_s": 0.0,
     }
     start_ts = time.time()
-    time.time()
+    now = time.time()
 
     # ── Stage A: Session 压缩 ──
     session_report = _compress_sessions(session_dir, window_hours, dry_run)
@@ -145,7 +145,7 @@ def _compress_sessions(session_dir: str, window_hours: int, dry_run: bool) -> di
             # 按轮分组（简单策略：user + assistant 同属一轮）
             compressed = []
             last_user_idx = -1
-            for _i, e in enumerate(entries):
+            for i, e in enumerate(entries):
                 role = e.get("role", "")
                 if role == "user":
                     compressed.append(e)

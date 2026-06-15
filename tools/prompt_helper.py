@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 """
-gbase/tools/prompt_helper.py
+opprime-core-v2/tools/prompt_helper.py
 
-Prompt optimization tool.
+Prompt 优化工具 — 对接 YF-prompt-optimizer skill。
 """
 
 import asyncio
@@ -31,14 +31,14 @@ def _build_skill_path() -> str:
 
 @tool()
 async def optimize_prompt(prompt: str, action: str = "optimize") -> dict:
-    """Optimize, compare, or manage prompt templates.
+    """优化、对比或管理 prompt 模板。
 
     Args:
-        prompt: The prompt text to optimize (preserved for compare and version)
-        action: Operation type — optimize, compare, version (list versions)
+        prompt: 要优化的 prompt 文本（对于 compare 和 version 保留）
+        action: 操作类型 — optimize（优化）、compare（对比）、version（列出版本）
 
     Returns:
-        Operation result
+        操作结果
     """
     script = _build_skill_path()
     cmd = ["python3", script, "--action", action]
@@ -46,7 +46,7 @@ async def optimize_prompt(prompt: str, action: str = "optimize") -> dict:
     if action in ("optimize", "compare"):
         cmd.extend(["--prompt", prompt])
 
-    logger.info("Executing prompt operation: %s --action %s", script, action)
+    logger.info("执行 prompt 操作: %s --action %s", script, action)
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -55,12 +55,12 @@ async def optimize_prompt(prompt: str, action: str = "optimize") -> dict:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
         if proc.returncode != 0:
-            return {"error": f"Operation failed: {stderr.decode().strip()}"}
+            return {"error": f"操作失败: {stderr.decode().strip()}"}
         return {"result": stdout.decode().strip()}
     except TimeoutError:
-        return {"error": "Prompt operation timed out"}
+        return {"error": "prompt 操作超时"}
     except FileNotFoundError:
-        return {"error": f"Skill script not found: {script}"}
+        return {"error": f"找不到 skill 脚本: {script}"}
     except Exception as e:
-        logger.exception("optimize_prompt exception")
+        logger.exception("optimize_prompt 异常")
         return {"error": str(e)}

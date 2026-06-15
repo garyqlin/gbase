@@ -25,6 +25,9 @@ jobs:
       - name: Ruff lint
         run: ruff check .
 
+      - name: Ruff version
+        run: ruff --version
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -39,6 +42,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install ruff 2>/dev/null || true
 
       - name: Cache pip
         uses: actions/cache@v4
@@ -67,6 +71,9 @@ jobs:
 
       - name: Install ruff
         run: pip install ruff
+
+      - name: Ruff version
+        run: ruff --version
 
       - name: Check formatting
         run: ruff format --check .

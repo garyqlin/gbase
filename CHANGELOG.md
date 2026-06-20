@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1] — 2026-06-20
+
+### 🐛 Fixed
+- Import error in thinking/__init__.py:  →  (symbol mismatch)
+
+
 ## [0.6.0] — 2026-06-20
 
 ### 🌟 Thinking Lever Integration

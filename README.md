@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/garyqlin/gbase/releases/tag/v0.6.1">
-    <img src="https://img.shields.io/badge/v0.6.1-🛡️_会先想再动手_–_攻击者发帖时_我们写代码-f5a623?style=for-the-badge" alt="v0.6.1: 会先想再动手">
+    <img src="https://img.shields.io/badge/v0.6.1-🛡️_It_doesn't_just_execute._It_thinks_first.-8A2BE2?style=for-the-badge" alt="v0.6.1">
   </a>
 </p>
 

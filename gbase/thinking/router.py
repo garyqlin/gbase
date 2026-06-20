@@ -11,18 +11,18 @@ Usage:
     inject = format_injection(result)
 """
 
-from typing import Dict, List, Optional, Any
 import re
+from typing import Any
 
 # ──────────────────────────────────────────────
 # Task patterns (5 modes)
 # ──────────────────────────────────────────────
 
-PATTERN_DIAGNOSE = "diagnose"       # Symptoms → find root cause
-PATTERN_DESIGN = "design"           # Requirements → produce plan
-PATTERN_OPTIMIZE = "optimize"       # Current state → find improvements
-PATTERN_PREDICT = "predict"         # Trends → forecast outcomes
-PATTERN_EXECUTE = "execute"         # Clear steps → SKIP deep thinking
+PATTERN_DIAGNOSE = "diagnose"  # Symptoms → find root cause
+PATTERN_DESIGN = "design"  # Requirements → produce plan
+PATTERN_OPTIMIZE = "optimize"  # Current state → find improvements
+PATTERN_PREDICT = "predict"  # Trends → forecast outcomes
+PATTERN_EXECUTE = "execute"  # Clear steps → SKIP deep thinking
 
 # ──────────────────────────────────────────────
 # Thinking methods
@@ -43,7 +43,7 @@ THINKING_METHODS = {
 # Pattern matching rules
 # ──────────────────────────────────────────────
 
-QUESTION_PATTERNS: List[tuple] = [
+QUESTION_PATTERNS: list[tuple] = [
     # Diagnostic
     (r"为什么|原因|根因|哪里出错|故障|报错|错误|cause|root cause|why did|what broke", PATTERN_DIAGNOSE),
     # Predictive (higher priority than design)
@@ -54,7 +54,7 @@ QUESTION_PATTERNS: List[tuple] = [
     (r"优化|改善|改进|性能|瓶颈|更快|更好|optimize|improve|bottleneck|faster|better", PATTERN_OPTIMIZE),
 ]
 
-VERB_TO_METHOD: Dict[str, str] = {
+VERB_TO_METHOD: dict[str, str] = {
     # Design → first principles
     "从零": "first_principles",
     "重新设计": "first_principles",
@@ -85,7 +85,7 @@ VERB_TO_METHOD: Dict[str, str] = {
     "极限": "extreme_test",
 }
 
-DOMAIN_SIGNALS: List[tuple] = [
+DOMAIN_SIGNALS: list[tuple] = [
     (r"bug|crash|崩溃|挂掉|不工作|corrupt|missing|error|异常", "debug", PATTERN_DIAGNOSE),
     (r"feature|function|新功能|添加|加上|增加", "feature", PATTERN_DESIGN),
     (r"refactor|重构|重写|清理|clean|整理|改结构", "refactor", PATTERN_DESIGN),
@@ -94,7 +94,7 @@ DOMAIN_SIGNALS: List[tuple] = [
     (r"调研|research|搜索|搜|查询|search", "research", PATTERN_DIAGNOSE),
 ]
 
-SKIP_PATTERNS: List[str] = [
+SKIP_PATTERNS: list[str] = [
     r"^好的|^明白|^收到|^是|^嗯|^OK|^ok|^got it",
     r"^你好|^hi|^hello",
     r"^几点|^时间|^日期|^今天|^weather",
@@ -113,27 +113,25 @@ def _should_skip(message: str) -> bool:
     if len(msg) < 5:
         return True
     method_signals = ["用", "使用", "调用", "运行", "跑", "执行", "派"]
-    if any(msg.startswith(s) for s in method_signals) and len(msg) < 20:
-        return True
-    return False
+    return bool(any(msg.startswith(s) for s in method_signals) and len(msg) < 20)
 
 
-def _match_by_question_type(message: str) -> Optional[str]:
+def _match_by_question_type(message: str) -> str | None:
     for pattern, method in QUESTION_PATTERNS:
         if re.search(pattern, message):
             return method
     return None
 
 
-def _match_by_verb_signal(message: str) -> Optional[str]:
+def _match_by_verb_signal(message: str) -> str | None:
     for signal, method in VERB_TO_METHOD.items():
         if signal in message:
             return method
     return None
 
 
-def _match_by_domain(message: str) -> Optional[str]:
-    for pattern, domain, method in DOMAIN_SIGNALS:
+def _match_by_domain(message: str) -> str | None:
+    for pattern, _domain, method in DOMAIN_SIGNALS:
         if re.search(pattern, message, re.IGNORECASE):
             return method
     return None
@@ -153,10 +151,11 @@ def _resolve_method(pattern: str, message: str) -> str:
     return method_map.get(pattern, "execute")
 
 
+# noqa: ARG001
 def classify_task(
     message: str,
-    context: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    _context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Classify a task into a thinking pattern and recommended method.
 
     Args:
@@ -223,7 +222,7 @@ def classify_task(
     return result
 
 
-def format_injection(result: Dict[str, Any]) -> str:
+def format_injection(result: dict[str, Any]) -> str:
     """Format the classification result for prompt injection."""
     if result.get("skip"):
         return ""
@@ -236,7 +235,4 @@ def format_injection(result: Dict[str, Any]) -> str:
     if not method or confidence < 0.5:
         return ""
 
-    return (
-        f"\n[thinking_method: {method}]"
-        f"\n  └ pattern: {pattern} | method: {method_cn} | confidence: {confidence:.1f}"
-    )
+    return f"\n[thinking_method: {method}]\n  └ pattern: {pattern} | method: {method_cn} | confidence: {confidence:.1f}"

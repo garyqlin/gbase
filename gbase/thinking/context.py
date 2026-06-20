@@ -10,20 +10,18 @@ Features:
   - Problem mapping: multi-dimensional problem characterization
 """
 
-from typing import Any, Dict, List, Optional, Set, Tuple
-import json
+import ast
 import os
 import re
-import ast
 from collections import defaultdict
-
+from typing import Any
 
 # ──────────────────────────────────────────────
 # Context scanning
 # ──────────────────────────────────────────────
 
 
-def context_scan(task: str) -> Dict[str, Any]:
+def context_scan(task: str) -> dict[str, Any]:
     """Scan a task description and produce a structured problem representation.
 
     When directory paths are detected in the task, automatically performs
@@ -77,7 +75,7 @@ def context_scan(task: str) -> Dict[str, Any]:
     return result
 
 
-def _extract_entities_v2(text: str) -> List[str]:
+def _extract_entities_v2(text: str) -> list[str]:
     """Extract entities from task text: paths, ports, tech keywords."""
     entities = set()
 
@@ -108,16 +106,14 @@ def _extract_entities_v2(text: str) -> List[str]:
         entities.add(f"port:{port}")
 
     # Technology keywords
-    tech_keywords = re.findall(
-        r"(?:RAG|FTS5|SQLite|API|DB|config|docker|git|ssh|port|lsof|PID)", text
-    )
+    tech_keywords = re.findall(r"(?:RAG|FTS5|SQLite|API|DB|config|docker|git|ssh|port|lsof|PID)", text)
     for kw in tech_keywords:
         entities.add(f"tech:{kw}")
 
     return sorted(entities)
 
 
-def _extract_directory_paths(text: str) -> List[str]:
+def _extract_directory_paths(text: str) -> list[str]:
     """Extract directory paths from task text."""
     paths = re.findall(r"(?:~|/[\w\-]+)[^\s,;)\"']*", text)
     valid_dirs = []
@@ -133,7 +129,7 @@ def _extract_directory_paths(text: str) -> List[str]:
     return valid_dirs
 
 
-def _scan_directory(root: str, max_files: int = 200) -> Dict[str, Any]:
+def _scan_directory(root: str, max_files: int = 200) -> dict[str, Any]:
     """Recursively scan a directory, return real file structure.
 
     Args:
@@ -154,18 +150,25 @@ def _scan_directory(root: str, max_files: int = 200) -> Dict[str, Any]:
         return {}
 
     files = []
-    file_types: Dict[str, int] = defaultdict(int)
+    file_types: dict[str, int] = defaultdict(int)
     max_depth = 0
     entry_candidates = []
 
     try:
         for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = [d for d in dirnames
-                           if not d.startswith(".")
-                           and d not in (
-                               "__pycache__", "node_modules",
-                               ".git", ".venv", "venv",
-                           )]
+            dirnames[:] = [
+                d
+                for d in dirnames
+                if not d.startswith(".")
+                and d
+                not in (
+                    "__pycache__",
+                    "node_modules",
+                    ".git",
+                    ".venv",
+                    "venv",
+                )
+            ]
 
             rel_dir = os.path.relpath(dirpath, root)
             current_depth = 0 if rel_dir == "." else rel_dir.count(os.sep) + 1
@@ -187,17 +190,27 @@ def _scan_directory(root: str, max_files: int = 200) -> Dict[str, Any]:
                 rel_path = os.path.relpath(fpath, root)
                 file_types[ext] += 1
 
-                files.append({
-                    "path": fpath,
-                    "rel_path": rel_path,
-                    "size": fsize,
-                    "type": ext,
-                })
+                files.append(
+                    {
+                        "path": fpath,
+                        "rel_path": rel_path,
+                        "size": fsize,
+                        "type": ext,
+                    }
+                )
 
-                if fname in (
-                    "main.py", "app.py", "server.py",
-                    "index.html", "index.js", "cli.py",
-                ) and current_depth <= 1:
+                if (
+                    fname
+                    in (
+                        "main.py",
+                        "app.py",
+                        "server.py",
+                        "index.html",
+                        "index.js",
+                        "cli.py",
+                    )
+                    and current_depth <= 1
+                ):
                     entry_candidates.append(rel_path)
 
             if len(files) >= max_files:
@@ -223,7 +236,7 @@ def _scan_directory(root: str, max_files: int = 200) -> Dict[str, Any]:
 # ──────────────────────────────────────────────
 
 
-def dependency_walk(root_path: str, depth: int = 3) -> Dict[str, Any]:
+def dependency_walk(root_path: str, depth: int = 3) -> dict[str, Any]:
     """Walk file dependency chain.
 
     Scans .py files recursively, builds an import graph,
@@ -257,7 +270,7 @@ def dependency_walk(root_path: str, depth: int = 3) -> Dict[str, Any]:
     return _walk_file_deps(root_path, depth)
 
 
-def _walk_directory_deps(dir_path: str, depth: int) -> Dict[str, Any]:
+def _walk_directory_deps(dir_path: str, _depth: int) -> dict[str, Any]:
     """Scan all .py files in a directory for imports."""
     py_files = []
     for dirpath, dirnames, filenames in os.walk(dir_path):
@@ -311,7 +324,7 @@ def _walk_directory_deps(dir_path: str, depth: int) -> Dict[str, Any]:
     }
 
 
-def _walk_file_deps(file_path: str, depth: int) -> Dict[str, Any]:
+def _walk_file_deps(file_path: str, depth: int) -> dict[str, Any]:
     """Analyze a single .py file's dependencies."""
     imports, missing = _parse_imports(file_path)
     chain = [file_path]
@@ -320,7 +333,7 @@ def _walk_file_deps(file_path: str, depth: int) -> Dict[str, Any]:
 
     if depth > 1:
         for imp in imports:
-            if imp.startswith("lib.") or imp.startswith("tools.") or imp.startswith("core."):
+            if imp.startswith(("lib.", "tools.", "core.")):
                 imp_path = _resolve_import_path(file_path, imp)
                 if imp_path and os.path.exists(imp_path) and imp_path not in chain:
                     chain.append(imp_path)
@@ -337,13 +350,13 @@ def _walk_file_deps(file_path: str, depth: int) -> Dict[str, Any]:
     }
 
 
-def _parse_imports(file_path: str) -> Tuple[Set[str], Set[str]]:
+def _parse_imports(file_path: str) -> tuple[set[str], set[str]]:
     """Parse .py file imports using AST."""
-    imports: Set[str] = set()
-    missing: Set[str] = set()
+    imports: set[str] = set()
+    missing: set[str] = set()
 
     try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
             content = f.read()
     except Exception:
         return imports, missing
@@ -358,18 +371,50 @@ def _parse_imports(file_path: str) -> Tuple[Set[str], Set[str]]:
             for alias in node.names:
                 if not alias.name.startswith("include"):
                     imports.add(alias.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom):
-            if node.module and not node.module.startswith("."):
-                imports.add(node.module.split(".")[0])
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.module.startswith("."):
+            imports.add(node.module.split(".")[0])
 
     stdlib = {
-        "os", "sys", "json", "re", "time", "math", "random", "datetime",
-        "typing", "collections", "pathlib", "functools", "itertools",
-        "subprocess", "shutil", "tempfile", "io", "hashlib", "uuid",
-        "asyncio", "threading", "multiprocessing", "pickle", "sqlite3",
-        "logging", "argparse", "configparser", "copy", "inspect",
-        "abc", "enum", "base64", "textwrap", "string", "struct",
-        "http", "urllib", "socket", "email", "importlib",
+        "os",
+        "sys",
+        "json",
+        "re",
+        "time",
+        "math",
+        "random",
+        "datetime",
+        "typing",
+        "collections",
+        "pathlib",
+        "functools",
+        "itertools",
+        "subprocess",
+        "shutil",
+        "tempfile",
+        "io",
+        "hashlib",
+        "uuid",
+        "asyncio",
+        "threading",
+        "multiprocessing",
+        "pickle",
+        "sqlite3",
+        "logging",
+        "argparse",
+        "configparser",
+        "copy",
+        "inspect",
+        "abc",
+        "enum",
+        "base64",
+        "textwrap",
+        "string",
+        "struct",
+        "http",
+        "urllib",
+        "socket",
+        "email",
+        "importlib",
     }
 
     for imp in imports:
@@ -381,7 +426,7 @@ def _parse_imports(file_path: str) -> Tuple[Set[str], Set[str]]:
     return imports, missing
 
 
-def _resolve_import_path(file_path: str, module: str) -> Optional[str]:
+def _resolve_import_path(file_path: str, module: str) -> str | None:
     """Resolve a module import to a local file path."""
     dir_path = os.path.dirname(os.path.abspath(file_path))
     parts = module.split(".")
@@ -400,7 +445,7 @@ def _resolve_import_path(file_path: str, module: str) -> Optional[str]:
     return None
 
 
-def _detect_circular_imports(graph: List[Dict[str, str]]) -> List[List[str]]:
+def _detect_circular_imports(graph: list[dict[str, str]]) -> list[list[str]]:
     """Detect circular imports using DFS."""
     adj = defaultdict(list)
     for edge in graph:
@@ -436,7 +481,7 @@ def _detect_circular_imports(graph: List[Dict[str, str]]) -> List[List[str]]:
 # ──────────────────────────────────────────────
 
 
-def _extract_actions(text: str) -> List[str]:
+def _extract_actions(text: str) -> list[str]:
     """Extract actions from task text."""
     actions = []
     action_patterns = [
@@ -451,13 +496,12 @@ def _extract_actions(text: str) -> List[str]:
         (r"[遷迁移複复制]", "migrate"),
     ]
     for pattern, action_type in action_patterns:
-        if re.search(pattern, text):
-            if action_type not in actions:
-                actions.append(action_type)
+        if re.search(pattern, text) and action_type not in actions:
+            actions.append(action_type)
     return actions
 
 
-def _extract_constraints(text: str) -> List[str]:
+def _extract_constraints(text: str) -> list[str]:
     """Extract constraints from task text."""
     constraints = []
     constraint_patterns = [
@@ -473,11 +517,11 @@ def _extract_constraints(text: str) -> List[str]:
     return constraints
 
 
-def _infer_dependencies(task: str, entities: List[str]) -> List[str]:
+def _infer_dependencies(_task: str, entities: list[str]) -> list[str]:
     """Infer dependencies from task context."""
     dependencies = set()
     for entity in entities:
-        if entity.startswith("file:") or entity.startswith("dir:"):
+        if entity.startswith(("file:", "dir:")):
             path = entity.split(":", 1)[1]
             if os.path.exists(path):
                 dependencies.add(f"file_exists:{path}")
@@ -489,7 +533,7 @@ def _infer_dependencies(task: str, entities: List[str]) -> List[str]:
     return sorted(dependencies)
 
 
-def _identify_risks(task: str, entities: List[str], actions: List[str]) -> List[str]:
+def _identify_risks(_task: str, entities: list[str], actions: list[str]) -> list[str]:
     """Identify risk zones."""
     risks = []
     if any(e.startswith("port:") for e in entities):
@@ -503,17 +547,17 @@ def _identify_risks(task: str, entities: List[str], actions: List[str]) -> List[
     return risks
 
 
-def _identify_known_unknowns(task: str, entities: List[str]) -> List[str]:
+def _identify_known_unknowns(_task: str, entities: list[str]) -> list[str]:
     """Identify information gaps."""
     unknowns = []
-    if not any(e.startswith("file:") or e.startswith("dir:") for e in entities):
+    if not any(e.startswith(("file:", "dir:")) for e in entities):
         unknowns.append("No file paths specified — need to confirm target")
     if not any(e.startswith("port:") for e in entities):
         unknowns.append("No ports mentioned — confirm if network services are involved")
     return unknowns
 
 
-def _recommend_approach(task: str, actions: List[str], entities: List[str]) -> str:
+def _recommend_approach(_task: str, actions: list[str], _entities: list[str]) -> str:
     """Recommend execution approach based on task characteristics."""
     if not actions:
         return "Insufficient information. Please provide more detail."
@@ -526,7 +570,10 @@ def _recommend_approach(task: str, actions: List[str], entities: List[str]) -> s
             "3. Verify: test each finding",
         ]
     if "repair" in actions or "modify" in actions:
-        approach_parts += ["1. Backup original files", "2. Small, incremental changes with verification after each step"]
+        approach_parts += [
+            "1. Backup original files",
+            "2. Small, incremental changes with verification after each step",
+        ]
     if "debug" in actions:
         approach_parts += ["1. Confirm scope of problem", "2. Trace up the dependency chain"]
     if "create" in actions:
@@ -542,7 +589,7 @@ def _recommend_approach(task: str, actions: List[str], entities: List[str]) -> s
 # ──────────────────────────────────────────────
 
 
-def problem_mapping(task: str) -> Dict[str, Any]:
+def problem_mapping(task: str) -> dict[str, Any]:
     """Map a problem onto multiple dimensions for richer representation.
 
     Args:
@@ -567,8 +614,11 @@ def problem_mapping(task: str) -> Dict[str, Any]:
     complexity_hints = len(re.findall(r"因為|所以|但是|如果|當|除非|because|therefore|if|when|unless", task))
     complexity = "complex" if complexity_hints > 5 else "medium" if complexity_hints >= 2 else "simple"
 
-    risk_count = sum(1 for kw in ["delete", "remove", "kill", "restart", "rm", "overwrite", "刪除", "修改", "重啟"]
-                     if kw in task_lower)
+    risk_count = sum(
+        1
+        for kw in ["delete", "remove", "kill", "restart", "rm", "overwrite", "刪除", "修改", "重啟"]
+        if kw in task_lower
+    )
     risk_level = "high" if risk_count >= 3 else "medium" if risk_count >= 1 else "low"
 
     time_keywords = {
@@ -584,7 +634,7 @@ def problem_mapping(task: str) -> Dict[str, Any]:
     perspectives = []
     if entities:
         perspectives.append(f"Technical: involves {', '.join(entities[:3])}")
-    if any(e.startswith("file:") or e.startswith("dir:") for e in entities):
+    if any(e.startswith(("file:", "dir:")) for e in entities):
         perspectives.append("Operations: ensure backup and rollback plan")
     perspectives.append("Maintenance: prefer lower-dependency solutions")
 

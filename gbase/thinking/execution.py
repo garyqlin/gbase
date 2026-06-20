@@ -7,19 +7,21 @@ makes it *do something verifiable* — run code, check facts, validate configs.
 Core philosophy: trust but verify, through execution.
 """
 
-from typing import Any, Dict, List, Optional, Union, Callable
 import ast
+import contextlib
 import json
 import os
 import subprocess
 import tempfile
 import traceback
+from collections.abc import Callable
+from typing import Any
 
 
 def _detect_verification_type(task: str, result: str) -> str:
     """Auto-detect the best verification strategy."""
     task_lower = task.lower()
-    result_lower = result.lower()
+    result.lower()
 
     if any(kw in task_lower for kw in ["code", "function", "bug", "error", "syntax"]):
         if "```" in result or "def " in result or "class " in result:
@@ -38,10 +40,10 @@ def _detect_verification_type(task: str, result: str) -> str:
 def verify_result(
     task: str,
     result: str,
-    verification_type: Optional[str] = None,
+    verification_type: str | None = None,
     timeout: int = 30,
-    code_runner: Optional[Callable] = None,
-) -> Dict[str, Any]:
+    code_runner: Callable | None = None,
+) -> dict[str, Any]:
     """Verify the result of a task.
 
     Args:
@@ -98,8 +100,8 @@ def verify_result(
 # Code verification
 # ──────────────────────────────────────────────
 
-def _verify_code(task: str, result: str, timeout: int,
-                 code_runner: Optional[Callable] = None) -> Dict[str, Any]:
+
+def _verify_code(_task: str, result: str, timeout: int, code_runner: Callable | None = None) -> dict[str, Any]:
     """Extract code blocks, check syntax, optionally run."""
     import re
 
@@ -119,9 +121,9 @@ def _verify_code(task: str, result: str, timeout: int,
         # Syntax check
         try:
             ast.parse(code)
-            evidence_parts.append(f"Block {i+1}: syntax OK")
+            evidence_parts.append(f"Block {i + 1}: syntax OK")
         except SyntaxError as e:
-            issues.append(f"Block {i+1}: syntax error — {e}")
+            issues.append(f"Block {i + 1}: syntax error — {e}")
             all_passed = False
             continue
 
@@ -129,23 +131,23 @@ def _verify_code(task: str, result: str, timeout: int,
         if code_runner:
             try:
                 result_text = code_runner(code, timeout)
-                evidence_parts.append(f"Block {i+1}: ran OK — {result_text[:200]}")
+                evidence_parts.append(f"Block {i + 1}: ran OK — {result_text[:200]}")
             except Exception as e:
-                issues.append(f"Block {i+1}: runtime error — {e}")
+                issues.append(f"Block {i + 1}: runtime error — {e}")
                 all_passed = False
         elif _is_runnable(code):
             try:
                 stdout, stderr, ret = _run_python(code, timeout)
                 if ret == 0:
-                    evidence_parts.append(f"Block {i+1}: ran OK — {stdout[:200]}")
+                    evidence_parts.append(f"Block {i + 1}: ran OK — {stdout[:200]}")
                 else:
-                    issues.append(f"Block {i+1}: exit {ret} — {stderr[:200]}")
+                    issues.append(f"Block {i + 1}: exit {ret} — {stderr[:200]}")
                     all_passed = False
             except subprocess.TimeoutExpired:
-                issues.append(f"Block {i+1}: timed out after {timeout}s")
+                issues.append(f"Block {i + 1}: timed out after {timeout}s")
                 all_passed = False
             except Exception as e:
-                issues.append(f"Block {i+1}: execution failed — {e}")
+                issues.append(f"Block {i + 1}: execution failed — {e}")
                 all_passed = False
 
     return {
@@ -173,9 +175,7 @@ def _is_runnable(code: str) -> bool:
 
 def _run_python(code: str, timeout: int = 30) -> tuple:
     """Run Python code in a subprocess and return (stdout, stderr, retcode)."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", delete=False, encoding="utf-8"
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
         f.write(code)
         tmp_path = f.name
 
@@ -188,17 +188,16 @@ def _run_python(code: str, timeout: int = 30) -> tuple:
         )
         return result.stdout, result.stderr, result.returncode
     finally:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
 
 
 # ──────────────────────────────────────────────
 # Fact check
 # ──────────────────────────────────────────────
 
-def _verify_fact(task: str, result: str, timeout: int) -> Dict[str, Any]:
+
+def _verify_fact(_task: str, result: str, _timeout: int) -> dict[str, Any]:
     """Simple fact verification: extract numbers/claims and flag."""
     import re
 
@@ -239,7 +238,8 @@ def _verify_fact(task: str, result: str, timeout: int) -> Dict[str, Any]:
 # Logic review
 # ──────────────────────────────────────────────
 
-def _verify_logic(task: str, result: str, timeout: int) -> Dict[str, Any]:
+
+def _verify_logic(_task: str, result: str, _timeout: int) -> dict[str, Any]:
     """Check for logical consistency, contradictions, and soundness."""
     import re
 
@@ -258,9 +258,8 @@ def _verify_logic(task: str, result: str, timeout: int) -> Dict[str, Any]:
     for a, b in antithetical_pairs:
         has_a = bool(re.search(a, result, re.IGNORECASE))
         has_b = bool(re.search(b, result, re.IGNORECASE))
-        if has_a and has_b:
-            if re.search(f"{a}.*{b}|{b}.*{a}", result, re.IGNORECASE):
-                evidence_parts.append(f"Contains both '{a}' and '{b}' — verify no contradiction")
+        if has_a and has_b and re.search(f"{a}.*{b}|{b}.*{a}", result, re.IGNORECASE):
+            evidence_parts.append(f"Contains both '{a}' and '{b}' — verify no contradiction")
 
     # Check for fallback patterns
     fallback_patterns = [
@@ -288,7 +287,8 @@ def _verify_logic(task: str, result: str, timeout: int) -> Dict[str, Any]:
 # Config check
 # ──────────────────────────────────────────────
 
-def _verify_config(task: str, result: str, timeout: int) -> Dict[str, Any]:
+
+def _verify_config(_task: str, result: str, _timeout: int) -> dict[str, Any]:
     """Check configuration validity: JSON/YAML parse, port ranges, env vars."""
     import re
 
@@ -300,9 +300,9 @@ def _verify_config(task: str, result: str, timeout: int) -> Dict[str, Any]:
     for i, block in enumerate(json_blocks):
         try:
             json.loads(block)
-            evidence_parts.append(f"JSON block {i+1}: valid")
+            evidence_parts.append(f"JSON block {i + 1}: valid")
         except json.JSONDecodeError as e:
-            issues.append(f"JSON block {i+1}: invalid — {e}")
+            issues.append(f"JSON block {i + 1}: invalid — {e}")
 
     # Port range validation
     ports = re.findall(r"(?:port|端口)[:\s]*(\d+)", result, re.IGNORECASE)

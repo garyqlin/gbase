@@ -17,6 +17,8 @@ import time
 
 from openai import AsyncOpenAI
 
+# ── Thinking Lever (v0.6.0) ──
+from gbase.thinking.middleware import enrich_with_thinking, reflect_on_reply
 from tools.search import search_web
 
 from . import toolkit
@@ -24,9 +26,6 @@ from .experience import ExperienceEngine
 from .mirror import Mirror
 from .session import JsonlSessionManager
 from .tracer import close_trace, get_failure_analysis, init_trace, record_tool_call
-
-# ── Thinking Lever (v0.6.0) ──
-from gbase.thinking.middleware import enrich_with_thinking, reflect_on_reply, process_pipeline
 
 # ── GMem Integration Hooks ──
 # GMem is GBase's native memory system, implemented by upgrading mirror/toolkit/experience modules
@@ -733,9 +732,11 @@ class Kernel:
         try:
             enriched, self._thinking_meta = enrich_with_thinking(user_message)
             user_message = enriched  # 替换原消息为富化版本
-            logger.info("Thinking Lever: L0+L1 done — pattern=%s, method=%s",
-                       self._thinking_meta.get("classification", {}).get("pattern"),
-                       self._thinking_meta.get("classification", {}).get("method"))
+            logger.info(
+                "Thinking Lever: L0+L1 done — pattern=%s, method=%s",
+                self._thinking_meta.get("classification", {}).get("pattern"),
+                self._thinking_meta.get("classification", {}).get("method"),
+            )
         except Exception as _think_err:
             logger.warning("Thinking Lever pre_process failed (non-blocking): %s", _think_err)
             self._thinking_meta = {}
@@ -825,8 +826,9 @@ class Kernel:
                     # 精修版本可用
                     logger.info("Thinking Lever L4: reply refined")
                 else:
-                    logger.info("Thinking Lever L4: quality OK — %s",
-                               reflection.get("original_check", {}).get("comments", ""))
+                    logger.info(
+                        "Thinking Lever L4: quality OK — %s", reflection.get("original_check", {}).get("comments", "")
+                    )
             except Exception as _ref_err:
                 logger.warning("Thinking Lever L4 failed (non-blocking): %s", _ref_err)
                 self._last_reflection = {}

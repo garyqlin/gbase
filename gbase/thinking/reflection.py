@@ -8,7 +8,7 @@ This is a pure-rule base implementation. For production use, wrap it
 with a model call for deeper reflection.
 """
 
-from typing import Dict, List, Optional, Callable
+from collections.abc import Callable
 
 
 class ReflectionLever:
@@ -20,16 +20,16 @@ class ReflectionLever:
                     If None, only rule-based checks apply.
     """
 
-    def __init__(self, model_call: Optional[Callable] = None):
+    def __init__(self, model_call: Callable | None = None):
         self.model_call = model_call
         self.max_rounds = 3
 
     def refine(
         self,
         draft: str,
-        criteria: Optional[List[str]] = None,
+        criteria: list[str] | None = None,
         max_rounds: int = 3,
-    ) -> Dict:
+    ) -> dict:
         """Iteratively refine a draft answer.
 
         Args:
@@ -55,11 +55,13 @@ class ReflectionLever:
 
             revised = self._revise(current_answer, feedback)
 
-            history.append({
-                "round": round_num,
-                "answer": revised,
-                "feedback": feedback.get("comments", ""),
-            })
+            history.append(
+                {
+                    "round": round_num,
+                    "answer": revised,
+                    "feedback": feedback.get("comments", ""),
+                }
+            )
             current_answer = revised
 
         return {
@@ -68,7 +70,7 @@ class ReflectionLever:
             "history": history,
         }
 
-    def _reflect(self, answer: str, criteria: List[str]) -> Dict:
+    def _reflect(self, answer: str, criteria: list[str]) -> dict:
         """Self-check: evaluate answer quality against criteria.
 
         Returns:
@@ -79,11 +81,21 @@ class ReflectionLever:
         if len(answer) < 50:
             issues.append("Answer too short, may lack detail")
 
-        if not any(kw in answer for kw in [
-            "first", "second", "finally",
-            "1.", "2.", "3.",
-            "首先", "其次", "然后", "最后",
-        ]):
+        if not any(
+            kw in answer
+            for kw in [
+                "first",
+                "second",
+                "finally",
+                "1.",
+                "2.",
+                "3.",
+                "首先",
+                "其次",
+                "然后",
+                "最后",
+            ]
+        ):
             issues.append("Lacks structured presentation")
 
         for criterion in criteria:
@@ -108,7 +120,7 @@ class ReflectionLever:
             "issues": issues,
         }
 
-    def _revise(self, answer: str, feedback: Dict) -> str:
+    def _revise(self, answer: str, feedback: dict) -> str:
         """Revise based on feedback. Uses model_call if available."""
         if self.model_call:
             prompt = (
@@ -137,8 +149,8 @@ class ReflectionLever:
     def self_check(
         self,
         answer: str,
-        criteria: Optional[List[str]] = None,
-    ) -> Dict:
+        criteria: list[str] | None = None,
+    ) -> dict:
         """Single-pass self-check (no iteration).
 
         Args:

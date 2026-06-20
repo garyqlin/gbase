@@ -8,9 +8,6 @@ Usage:
 """
 
 import argparse
-import asyncio
-import os
-import sys
 from pathlib import Path
 
 
@@ -114,9 +111,7 @@ def main():
         prog="gbase",
         description="GBase — The Agent That Outgrows Its Creator",
     )
-    parser.add_argument(
-        "--version", action="store_true", help="Show version and exit"
-    )
+    parser.add_argument("--version", action="store_true", help="Show version and exit")
 
     sub = parser.add_subparsers(dest="command", help="Available commands")
 

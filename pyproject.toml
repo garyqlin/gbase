@@ -72,6 +72,7 @@ ignore = [
 "tools/security_watch.py" = ["SIM105"]
 "tools/xlsx_gen.py" = ["F821"]
 "examples/*.py" = ["N999", "W293"]
+"gbase/cli.py" = ["ARG001"]
 
 [tool.ruff.format]
 quote-style = "double"

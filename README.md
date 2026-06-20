@@ -58,23 +58,22 @@ This is not a library you call. This is the engine your agent calls home.
 
 ## 🚀 Quick Start
 
-### Prerequisites
-
-- Python 3.9+
-- An OpenAI-compatible API endpoint (OpenAI, DeepSeek, etc.)
-
-### Setup
+### Quick install (pip)
 
 ```bash
-# 1. Clone
+pip install gbase
+gbase init
+# Edit .env with your API key
+gbase --version
+```
+
+### Full framework (clone)
+
+```bash
 git clone https://github.com/garyqlin/gbase.git
 cd gbase
-
-# 2. Configure
 cp .env.example .env
-# Edit .env — set your OPENAI_API_KEY
-
-# 3. Run
+# Edit .env — set your API key
 pip install -r requirements.txt
 python3 main.py cli
 ```

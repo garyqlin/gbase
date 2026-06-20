@@ -6,6 +6,15 @@
 
 Same day three bot accounts dumped star farming accusations across our repo, we shipped the Thinking Module into the kernel. No arguments, no delays.
 
+### 🚀 Added
+- **`gbase` CLI** — `gbase init`, `gbase chat`, `gbase serve`, `gbase --version`. Works after `pip install gbase`. Entry point registered in pyproject.toml.
+- **`docs/` directory** — 5 pages: getting started, installation, core concepts, CLI reference, API reference stub
+- **`gbase/__init__.py` version** — `__version__ = "0.6.1"`
+
+### 📝 Changed
+- **README Quick Start** — pip install path added as primary option (clone kept as full framework path)
+- **examples/01_hello_gbase.py** — replaced "clone-only" instructions with pip-first + clone alternative. Removed "GBase is not a pip library" comment
+
 ### 🐛 Fixed
 - Import error in thinking/__init__.py (`verify_code` → `verify_result` symbol mismatch)
 - 27 lint errors in `gbase/thinking/` (ARG001, PIE810, SIM102, F841, etc.) — CI now green across all three jobs

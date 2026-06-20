@@ -1,12 +1,14 @@
 """Hello GBase — your first agent in 10 lines.
 
 Steps:
-    1. Clone: git clone https://github.com/garyqlin/gbase.git && cd gbase
-    2. Configure: cp .env.example .env && edit .env with your API key
-    3. Run:    python3 examples/01_hello_gbase.py
+    1. Install: pip install gbase
+    2. Init:    gbase init
+    3. Edit .env with your API key
+    4. Run:     python3 examples/01_hello_gbase.py
 
-GBase is not a pip library — it's a complete agent framework.
-You run it directly from the clone directory.
+Or clone the repo for the full framework experience:
+    git clone https://github.com/garyqlin/gbase.git
+    cd gbase && python3 examples/01_hello_gbase.py
 """
 
 import os

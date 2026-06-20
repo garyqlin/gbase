@@ -25,6 +25,9 @@ dependencies = [
     "reportlab>=4.0",
 ]
 
+[project.scripts]
+gbase = "gbase.cli:main"
+
 [project.optional-dependencies]
 server = ["uvicorn>=0.34.0"]
 

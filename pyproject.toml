@@ -1,6 +1,6 @@
 [project]
 name = "gbase"
-version = "0.5.2"
+version = "0.6.0"
 description = "Universal AI Agent framework with identity separation, tool auto-registration, and multi-agent orchestration"
 readme = "README.md"
 requires-python = ">=3.11"

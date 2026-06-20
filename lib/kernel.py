@@ -25,6 +25,9 @@ from .mirror import Mirror
 from .session import JsonlSessionManager
 from .tracer import close_trace, get_failure_analysis, init_trace, record_tool_call
 
+# ── Thinking Lever (v0.6.0) ──
+from gbase.thinking.middleware import enrich_with_thinking, reflect_on_reply, process_pipeline
+
 # ── GMem Integration Hooks ──
 # GMem is GBase's native memory system, implemented by upgrading mirror/toolkit/experience modules
 # 不依赖外部服务，不引入新依赖
@@ -283,6 +286,10 @@ class Kernel:
         # RSI Dual-Knob: task type tracking
         self._current_task_type = "discuss"
         self._task_type_streak = 0
+        # ── Thinking Lever (v0.6.0) ──
+        self._thinking_meta = {}
+        self._last_reflection = {}
+        self._thinking_lever_enabled = True
         # Triple-Layer Filter: current user message for intent matching
         self._tool_call_history: dict[tuple, int] = {}  # 门控⑦ 重复调用收敛
         self._current_user_message = ""
@@ -712,7 +719,6 @@ class Kernel:
             else:
                 # New type detected — reset streak, start counting new
                 self._task_type_streak = 0
-                self._current_task_type = detected
 
         # ═══ 实验特性已裁剪（2026-05-27）═══
         # 砍掉了：Experiment #1 OOD评估、#3 立场分类、#4 信任检测
@@ -722,6 +728,17 @@ class Kernel:
         # ── 1. Skill 匹配Injected（Hermes 双通道方案） ──
         # system prompt 已有 skill 索引，这里清空旧预Injected逻辑，
         # 改为 LLM 自行决定是否用 read_file 加载完整 SKILL.md
+
+        # ── Thinking Lever: L0 + L1 (预处理器) ──
+        try:
+            enriched, self._thinking_meta = enrich_with_thinking(user_message)
+            user_message = enriched  # 替换原消息为富化版本
+            logger.info("Thinking Lever: L0+L1 done — pattern=%s, method=%s",
+                       self._thinking_meta.get("classification", {}).get("pattern"),
+                       self._thinking_meta.get("classification", {}).get("method"))
+        except Exception as _think_err:
+            logger.warning("Thinking Lever pre_process failed (non-blocking): %s", _think_err)
+            self._thinking_meta = {}
 
         _timings.append(("pre_process", time.time()))
 
@@ -798,6 +815,21 @@ class Kernel:
             except TimeoutError:
                 timeout_happened = True  # noqa: F841
                 reply = f"[系统] 任务因Timeout中断（{max_seconds}秒限制）"
+
+        # ── L4: 后置反思 ──
+        if reply and not timeout_happened:
+            try:
+                reflection = reflect_on_reply(reply)
+                self._last_reflection = reflection
+                if reflection.get("refined"):
+                    # 精修版本可用
+                    logger.info("Thinking Lever L4: reply refined")
+                else:
+                    logger.info("Thinking Lever L4: quality OK — %s",
+                               reflection.get("original_check", {}).get("comments", ""))
+            except Exception as _ref_err:
+                logger.warning("Thinking Lever L4 failed (non-blocking): %s", _ref_err)
+                self._last_reflection = {}
                 logger.warning("kernel.run Timeout（%d秒），已截断回复", max_seconds)
         else:
             reply = await _loop_coro

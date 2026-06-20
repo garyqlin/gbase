@@ -2,8 +2,13 @@
 
 ## [0.6.1] — 2026-06-20
 
+### 🛡️ They attacked us. We shipped.
+
+Same day three bot accounts dumped star farming accusations across our repo, we shipped the Thinking Module into the kernel. No arguments, no delays.
+
 ### 🐛 Fixed
-- Import error in thinking/__init__.py:  →  (symbol mismatch)
+- Import error in thinking/__init__.py (`verify_code` → `verify_result` symbol mismatch)
+- 27 lint errors in `gbase/thinking/` (ARG001, PIE810, SIM102, F841, etc.) — CI now green across all three jobs
 
 
 ## [0.6.0] — 2026-06-20

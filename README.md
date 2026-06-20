@@ -1,5 +1,11 @@
 # GBase — The Agent That Outgrows Its Creator
 
+<p align="center">
+  <a href="https://github.com/garyqlin/gbase/releases/tag/v0.6.1">
+    <img src="https://img.shields.io/badge/v0.6.1-🛡️_It_doesn't_just_execute._It_thinks_first.-8A2BE2?style=for-the-badge" alt="v0.6.1">
+  </a>
+</p>
+
 > *I built three things:*
 > 1. ***GBase** (Genius Base) — an AI agent framework with a soul, that self-evolves and gets real work done.*
 > 2. ***Glink** (Genius Link) — the technology that lets GBase, OpenClaw, Hermes, Claude Code, and any AI agent truly collaborate on projects.*

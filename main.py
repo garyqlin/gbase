@@ -832,16 +832,16 @@ async def feishu_mode(identity_name: str = "default", port: int = 8420, data_dir
 
     @app.post("/hammer/audit")
     async def hammer_audit(request: Request):
-        """重锤专线。只有重锤(8431)才接受此路由。"""
+        """Hammer route. Only hammer identity can access this endpoint."""
         if "hammer" not in str(identity_name).lower():
-            return {"error": f"此路由专为重锤设计，当前Identity: {identity_name}"}
+            return {"error": f"This route is for hammer identity only. Current: {identity_name}"}
         return await audit_handler(request)
 
     @app.post("/ink/evaluate")
     async def ink_evaluate(request: Request):
-        """绘墨专线。只有绘墨(8432)才接受此路由。"""
+        """Ink route. Only ink identity can access this endpoint."""
         if "ink" not in str(identity_name).lower():
-            return {"error": f"此路由专为绘墨设计，当前Identity: {identity_name}"}
+            return {"error": f"This route is for ink identity only. Current: {identity_name}"}
         return await audit_handler(request)
 
     logger.info("Feishu模式Startup在 0.0.0.0:%d", port)
@@ -941,13 +941,13 @@ def main():
             "hammer": {
                 "identity": os.path.join(os.path.dirname(__file__), "opprime-core-v2/identities/hammer/"),
                 "port": 8431,
-                "name": "重锤",
+                "name": "Hammer",
                 "data_dir": "data/arms/hammer/",
             },
             "ink": {
                 "identity": os.path.join(os.path.dirname(__file__), "opprime-core-v2/identities/ink/"),
                 "port": 8432,
-                "name": "绘墨",
+                "name": "Ink",
                 "data_dir": "data/arms/ink/",
             },
             "bumblebee": {
@@ -965,7 +965,7 @@ def main():
             "forge": {
                 "identity": os.path.join(os.path.dirname(__file__), "opprime-core-v2/identities/forge/"),
                 "port": 8436,
-                "name": "代码臂",
+                "name": "CodeArm",
                 "data_dir": "data/arms/forge/",
                 "skills_dir": "skills-forge",
             },
@@ -985,7 +985,7 @@ def main():
         prompt_path = identity_dir / "system_prompt.txt"
         if not prompt_path.exists():
             with open(prompt_path, "w") as f:
-                f.write(_DEFAULT_ARM_PROMPTS.get(arm_name, "你是扎古的Armor助手。"))
+                f.write(_DEFAULT_ARM_PROMPTS.get(arm_name, "You are an Arm agent."))
 
         os.environ["IDENTITY"] = f"arms/{arm_name}"
         os.environ["OPPRIME_EXP_FILE"] = str(data_dir / "experience.jsonl")
@@ -993,15 +993,15 @@ def main():
             os.environ["OPPRIME_SKILLS_DIR"] = cfg["skills_dir"]
 
         # ── 按身份分配模型 ──
-        # 绘墨(ink)用 MiniMax M3（编程绘图强），其他战甲用阿里云百炼 qwen3.7-plus
+        # ink uses MiniMax M3 (strong at programming/graphics), others use qwen3.7-plus
         if arm_name == "ink":
             os.environ["OPPRIME_MODEL"] = "minimax"
-            logger.info("Armor %s → 模型: MiniMax-M3 (绘墨专属)", arm_name)
+            logger.info("Armor %s → Model: MiniMax-M3 (ink-specific)", arm_name)
         else:
             # 移除可能存在的 MiniMax 覆盖，走阿里云百炼默认
             if os.environ.get("OPPRIME_MODEL", "") == "minimax":
                 del os.environ["OPPRIME_MODEL"]
-            logger.info("Armor %s → 模型: 阿里云百炼 qwen3.7-plus (默认)", arm_name)
+            logger.info("Armor %s → Model: qwen3.7-plus (default)", arm_name)
 
         # ── 注入Armor角色守卫 ──
         set_global("arm_role", arm_name)
@@ -1038,15 +1038,15 @@ def main():
 
 _DEFAULT_ARM_PROMPTS = {
     "forge": """# Identity
-你是「代码臂(Forge)」— 扎古的代码艺术Armor，专门用最强的代码大模型处理编程任务。
+You are CodeArm (Forge) — the code artisan Arm，专门用最强的代码大模型处理编程任务。
 
 ## 角色定位
-- 你是扎古的**代码艺术家**，不是代码工人
+- You are the **code artist**, not a code worker
 - 你的底层模型是 ark-code-latest（火山代码专用模型）
-- 重锤是写代码的，你是**雕代码的**——追求极致
-- 扎古/重锤搞不定的代码难题，转交给你
+- Hammer writes code, you **sculpt code** — pursue perfection
+- Code challenges that the coordinator/Hammer cannot solve, delegate to you
 - 你只做代码相关的事：写代码、重构、debug、代码审查、代码生成
-- 不做设计、不做文档、不做系统架构——那些是扎古和重锤的事
+- No design, no documentation, no architecture — those are for the coordinator and Hammer
 
 ## 代码信仰
 - **好用** = 正确 + 健壮 + 可维护 | Exception处理、Error边界、清晰的分层
@@ -1090,15 +1090,15 @@ _DEFAULT_ARM_PROMPTS = {
 ## 风格要求
 - 代码注释用中文
 - 函数和变量名用英文，精准且自描述
-- 和扎古交流用中文
+- Communicate with the coordinator in Chinese
 - 输出要干净，不需要解释每一行代码
 - 不做格式妥协：缩进统一、空行合理、import 分组
 """,
     "hammer": """# Identity
-你是「重锤」— 扎古的代码臂。
+You are Hammer — the coordinator's coding arm.
 
 ## 角色定位
-- 扎古拆方案、定架构、做审核
+- The coordinator decomposes, designs architecture, and reviews
 - 你来写代码、跑测试、补注释、做 API
 - 不需要你设计系统，需要你高质量Execute
 
@@ -1106,7 +1106,7 @@ _DEFAULT_ARM_PROMPTS = {
 - Python / TypeScript / Shell / SQL / Docker
 - read_file、write_file、exec_command
 - 写好代码后自己跑一遍，不过的不交
-- 遇到不确定的，不要猜，查 search_web 或问扎古
+- When uncertain, do not guess. Use search_web or ask the coordinator
 
 ## 质量规则
 - 不写有 bug 不跑就交的代码
@@ -1131,19 +1131,19 @@ _DEFAULT_ARM_PROMPTS = {
 然后按以下三步走: 读项目(JSON中间态)→跑测试(JSON中间态)→写报告(基于JSON数据),每步超3次Tools调用None结果就截断并记录。
 """,
     "ink": """# Identity
-你是「绘墨」— 扎古的前端+视觉臂。
+You are Ink — the coordinator's frontend + visual arm.
 
 ## 角色定位
-- 扎古定功能、画布局、审效果
+- The coordinator defines features, layouts, and reviews output
 - 你来写 HTML/CSS/JS/React/Vue 页面
 - 需要把你的页面和贴图做成好看的
-- 不需要你设计系统，需要你做出好看能用的界面
+- No system design needed. Create beautiful, usable interfaces.
 
 ## 核心能力
 - HTML / CSS / JavaScript / React / Tailwind
 - 配色、排版、动效、图标、生成 SVG
 - 响应式 + 暗色主题
-- 做完了直接打开浏览器截图给扎古看
+- After completion, open a browser and take a screenshot to show the coordinator
 
 ## 质量规则
 - 不交难看的页面

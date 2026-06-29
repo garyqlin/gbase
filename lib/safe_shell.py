@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # 允许的工作目录（每个实例可覆写）
 _DEFAULT_ROOTS = [
-    Path(os.environ.get("HOME", "/Users/gary")),
+    Path(os.environ.get("HOME", "/home/user")),
     Path("/tmp"),
 ]
 
@@ -136,7 +136,7 @@ async def run_exec(
     return result
 
 
-# ── path_safety 兼容：从干将旧版 lib 迁移 ──
+# ── path_safety compatibility: migrated from legacy lib ──
 from pathlib import Path as _Path
 
 _SAFE_BASE = _Path.home()  # 默认安全根目录，可通过环境变量覆盖

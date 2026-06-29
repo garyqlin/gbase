@@ -3,7 +3,7 @@
 opprime-core-v2/tools/commit_helper.py
 
 YF-ai-commit-gen 集成：自动生成 commit message。
-为重锤（工程臂）提供自动 commit 能力。
+为Hammer (engineering arm) 提供自动 commit 能力。
 """
 
 import asyncio
@@ -24,7 +24,7 @@ async def suggest_commit_message(
     """根据当前 git diff 生成建议的 commit message。
 
     Args:
-        project_dir: 项目目录（默认战甲工作目录）
+        project_dir: 项目目录（默认Agent工作目录）
         commit_type: 强制指定类型 feat/fix/docs/refactor/test/chore
         scope: 强制指定范围
         message: 自定义描述文本，不传则从 diff 自动推断

@@ -3,7 +3,7 @@
 opprime-core-v2/tools/mock_server.py
 
 YF-api-mock-server 集成：启动本地 Mock API 服务器。
-为一台绘墨（设计臂）提供前端 mock 能力。
+为一台Ink (design arm) 提供前端 mock 能力。
 """
 
 import asyncio

@@ -2,11 +2,11 @@
 """
 tools/qa_check.py
 
-QA质检 — 重锤(白盒) + 大黄蜂(黑盒) 双战甲测试框架。
+QA质检 — Hammer (white-box) + Bumblebee (black-box) dual-agent testing框架。
 
 工作流：
-1. 白盒（重锤）：读源码、审逻辑、查边界
-2. 黑盒（大黄蜂）：只看外部行为、API响应、不碰源码
+1. White-box (Hammer)：读源码、审逻辑、查边界
+2. Black-box (Bumblebee)：只看外部行为、API响应、不碰源码
 3. 交叉比对 → 结论
 
 用法：qa_double_check(target=<文件路径或接口URL>, check_type="white"|"black"|"both")
@@ -28,15 +28,15 @@ async def qa_double_check(
     _black_params: str = "",
     _criteria: str = "",
 ) -> dict:
-    """对目标进行双战甲质检——白盒重锤 + 黑盒大黄蜂交叉验证。
+    """对目标进行dual-agent quality check——white-box (Hammer) + black-box (Bumblebee) cross-validation。
 
-    白盒检查（重锤执行）：
+    White-box check (Hammer)：
     - 读源码/函数实现，检查逻辑正确性
     - 检查异常路径/边界条件
     - 检查类型注解/错误处理/日志
     - 检查是否符合规范
 
-    黑盒检查（大黄蜂执行）：
+    Black-box check (Bumblebee)：
     - 只访问外部API/命令行行为
     - 验证输入输出映射
     - 测试异常输入响应
@@ -51,7 +51,7 @@ async def qa_double_check(
         criteria: 质检标准描述
 
     Returns:
-        双战甲质检报告
+        dual-agent quality check报告
     """
     logger.info("QA double-check: target=%s type=%s code=%s", target, check_type, code_file)
 
@@ -123,11 +123,11 @@ async def qa_double_check(
         }
 
     if check_type in ("black", "both"):
-        # 黑盒检查要点（大黄蜂视角）
+        # Black-box check points (Bumblebee perspective)
         black_findings = []
 
         black_findings.append(
-            {"item": "API可达性", "finding": f"目标: {target[:60]}", "status": "待验证（由大黄蜂执行外部探测）"}
+            {"item": "API可达性", "finding": f"目标: {target[:60]}", "status": "TBD (Bumblebee external probe pending)"}
         )
 
         black_findings.append(
@@ -176,7 +176,7 @@ async def qa_execute_blackbox(
     api_endpoint: str,
     test_cases: list = None,
 ) -> dict:
-    """执行黑盒测试 — 大黄蜂专用。
+    """Execute black-box test — Bumblebee-specific。
 
     实际向目标接口发送请求，验证行为是否符合预期。
 
@@ -253,7 +253,7 @@ async def qa_swarm_test(
     rounds: int = 1,
     test_cases: list = None,
 ) -> dict:
-    """蜂群压力测试 — 大黄蜂专属，多只工蜂并行执行。
+    """蜂群压力测试 — Bumblebee-specific ，多只工蜂并行执行。
 
     模拟多工蜂同时向目标发起请求，检测：
     - 并发压力下的稳定性
@@ -397,7 +397,7 @@ async def qa_multi_round(
     rounds: int = 5,
     bee_count: int = 4,
 ) -> dict:
-    """多轮压力测试 — 大黄蜂专属，多轮次叠加检测退化。
+    """多轮压力测试 — Bumblebee-specific ，多轮次叠加检测退化。
 
     相同测试反复执行多轮，观察：
     - 响应时间是否随轮次增长（内存泄漏信号）

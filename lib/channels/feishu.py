@@ -874,7 +874,7 @@ class FeishuChannel:
         chat_name = event_body.get("name", "新群聊")
         logger.info("飞书机器人被拉入群聊: %s (%s)", chat_name, chat_id)
         greeting = (
-            "👋 大家好！我是 Opprime，羽非的数字分身。\n\n"
+            "👋 大家好！我是 GBase Agent。\n\n"
             "**我能做什么：**\n"
             "• 回答各种问题\n"
             "• 搜索信息、查天气\n"

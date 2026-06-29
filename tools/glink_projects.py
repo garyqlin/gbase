@@ -2,8 +2,8 @@
 """
 gbase/tools/glink_projects.py
 
-Glink 项目记忆工具 — 让战甲通过 @tool 使用 Glink 的项目引擎。
-战甲调扎古的 Glink daemon (8426)。
+Glink 项目记忆工具 — 让Agent通过 @tool 使用 Glink 的项目引擎。
+Agent调Zaku的 Glink daemon (8426)。
 """
 
 import logging

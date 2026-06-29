@@ -20,7 +20,7 @@ class NeocortexDistiller:
     """
     认知蒸馏器：从学徒日志提炼三层认知切片
 
-    distill() -> 读所有日志 -> 分析羽非反馈 -> 生成切片 -> 写库
+    distill() -> read all logs -> analyze user feedback -> generate slices -> persist
     """
 
     # 场景到任务类型的映射（关键词匹配）
@@ -91,7 +91,7 @@ class NeocortexDistiller:
         从一条学徒日志条目提取认知切片。
 
         提取策略：
-        1. 如果有 user_feedback_raw → 优先用羽非的原话推断认知类型
+        1. If user_feedback_raw present → use user's original response to infer cognition type
         2. 如果有 reflection.lesson_learned → 提取 self_reflection
         3. 如果有 alternatives_considered → 提取决策模式
         """
@@ -102,7 +102,7 @@ class NeocortexDistiller:
         scene = entry.scene.get("task_type", "")
         task_type = self._infer_task_type(scene)
 
-        # 提取羽非反馈相关
+        # Extract user feedback related
         raw_feedback = entry.user_feedback_raw
         feedback_type = entry.user_feedback_type
         if not feedback_type and raw_feedback:
@@ -123,11 +123,11 @@ class NeocortexDistiller:
         output = entry.output or {}
         user_feedback = output.get("user_feedback", "")
 
-        # ── 情况1：有羽非原始反馈 → 生成认知切片 ──
+        # ── Case 1: raw user feedback present → generate cognition slice ──
         if raw_feedback or feedback_type or user_feedback:
             ctype = self._map_feedback_to_cognition(feedback_type)
             if ctype:
-                # 信号层：从羽非反馈中提取关键词
+                # Signal layer: extract keywords from user feedback
                 source = raw_feedback or user_feedback
                 keywords = self._extract_keywords(source)
                 signal = LayerSignal(keywords=keywords, pattern=source[:40])
@@ -136,7 +136,7 @@ class NeocortexDistiller:
                 concept = LayerConcept(scene=scene, agent=agent, task_type=task_type)
 
                 # 策略层：教训
-                lesson = lesson_learned or (f"羽非纠正：{source[:60]}")
+                lesson = lesson_learned or (f"User correction: {source[:60]}")
                 strategy = LayerStrategy(lesson=lesson, applicable_agents=[agent, "general"])
 
                 slices.append(

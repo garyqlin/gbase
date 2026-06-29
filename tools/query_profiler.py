@@ -3,7 +3,7 @@
 opprime-core-v2/tools/query_profiler.py
 
 YF-query-profiler 集成：SQL 查询性能分析。
-为重锤（工程臂）+ 标准版提供数据库优化能力。
+Database optimization tool for engineering agents。
 """
 
 import asyncio

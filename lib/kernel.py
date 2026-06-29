@@ -51,8 +51,8 @@ async def _auto_note_if_deep_work(tool_count: int, reply: str, user_message: str
     - 不是简单回复（不含纯问答特征）
 
     这样做的理由：
-    - Gundam（Gundam）的任务一轮End没有自动触发 note_write
-    - 热记忆 mirror 会衰减，深度调研/设计的内容Restart后就只剩碎片
+    - Tasks do not automatically trigger note_write at end of turn
+    - Hot memory (mirror) decays; deep research/design content fragments after restart
     - L4 笔记不衰减，是唯一可靠的持久层
     - Rather than relying on LLM to actively call note_write, the system auto-catches
     - But LLM-initiated notes (with judgment) are far better, so auto is a safety net, not replacement
@@ -208,9 +208,9 @@ _FALLBACK_TOOL: dict[str, str] = {
 
 
 # ── RSI Dual-Knob: Task Intent Classification ──
-# This is a controlled experiment on Gundam (8440).
-# Changes here affect all GBase instances in opprime/, not just Gundam.
-# TODO: Ship to gbase-release after experiment validation.
+# This is a controlled experiment on a specific GBase instance.
+# Changes here affect all GBase instances sharing this configuration.
+# TODO: Make configurable per-instance.
 _TASK_TYPES = {
     "explore": ["研究", "分析", "评估", "搜索", "对比", "方案", "proposal", "survey", "调研"],
     "execute": ["Modify", "Create", "部署", "运行", "Startup", "安装", "改", "Execute", "添加", "Delete"],
@@ -388,16 +388,10 @@ class Kernel:
             "\n"
             "| Name | Port | Role | Model |\n"
             "|:----|:---:|:----|:----:|\n"
-            "| **高达** (Gundam) | 8440 | Feishu Bot, independent dev partner | deepseek-v4-flash |\n"
-            "| **波塞冬** (Poseidon) | 8428 | Feishu Bot, 24/7 dev assistant | qwen3.7-plus |\n"
-            "| **干将** (Gan Jiang) | 8429 | Casting knowledge GKM agent | deepseek-v4-flash |\n"
-            "| 🔨 **重锤** (Hammer) | 8431 | Backend/engineering/API | qwen3.7-plus |\n"
-            "| 🎨 **绘墨** (Ink) | 8432 | Frontend/UI/Image | MiniMax-M3 |\n"
-            "| 🐝 **大黄蜂** (Bumblebee) | 8434 | Research/swarm search | qwen3.7-plus |\n"
-            "| ⚡ **Laser** | 8435 | Docs + white-box guard | qwen3.7-plus |\n"
-            "| 🔥 **Forge** | 8436 | Code polish + black-box test | qwen3.7-plus |\n"
-            "| 🛠️ **Lancer CC** | 8441 | Main programming arm (Godot MCP) | GLM-5.1 |\n"
-            "| 🔍 **Lancer X** | 8442 | Code audit + precision fix | deepseek-v4-flash |\n"
+            "| Agent-A | 8401 | Feishu Bot | qwen3.7-plus |\n"
+            "| Agent-B | 8402 | Backend/engineering | qwen3.7-plus |\n"
+            "| Agent-C | 8403 | Frontend/UI | MiniMax-M3 |\n"
+            "| Agent-D | 8404 | Research/search | deepseek-v4-flash |\n"
             "\n"
             "**Rescue tools available**: `check_brother(name)`, `restart_brother(name)`, "
             "`read_brother_log(name)`, `diagnose_self()`.\n"

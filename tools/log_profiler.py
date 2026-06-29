@@ -3,7 +3,7 @@
 opprime-core-v2/tools/log_profiler.py
 
 YF-log-analyzer 集成：多源日志分析工具。
-适合大黄蜂（调研臂）+ 标准版。
+适合Bumblebee (research arm) + 标准版。
 """
 
 import asyncio

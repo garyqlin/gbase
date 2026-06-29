@@ -3,7 +3,7 @@
 opprime-core-v2/tools/security_watch.py
 
 YF-security-scanner 集成：本地安全扫描。
-所有战甲通用，特别适合大黄蜂（扫描第三方代码）+ 重锤（扫描项目代码）。
+所有Agent通用，特别适合Bumblebee（扫描第三方代码）+ Hammer（扫描项目代码）。
 """
 
 import asyncio

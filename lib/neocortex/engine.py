@@ -132,9 +132,9 @@ class CognitionEngine:
 
     def after_action(self, action: CognitionAction, user_feedback_raw: str = "", agent_name: str = ""):
         """
-        行动后处理：记录羽非对认知提醒的反馈。
+        Post-action: record user feedback on cognitive reminders.
 
-        如果有匹配的切片，根据羽非原话推断反馈类型并调整置信度。
+        If a matching slice exists, infer feedback type from user's response and adjust confidence.
         """
         if not action.matches or not user_feedback_raw:
             return
@@ -155,7 +155,7 @@ class CognitionEngine:
                 __import__("logging").getLogger(__name__).error(f"Cognition feedback failed: {e}")
 
     def _infer_feedback_type(self, text: str) -> FeedbackType | None:
-        """从羽非的反馈原话推断反馈类型"""
+        """Infer feedback type from user's original response"""
         text_lower = text.lower()
 
         if (

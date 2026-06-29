@@ -3,7 +3,7 @@
 opprime-core-v2/tools/data_seeder.py
 
 YF-data-seeder 集成：智能测试数据生成器。
-为大黄蜂（调研臂）提供填充演示数据能力。
+为Bumblebee (research arm) 提供填充演示数据能力。
 """
 
 import asyncio

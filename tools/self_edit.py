@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
 """
-self_edit.py — 波塞冬自修代码工具
+self_edit.py — Safe self-modification tool for GBase agents
 
-让波塞冬能安全地修改自己的源代码（tools/、lib/ 下的 .py 文件）。
-核心安全机制：
-  1. 改前自动备份到 ~/.gbase_rollback/
-  2. 改后自动语法检查
-  3. 回退支持（rollback_restore）
-  4. 只能改 ~/poseidon-home/ 内的文件
+Allows the agent to safely modify its own source code (tools/, lib/ .py files).
+Core security:
+  1. Auto-backup before changes to ~/.gbase_rollback/
+  2. Auto syntax check after changes
+  3. Rollback support (rollback_restore)
+  4. Restricted to agent home directory
 
 用法：
   self_edit(path="tools/exec.py", old="旧代码片段", new="新代码片段")
@@ -43,7 +43,7 @@ _ALLOWED_DIRS = [
 _LIB_DIRS = [_INSTANCE_HOME / "lib" / d for d in ["channels", "identity"]]
 _ALLOWED_DIRS.extend([d for d in _LIB_DIRS if d.exists()])
 # 额外允许的 lib 目录（共享底座的可写副本）
-_LIB_SHARED = Path("/Users/gary/opprime/lib")
+_LIB_SHARED = Path(os.environ.get("GBASE_LIB", "/opt/gbase/lib"))
 if _LIB_SHARED.exists():
     _ALLOWED_DIRS.append(_LIB_SHARED)
 
@@ -297,7 +297,7 @@ async def self_edit_rollback(path: str, version: str = "") -> dict:
 
 @tool()
 async def self_edit_restart() -> dict:
-    """重启波塞冬进程（launchd 自动拉起）
+    """Restart the agent process（launchd 自动拉起）
 
     修改 lib/ 下的代码后需要重启才能生效。
     launchd KeepAlive 配置会在进程退出后自动重新拉起。
@@ -341,7 +341,7 @@ async def self_edit_restart() -> dict:
 async def self_edit_read_source(path: str, offset: int = 0, max_chars: int = 8000) -> dict:
     """读取自己的源码文件（tools/、lib/ 下的 .py 文件）
 
-    波塞冬的 read_file 主要用于读外部文件（用户项目、文档等）。
+    The agent's read_file is used primarily for reading external files (user projects, docs, etc.).
     这个工具专门用于读自己的源码，方便定位和修复 bug。
 
     Args:

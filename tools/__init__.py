@@ -524,7 +524,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── 大黄蜂专属：情报验证工具集 ──
+    # ── Bumblebee-specific ：情报验证工具集 ──
     register_toolset(
         "verify",
         [
@@ -545,7 +545,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── QA 质检：重锤(白盒) + 大黄蜂(黑盒) 双战甲测试 ──
+    # ── QA 质检：Hammer (white-box) + Bumblebee (black-box) dual-agent testing ──
     register_toolset(
         "qa",
         [
@@ -569,7 +569,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── 蜂群测试：大黄蜂多工蜂并行压力测试 ──
+    # ── 蜂群测试：Bumblebee parallel stress testing ──
     register_toolset(
         "swarm",
         [
@@ -590,7 +590,7 @@ def _register_new_skills():
         ],
     )
 
-    # ── 蜂巢：大黄蜂的工蜂管理器 ──
+    # ── 蜂巢：Bumblebee worker manager  ──
     register_toolset(
         "beehive",
         [

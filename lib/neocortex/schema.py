@@ -93,7 +93,7 @@ class ApprenticeLogEntry:
     action: dict[str, Any] = field(default_factory=dict)
     output: dict[str, Any] = field(default_factory=dict)
     reflection: dict[str, Any] = field(default_factory=dict)
-    # 新增字段 — 记录羽非原始反馈
+    # New field — record raw user feedback
     user_feedback_raw: str = ""
     user_feedback_type: str = ""
     user_sentiment: str = ""

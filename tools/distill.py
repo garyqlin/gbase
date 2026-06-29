@@ -305,12 +305,12 @@ def _do_eval(model: str = "opprime-7b"):
 
     使用预定义的测试集评估原始模型和蒸馏模型的差异。
     测试集分成两层：
-    - 战甲专项（重锤/大黄蜂）：对应领域能力
+    - Agent-specific （Hammer/Bumblebee）：对应领域能力
     - 基础通用：纯推理/知识问答
     """
     distilled = f"{model}-distilled"
 
-    # ── 重锤专测试集（代码能力）──
+    # ── Hammer test suite（代码能力）──
     hammer_tests = [
         # 类型注解
         {
@@ -333,7 +333,7 @@ def _do_eval(model: str = "opprime-7b"):
         {"q": "解释 FastAPI 的 BackgroundTasks 和 Celery 的区别，什么时候用哪个？", "tags": ["api", "architecture"]},
     ]
 
-    # ── 大黄蜂专测试集（任务调度/自动化/质量）──
+    # ── Bumblebee test suite（任务调度/自动化/质量）──
     bumblebee_tests = [
         {
             "q": "设计一个文件变化监听任务，当目录有新文件时自动分类归档，考虑重复和错误",

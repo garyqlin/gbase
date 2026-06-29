@@ -88,6 +88,8 @@ class JsonlSessionManager:
         支持环境变量 GUNDAM_MAX_CONTEXT 自定义，默认 500 条（约 250 轮对话）。
         """
         self._adaptive_max = int(os.environ.get("GUNDAM_MAX_CONTEXT", 500))
+        # Token budget (aligned with OpenClaw mechanism): truncate when exceeded
+        self._max_context_tokens = int(os.environ.get("GUNDAM_MAX_CONTEXT_TOKENS", 48000))
 
     def get_stats(self) -> dict:
         return dict(self._stats)
@@ -240,6 +242,34 @@ class JsonlSessionManager:
         # 保留最近 max_messages 轮
         if len(messages) > max_messages:
             messages = messages[-max_messages:]
+
+        # Token budget truncation (aligned with OpenClaw): cut by estimated token count
+        budget = getattr(self, '_max_context_tokens', 48000)
+        if budget > 0 and len(messages) > 4:
+            total_est = 0
+            cutoff_index = 0
+            for i in range(len(messages) - 1, -1, -1):
+                content = str(messages[i].get("content", "") or "")
+                # Rough estimate: mixed CJK/ASCII ~ 2.5 chars per token
+                total_est += len(content) // 2
+                if total_est > budget and i > 0:
+                    cutoff_index = i
+                    break
+            if cutoff_index > 0:
+                kept = messages[cutoff_index:]
+                kept.insert(0, {
+                    "role": "system",
+                    "content": (
+                        f"[TokenBudget Truncation] Context truncated by token budget. "
+                        f"Estimated {total_est} tokens exceeded limit -> kept last {len(kept)-1} rounds. "
+                        f"Earlier conversation auto-truncated to stay within budget ({budget} tokens)."
+                    )
+                })
+                messages = kept
+                logger.info(
+                    "TokenBudget: %d est tokens, cut at msg #%d, keeping %d rounds",
+                    total_est, cutoff_index, len(kept) - 1
+                )
 
         return messages
 

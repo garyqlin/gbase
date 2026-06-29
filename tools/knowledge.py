@@ -185,7 +185,7 @@ async def search_knowledge(query: str, limit: int = 5) -> dict:
     支持全文检索（FTS5），中文会自动拆分。
 
     Args:
-        query: 搜索关键词，例如 "nginx"、"羽非"、"端口"
+        query: Search keywords, e.g. "nginx", "user", "port"
         limit: 最多返回几条（默认 5，最大 20）
     """
     storage = get_global("storage")
@@ -284,7 +284,7 @@ async def search_knowledge_batch(queries: str, limit: int = 3) -> dict:
     """批量搜索知识记忆。当你需要查找多个方向的信息时，用这个代替多次调用 search_knowledge。
 
     Args:
-        queries: 逗号分隔的搜索关键词，例如 "nginx,羽非,端口配置,家庭"
+        queries: Comma-separated search keywords, e.g. "nginx,user,port,config"
         limit: 每个关键词最多返回几条（默认 3，最大 5）
     """
     results = []

@@ -608,7 +608,7 @@ async def feishu_mode(identity_name: str = "default", port: int = 8420, data_dir
 
     @app.post("/ask")
     async def ask_direct(request: Request):
-        """直接问Armor，不经过Feishu。用于扎古 HTTP 调用的波浪协作模式。"""
+        """Direct ask to the agent, bypassing Feishu. Used for HTTP-based coordination."""
 
         raw = await request.body()
         if not raw:
@@ -750,7 +750,7 @@ async def feishu_mode(identity_name: str = "default", port: int = 8420, data_dir
         result = await rerun_step(pipeline_id, step)
         return result
 
-    # ── 大黄蜂蜂群路由 ──
+    # ── Bumblebee swarm routing ──
 
     # ── Armor协议路由（增量4） ──
 

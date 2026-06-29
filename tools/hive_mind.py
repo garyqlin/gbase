@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 """
-hive_mind.py — 大黄蜂·全能搜索子智能体
+hive_mind.py — Universal 全能搜索子智能体
 
 核心思路：
   一个 @tool，等于一个完整的搜索智能体。

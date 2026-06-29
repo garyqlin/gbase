@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 """
-honeycomb_search.py — 大黄蜂·蜂巢搜索引擎
+honeycomb_search.py — Universal 蜂巢搜索引擎
 
 三波次地毯式搜索 + 智能缺口分析 + 多维结果融合。
 核心设计：
@@ -537,7 +537,7 @@ async def _execute_wave(wave_cfg: dict, query: str, expansions: list[str] = None
 @tool()
 async def honeycomb_search(query: str, depth: str = "normal") -> dict:
     """
-    蜂巢搜索 — 大黄蜂专属地毯式搜索。
+    蜂巢搜索 — Bumblebee专属地毯式搜索。
     多维度、多波次、智能扩展，覆盖通用/中文/技术/社交/权威/长尾6个维度。
     支持深度: quick(1波)/normal(2波)/full(3波)。
     每波搜索后自动分析信息缺口，生成扩展查询补充搜索。
@@ -599,7 +599,7 @@ async def honeycomb_search(query: str, depth: str = "normal") -> dict:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="大黄蜂·蜂巢搜索引擎")
+    parser = argparse.ArgumentParser(description="Universal 蜂巢搜索引擎")
     parser.add_argument("--query", "-q", required=True, help="搜索关键词")
     parser.add_argument("--depth", "-d", default="normal", choices=["quick", "normal", "full"])
     parser.add_argument("--json", action="store_true", help="输出 JSON")

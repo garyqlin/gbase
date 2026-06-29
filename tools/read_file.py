@@ -71,7 +71,7 @@ async def read_file(
                 "error": denied_msg,
                 "path": abs_path,
                 "allowed_roots": _ALLOWED_PREFIXES,
-                "hint": "白名单由 OPPRIME_ALLOWED_ROOTS 环境变量控制。如果这个文件你需要读，请告诉主人扩展白名单。",
+                "hint": "白名单由 OPPRIME_ALLOWED_ROOTS 环境变量控制。如果这个文件你需要读，请ask the admin to expand the whitelist。",
             }
 
         # 领地检查（阻塞跨领地读取，除非走救援白名单）

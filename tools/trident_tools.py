@@ -49,7 +49,7 @@ async def _ask(agent_url: str, task: str) -> dict:
 
 # ── 使用经验：如何用好 CC 和 X ──
 #
-# 经验 1：不要把 CC 当搜索用。CC 是代码臂，给它写代码任务。
+# Lesson 1: Don't use CC for search. CC is the code arm — give it coding tasks.
 #        搜索信息直接用 anysearch_search，CC 只用来看文件和改代码。
 #
 # 经验 2：任务描述要清晰。比如：

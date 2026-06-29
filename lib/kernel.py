@@ -175,7 +175,7 @@ except ImportError:
 
     # 工具递归深度上限（2026-06-14 统一架构调整：100→30，配合收敛检测）
     MAX_TOOL_DEPTH = 30
-    # ── Circuit Breaker 已删除（2026-06-14 主人指令：不要画蛇添足） ──
+    # ── Circuit Breaker deleted (2026-06-14 admin instruction: no over-engineering) ──
 
 """单次 run() 中最多允许的Tools调用层数。"""
 

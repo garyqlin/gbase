@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 @tool()
 async def send_file(file_path: str):
-    """将本地文件发送到飞书给主人。
+    """Send local file to admin on Feishu。
 
     支持的文件类型包括：PDF 文档、Word(.docx) 文档、Excel(.xlsx) 表格、
     PPT(.pptx) 演示文稿、图片、文本文件等所有飞书支持的文件格式。
